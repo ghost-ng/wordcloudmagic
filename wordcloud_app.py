@@ -189,8 +189,7 @@ class ModernWordCloudApp:
         paned.pack(fill=BOTH, expand=TRUE)
         
         # Left panel (controls)
-        left_panel = ttk.Frame(paned, padding="10", width=500)
-        left_panel.pack_propagate(False)
+        left_panel = ttk.Frame(paned, padding="10")
         paned.add(left_panel, weight=1)
         
         # Right panel (preview) - add padding to create space from left panel
@@ -202,7 +201,7 @@ class ModernWordCloudApp:
         self.notebook.pack(fill=BOTH, expand=TRUE)
         
         # Set initial sash position (after adding both panels)
-        self.root.after(100, lambda: paned.sashpos(0, 500))  # Set left panel to 500px width
+        self.root.after(100, lambda: paned.sashpos(0, 520))  # Set left panel to 520px width
         
         # Create tabs
         self.create_input_tab()
