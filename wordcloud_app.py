@@ -245,6 +245,7 @@ class ModernWordCloudApp:
         # Word orientation and mode
         self.prefer_horizontal = tk.DoubleVar(value=0.9)
         self.rgba_mode = tk.BooleanVar(value=False)
+        self.max_words = tk.IntVar(value=200)
         
         # Color schemes with descriptions
         self.color_schemes = {
@@ -600,6 +601,34 @@ class ModernWordCloudApp:
         
         ttk.Label(orientation_frame, 
                  text="0% = All vertical, 100% = All horizontal",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Word Density
+        density_frame = ttk.LabelFrame(mask_frame, text="Word Density", padding=10)
+        density_frame.pack(fill=X, pady=(0, 10))
+        
+        # Max words slider
+        max_words_container = ttk.Frame(density_frame)
+        max_words_container.pack(fill=X)
+        
+        max_words_label_frame = ttk.Frame(max_words_container)
+        max_words_label_frame.pack(fill=X)
+        ttk.Label(max_words_label_frame, text="Maximum Words:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.max_words_label = ttk.Label(max_words_label_frame, text="200",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.max_words_label.pack(side=RIGHT)
+        
+        self.max_words_scale = ttk.Scale(max_words_container,
+                                        from_=10,
+                                        to=500,
+                                        value=200,
+                                        command=self.update_max_words,
+                                        bootstyle="primary")
+        self.max_words_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(density_frame, 
+                 text="More words = denser cloud, fewer words = cleaner look",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
@@ -1725,6 +1754,13 @@ class ModernWordCloudApp:
         self.prefer_horizontal.set(val)
         self.horizontal_label.config(text=f"{int(val * 100)}%")
     
+    def update_max_words(self, value):
+        """Update max words label and clear canvas"""
+        val = int(float(value))
+        self.max_words.set(val)
+        self.max_words_label.config(text=str(val))
+        self.clear_canvas()
+    
     def update_mode(self):
         """Update mode between RGB and RGBA"""
         if self.rgba_mode.get():
@@ -1788,7 +1824,7 @@ class ModernWordCloudApp:
                 'width': self.canvas_width.get(),
                 'height': self.canvas_height.get(),
                 'colormap': self.selected_colormap,
-                'max_words': 200,
+                'max_words': self.max_words.get(),
                 'relative_scaling': 0.5,
                 'min_font_size': 10,
                 'prefer_horizontal': self.prefer_horizontal.get()
