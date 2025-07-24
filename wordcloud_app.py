@@ -616,7 +616,7 @@ class ModernWordCloudApp:
         preset_frame = ttk.Frame(canvas_frame)
         preset_frame.pack(fill=X, pady=(10, 0))
         
-        ttk.Label(preset_frame, text="Presets:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        ttk.Label(preset_frame, text="", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
         
         presets = [
             ("Square", 800, 800),
@@ -968,13 +968,27 @@ class ModernWordCloudApp:
         preview_container = ttk.LabelFrame(parent, text="Word Cloud Preview", padding=15)
         preview_container.pack(fill=BOTH, expand=TRUE)
         
-        # Canvas for word cloud
-        canvas_frame = ttk.Frame(preview_container, bootstyle="secondary", padding=2)
-        canvas_frame.pack(fill=BOTH, expand=TRUE, pady=(0, 15))
+        # Create a centered frame for the preview with margins
+        preview_wrapper = ttk.Frame(preview_container)
+        preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=20)  # Add horizontal margins
         
-        # Fixed preview size (max 800x600 for display)
-        self.preview_max_width = 800
-        self.preview_max_height = 600
+        # Scale indicator label (initially hidden)
+        self.scale_indicator = ttk.Label(preview_wrapper, 
+                                        text="",
+                                        font=('Segoe UI', 9, 'italic'),
+                                        bootstyle="secondary")
+        self.scale_indicator.pack(pady=(0, 5))
+        
+        # Canvas for word cloud with max width constraint
+        canvas_container = ttk.Frame(preview_wrapper)
+        canvas_container.pack(expand=TRUE)  # Center it
+        
+        canvas_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
+        canvas_frame.pack(pady=(0, 15))
+        
+        # Fixed preview size (max 600x500 for display to leave room for UI)
+        self.preview_max_width = 600
+        self.preview_max_height = 500
         
         # Calculate initial display size
         display_width, display_height = self.calculate_preview_size()
@@ -982,7 +996,7 @@ class ModernWordCloudApp:
         self.figure = plt.Figure(figsize=(display_width/100, display_height/100), facecolor='white')
         self.canvas = FigureCanvasTkAgg(self.figure, master=canvas_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(fill=BOTH, expand=TRUE)
+        self.canvas_widget.pack()  # Don't expand, keep fixed size
         
         # Initial empty plot with message
         ax = self.figure.add_subplot(111)
@@ -995,14 +1009,15 @@ class ModernWordCloudApp:
         # Store reference to preview canvas frame for theme updates
         self.preview_canvas_frame = canvas_frame
         
-        # Button frame
-        button_frame = ttk.Frame(preview_container)
-        button_frame.pack(fill=X)
+        # Button frame (centered below preview)
+        button_frame = ttk.Frame(preview_wrapper)
+        button_frame.pack()
         
         # Progress bar (initially hidden)
         self.progress = ttk.Progressbar(button_frame, 
                                        mode='indeterminate',
-                                       bootstyle="success-striped")
+                                       bootstyle="success-striped",
+                                       length=300)
         
         # Generate and save buttons
         btn_container = ttk.Frame(button_frame)
@@ -1464,6 +1479,15 @@ class ModernWordCloudApp:
             # Update figure size for display
             self.figure.set_size_inches(display_width/100, display_height/100)
             
+            # Update scale indicator
+            actual_width = self.canvas_width.get()
+            actual_height = self.canvas_height.get()
+            if display_width < actual_width or display_height < actual_height:
+                reduction = 100 - int((display_width / actual_width) * 100)
+                self.scale_indicator.config(text=f"Preview reduced by {reduction}% to fit screen")
+            else:
+                self.scale_indicator.config(text="")
+            
             # Redraw canvas
             self.canvas.draw()
         except:
@@ -1633,11 +1657,12 @@ class ModernWordCloudApp:
         actual_height = self.canvas_height.get()
         if display_width < actual_width or display_height < actual_height:
             scale_percent = int((display_width / actual_width) * 100)
-            ax.text(0.02, 0.98, f"Preview: {scale_percent}% of actual size\nActual: {actual_width}×{actual_height}px", 
+            reduction = 100 - scale_percent
+            ax.text(0.02, 0.98, f"Preview reduced by {reduction}% to fit\nActual size: {actual_width}×{actual_height}px\nPreview size: {display_width}×{display_height}px", 
                    transform=ax.transAxes, 
                    fontsize=9, 
                    verticalalignment='top',
-                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+                   bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
         
         self.canvas.draw()
         
