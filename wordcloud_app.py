@@ -1192,9 +1192,11 @@ class ModernWordCloudApp:
         if color:
             hex_color = color.hex
             self.contour_color.set(hex_color)
-            # Update preview - create a colored frame
-            self.contour_color_preview.configure(style="")
-            self.contour_color_preview.configure(background=hex_color)
+            # Update preview - ttk frames don't support background, use style instead
+            style = ttk.Style()
+            style_name = f"ContourPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.contour_color_preview.configure(style=style_name)
     
     def choose_bg_color(self):
         """Open color chooser for background color"""
@@ -1204,9 +1206,11 @@ class ModernWordCloudApp:
         if color:
             hex_color = color.hex
             self.bg_color.set(hex_color)
-            # Update preview
-            self.bg_color_preview.configure(style="")
-            self.bg_color_preview.configure(background=hex_color)
+            # Update preview - ttk frames don't support background, use style instead
+            style = ttk.Style()
+            style_name = f"BgPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.bg_color_preview.configure(style=style_name)
     
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
