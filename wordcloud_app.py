@@ -587,7 +587,7 @@ class ModernWordCloudApp:
         
         self.width_scale = ttk.Scale(width_container,
                                     from_=400,
-                                    to=2000,
+                                    to=4000,
                                     value=800,
                                     command=self.update_width,
                                     bootstyle="primary")
@@ -606,7 +606,7 @@ class ModernWordCloudApp:
         
         self.height_scale = ttk.Scale(height_container,
                                      from_=300,
-                                     to=2000,
+                                     to=4000,
                                      value=600,
                                      command=self.update_height,
                                      bootstyle="primary")
@@ -760,7 +760,7 @@ class ModernWordCloudApp:
         
         self.font_size_scale = ttk.Scale(font_size_container,
                                         from_=50,
-                                        to=500,
+                                        to=2000,
                                         value=200,
                                         command=self.update_font_size,
                                         bootstyle="primary")
@@ -908,7 +908,7 @@ class ModernWordCloudApp:
         if self.lock_aspect_ratio.get():
             # Update height to maintain aspect ratio
             new_height = int(val / self.aspect_ratio)
-            new_height = max(300, min(2000, new_height))  # Clamp to valid range
+            new_height = max(300, min(4000, new_height))  # Clamp to valid range
             self.canvas_height.set(new_height)
             self.height_label.config(text=f"{new_height} px")
             self.height_scale.set(new_height)
@@ -922,7 +922,7 @@ class ModernWordCloudApp:
         if self.lock_aspect_ratio.get():
             # Update width to maintain aspect ratio
             new_width = int(val * self.aspect_ratio)
-            new_width = max(400, min(2000, new_width))  # Clamp to valid range
+            new_width = max(400, min(4000, new_width))  # Clamp to valid range
             self.canvas_width.set(new_width)
             self.width_label.config(text=f"{new_width} px")
             self.width_scale.set(new_width)
@@ -948,6 +948,21 @@ class ModernWordCloudApp:
         ratio_text = self.get_ratio_text(width, height)
         self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
         
+    def calculate_preview_size(self):
+        """Calculate preview display size maintaining aspect ratio within max bounds"""
+        actual_width = self.canvas_width.get()
+        actual_height = self.canvas_height.get()
+        
+        # Calculate scale factor to fit within preview bounds
+        scale_x = self.preview_max_width / actual_width
+        scale_y = self.preview_max_height / actual_height
+        scale = min(scale_x, scale_y, 1.0)  # Don't upscale, only downscale
+        
+        display_width = int(actual_width * scale)
+        display_height = int(actual_height * scale)
+        
+        return display_width, display_height
+    
     def create_preview_area(self, parent):
         """Create the word cloud preview area"""
         preview_container = ttk.LabelFrame(parent, text="Word Cloud Preview", padding=15)
@@ -957,11 +972,14 @@ class ModernWordCloudApp:
         canvas_frame = ttk.Frame(preview_container, bootstyle="secondary", padding=2)
         canvas_frame.pack(fill=BOTH, expand=TRUE, pady=(0, 15))
         
-        # Calculate initial figure size based on canvas settings
-        fig_width = self.canvas_width.get() / 100  # Convert to inches (100 DPI)
-        fig_height = self.canvas_height.get() / 100
+        # Fixed preview size (max 800x600 for display)
+        self.preview_max_width = 800
+        self.preview_max_height = 600
         
-        self.figure = plt.Figure(figsize=(fig_width, fig_height), facecolor='white')
+        # Calculate initial display size
+        display_width, display_height = self.calculate_preview_size()
+        
+        self.figure = plt.Figure(figsize=(display_width/100, display_height/100), facecolor='white')
         self.canvas = FigureCanvasTkAgg(self.figure, master=canvas_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill=BOTH, expand=TRUE)
@@ -1440,12 +1458,11 @@ class ModernWordCloudApp:
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
         try:
-            # Calculate new figure size
-            fig_width = self.canvas_width.get() / 100  # Convert to inches
-            fig_height = self.canvas_height.get() / 100
+            # Calculate new display size
+            display_width, display_height = self.calculate_preview_size()
             
-            # Update figure size
-            self.figure.set_size_inches(fig_width, fig_height)
+            # Update figure size for display
+            self.figure.set_size_inches(display_width/100, display_height/100)
             
             # Redraw canvas
             self.canvas.draw()
@@ -1572,43 +1589,55 @@ class ModernWordCloudApp:
     
     def _update_preview(self):
         """Update the preview canvas with generated word cloud"""
+        # Ensure preview size is updated
+        display_width, display_height = self.calculate_preview_size()
+        self.figure.set_size_inches(display_width/100, display_height/100)
+        
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         
-        # Get the word cloud as an image
+        # Get the word cloud as an image (full resolution)
         wc_image = self.wordcloud.to_image()
         
         if self.rgba_mode.get():
             # For RGBA mode, create a checkered background to show transparency
             import numpy as np
-            height, width = wc_image.size[1], wc_image.size[0]
             
-            # Create checkered pattern
+            # Create checkered pattern at display resolution
             checker_size = 20
-            checkerboard = np.zeros((height, width, 3))
-            for i in range(0, height, checker_size * 2):
-                for j in range(0, width, checker_size * 2):
+            checkerboard = np.zeros((display_height, display_width, 3))
+            for i in range(0, display_height, checker_size * 2):
+                for j in range(0, display_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.9
                     checkerboard[i+checker_size:i+2*checker_size, j+checker_size:j+2*checker_size] = 0.9
-            for i in range(checker_size, height, checker_size * 2):
-                for j in range(0, width, checker_size * 2):
+            for i in range(checker_size, display_height, checker_size * 2):
+                for j in range(0, display_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.95
-            for i in range(0, height, checker_size * 2):
-                for j in range(checker_size, width, checker_size * 2):
+            for i in range(0, display_height, checker_size * 2):
+                for j in range(checker_size, display_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.95
             
             # Show checkerboard first
-            ax.imshow(checkerboard, extent=[0, width, height, 0])
+            ax.imshow(checkerboard)
             
-            # Overlay the word cloud with alpha
-            ax.imshow(wc_image, interpolation='bilinear', extent=[0, width, height, 0])
+            # Overlay the word cloud (will be automatically scaled to fit)
+            ax.imshow(wc_image, interpolation='bilinear', alpha=1.0)
         else:
             # For RGB mode, just show the image
             ax.imshow(wc_image, interpolation='bilinear')
         
         ax.axis('off')
-        ax.set_xlim(0, wc_image.size[0])
-        ax.set_ylim(wc_image.size[1], 0)
+        
+        # Add size indicator if preview is scaled down
+        actual_width = self.canvas_width.get()
+        actual_height = self.canvas_height.get()
+        if display_width < actual_width or display_height < actual_height:
+            scale_percent = int((display_width / actual_width) * 100)
+            ax.text(0.02, 0.98, f"Preview: {scale_percent}% of actual size\nActual: {actual_width}×{actual_height}px", 
+                   transform=ax.transAxes, 
+                   fontsize=9, 
+                   verticalalignment='top',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
         
         self.canvas.draw()
         
