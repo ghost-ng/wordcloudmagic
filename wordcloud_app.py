@@ -191,7 +191,7 @@ class ModernWordCloudApp:
         # Left panel (controls)
         left_panel = ttk.Frame(paned, padding="10")
         left_panel.pack_propagate(False)
-        paned.add(left_panel, weight=1)
+        paned.add(left_panel, weight=1, minsize=450)  # Set minimum width for tabs
         
         # Right panel (preview) - add padding to create space from left panel
         right_panel = ttk.Frame(paned, padding=(20, 10, 10, 10))  # More padding on left side
@@ -200,6 +200,9 @@ class ModernWordCloudApp:
         # Create notebook for organized controls
         self.notebook = ttk.Notebook(left_panel, bootstyle="primary")
         self.notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Set initial sash position (after adding both panels)
+        self.root.after(100, lambda: paned.sashpos(0, 500))  # Set left panel to 500px width
         
         # Create tabs
         self.create_input_tab()
