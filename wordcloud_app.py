@@ -59,9 +59,6 @@ class ModernWordCloudApp:
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
         
-        # Set custom icon
-        self.set_app_icon()
-        
         # Available themes
         self.themes = [
             "cosmo", "flatly", "litera", "minty", "lumen", 
@@ -159,76 +156,6 @@ class ModernWordCloudApp:
         
         # Validate available fonts after UI creation (in a thread to avoid blocking)
         threading.Thread(target=self.validate_fonts, daemon=True).start()
-    
-    def set_app_icon(self):
-        """Create and set a colorful W icon for the application"""
-        try:
-            # Create a 64x64 icon with a colorful W
-            icon_size = 64
-            icon = Image.new('RGBA', (icon_size, icon_size), (255, 255, 255, 0))
-            draw = ImageDraw.Draw(icon)
-            
-            # Create gradient background circle
-            center = icon_size // 2
-            radius = center - 2
-            
-            # Draw circular background with gradient effect
-            for i in range(radius, 0, -1):
-                # Create rainbow gradient effect
-                ratio = (radius - i) / radius
-                angle = ratio * 360
-                
-                # Use HSV to RGB conversion for rainbow effect
-                import colorsys
-                h = angle / 360.0  # Hue
-                s = 0.9  # Saturation (high for vibrant colors)
-                v = 0.9  # Value (brightness)
-                
-                rgb = colorsys.hsv_to_rgb(h, s, v)
-                r = int(rgb[0] * 255)
-                g = int(rgb[1] * 255)
-                b = int(rgb[2] * 255)
-                
-                draw.ellipse([center - i, center - i, center + i, center + i], 
-                            fill=(r, g, b, 255))
-            
-            # Draw the W in white
-            try:
-                # Try to use a bold font
-                font = ImageFont.truetype("arial.ttf", 40)
-            except:
-                try:
-                    font = ImageFont.truetype("Arial Bold", 40)
-                except:
-                    # Fallback to default font
-                    font = ImageFont.load_default()
-            
-            # Get text size and center it
-            text = "W"
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            
-            x = (icon_size - text_width) // 2
-            y = (icon_size - text_height) // 2 - 2  # Slight adjustment for visual centering
-            
-            # Draw white W with a subtle shadow
-            draw.text((x + 2, y + 2), text, fill=(0, 0, 0, 100), font=font)  # Shadow
-            draw.text((x, y), text, fill='white', font=font)  # Main text
-            
-            # Convert to PhotoImage and set as icon
-            photo = ImageTk.PhotoImage(icon)
-            self.root.iconphoto(True, photo)
-            
-            # Keep a reference to prevent garbage collection
-            self.icon_image = photo
-            
-            # Optionally save the icon for future use
-            # icon.save("wordcloud_icon.png")
-            
-        except Exception as e:
-            # If icon creation fails, just continue without custom icon
-            print(f"Could not create custom icon: {e}")
         
     def create_ui(self):
         """Create the main UI"""
