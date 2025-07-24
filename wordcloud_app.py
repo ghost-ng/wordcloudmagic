@@ -9,6 +9,8 @@ import os
 import threading
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import numpy as np
+import platform
+import subprocess
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -21,6 +23,35 @@ from docx import Document
 from pptx import Presentation
 import re
 from io import BytesIO
+
+class FontCombobox(ttk.Combobox):
+    """Custom combobox that displays fonts in their own style"""
+    def __init__(self, master, font_dict, **kwargs):
+        self.font_dict = font_dict
+        super().__init__(master, **kwargs)
+        self.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
+        
+        # Try to configure the dropdown to show fonts in their style
+        self.bind('<<ComboboxSelected>>', self._on_select)
+        self.bind('<Configure>', self._update_font)
+        
+    def _on_select(self, event=None):
+        """Update the entry font when selection changes"""
+        self._update_font()
+        
+    def _update_font(self, event=None):
+        """Update the displayed font"""
+        try:
+            selected = self.get()
+            if selected in self.font_dict:
+                font_name = self.font_dict[selected]
+                # Try to set the font for the entry part
+                try:
+                    self.configure(font=(font_name, 11))
+                except:
+                    self.configure(font=('Segoe UI', 11))
+        except:
+            pass
 
 class ModernWordCloudApp:
     def __init__(self, root):
@@ -60,6 +91,26 @@ class ModernWordCloudApp:
         self.text_mask_bold = tk.BooleanVar(value=True)
         self.text_mask_italic = tk.BooleanVar(value=False)
         self.text_mask_words_per_line = tk.IntVar(value=1)  # Words per line for multi-line text
+        self.text_mask_font = tk.StringVar(value="Arial Black")  # Selected font
+        
+        # Available fonts for text mask
+        self.available_fonts = {
+            "Arial Black": "Arial Black",
+            "Impact": "Impact",
+            "Arial": "Arial", 
+            "Helvetica": "Helvetica",
+            "Times New Roman": "Times New Roman",
+            "Georgia": "Georgia",
+            "Verdana": "Verdana",
+            "Comic Sans MS": "Comic Sans MS",
+            "Trebuchet MS": "Trebuchet MS",
+            "Courier New": "Courier New",
+            "Calibri": "Calibri",
+            "Cambria": "Cambria",
+            "Tahoma": "Tahoma",
+            "Century Gothic": "Century Gothic",
+            "Palatino": "Palatino Linotype"
+        }
         
         # Canvas settings
         self.canvas_width = tk.IntVar(value=800)
@@ -100,6 +151,9 @@ class ModernWordCloudApp:
         }
         
         self.create_ui()
+        
+        # Validate available fonts after UI creation (in a thread to avoid blocking)
+        threading.Thread(target=self.validate_fonts, daemon=True).start()
         
     def create_ui(self):
         """Create the main UI"""
@@ -629,6 +683,21 @@ class ModernWordCloudApp:
         self.text_mask_entry.pack(fill=X, pady=(0, 10))
         self.text_mask_entry.bind('<KeyRelease>', lambda e: self.update_text_mask())
         
+        # Font selection
+        font_frame = ttk.Frame(text_input_frame)
+        font_frame.pack(fill=X, pady=(0, 10))
+        
+        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        
+        self.font_combobox = FontCombobox(font_frame,
+                                         self.available_fonts,
+                                         textvariable=self.text_mask_font,
+                                         values=list(self.available_fonts.keys()),
+                                         state="readonly",
+                                         width=25)
+        self.font_combobox.pack(side=LEFT, fill=X, expand=True)
+        self.font_combobox.bind('<<ComboboxSelected>>', lambda e: self.update_text_mask())
+        
         # Font size
         font_size_container = ttk.Frame(text_input_frame)
         font_size_container.pack(fill=X, pady=(0, 10))
@@ -1087,41 +1156,52 @@ class ModernWordCloudApp:
         img = Image.new('RGB', (width, height), 'white')
         draw = ImageDraw.Draw(img)
         
-        # Try to use a nice font, fallback to default
-        font = None
+        # Get selected font
+        selected_font = self.text_mask_font.get()
+        font_name = self.available_fonts.get(selected_font, "Arial")
+        
+        # Build font style
         font_style = []
         if self.text_mask_bold.get():
-            font_style.append("bold")
+            font_style.append("Bold")
         if self.text_mask_italic.get():
-            font_style.append("italic")
+            font_style.append("Italic")
         
-        # Try common system fonts
-        font_names = [
-            "Arial Black",
-            "Impact", 
-            "Arial",
-            "Helvetica",
-            "Calibri",
-            "Verdana"
-        ]
+        # Try to load the font with style
+        font = None
+        font_attempts = []
         
-        for font_name in font_names:
+        # First try with full style
+        if font_style:
+            font_attempts.append(f"{font_name} {' '.join(font_style)}")
+        
+        # Then try just the font name
+        font_attempts.append(font_name)
+        
+        # Then try with .ttf extension
+        font_attempts.append(f"{font_name.lower().replace(' ', '')}.ttf")
+        
+        # Try each font attempt
+        for attempt in font_attempts:
             try:
-                if font_style:
-                    font_full_name = f"{font_name} {' '.join(font_style)}"
-                    font = ImageFont.truetype(font_full_name, font_size)
-                else:
-                    font = ImageFont.truetype(font_name, font_size)
+                font = ImageFont.truetype(attempt, font_size)
                 break
             except:
                 continue
         
-        # Fallback to default font
+        # Fallback fonts
         if font is None:
-            try:
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except:
-                font = ImageFont.load_default()
+            fallback_fonts = ["arial.ttf", "Arial", "helvetica", "verdana"]
+            for fallback in fallback_fonts:
+                try:
+                    font = ImageFont.truetype(fallback, font_size)
+                    break
+                except:
+                    continue
+        
+        # Final fallback to default
+        if font is None:
+            font = ImageFont.load_default()
         
         # Handle multi-line text
         words_per_line = self.text_mask_words_per_line.get()
@@ -1436,6 +1516,192 @@ class ModernWordCloudApp:
             except Exception as e:
                 self.show_toast(f"Error saving word cloud: {str(e)}", "danger")
 
+    def get_system_fonts(self):
+        """Discover fonts available on the system"""
+        fonts = set()
+        system = platform.system()
+        
+        if system == "Windows":
+            # Windows font directories
+            font_dirs = [
+                os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts'),
+                os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Windows', 'Fonts')
+            ]
+            
+            for font_dir in font_dirs:
+                if os.path.exists(font_dir):
+                    try:
+                        for font_file in os.listdir(font_dir):
+                            if font_file.lower().endswith(('.ttf', '.otf')):
+                                # Try to extract font name from file
+                                font_path = os.path.join(font_dir, font_file)
+                                try:
+                                    # Try to load and get font name
+                                    font = ImageFont.truetype(font_path, 12)
+                                    # Use filename without extension as fallback
+                                    font_name = os.path.splitext(font_file)[0]
+                                    fonts.add(font_name)
+                                except:
+                                    pass
+                    except:
+                        pass
+            
+            # Also try to get fonts from registry (more reliable for font names)
+            try:
+                import winreg
+                reg_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as key:
+                    i = 0
+                    while True:
+                        try:
+                            name, value, _ = winreg.EnumValue(key, i)
+                            # Extract font name from registry entry
+                            font_name = name.split(' (')[0]  # Remove style info
+                            fonts.add(font_name)
+                            i += 1
+                        except WindowsError:
+                            break
+            except:
+                pass
+                
+        elif system == "Darwin":  # macOS
+            font_dirs = [
+                "/System/Library/Fonts",
+                "/Library/Fonts",
+                os.path.expanduser("~/Library/Fonts")
+            ]
+            
+            for font_dir in font_dirs:
+                if os.path.exists(font_dir):
+                    try:
+                        for font_file in os.listdir(font_dir):
+                            if font_file.lower().endswith(('.ttf', '.otf', '.ttc')):
+                                font_name = os.path.splitext(font_file)[0]
+                                fonts.add(font_name)
+                    except:
+                        pass
+                        
+        else:  # Linux
+            # Try fc-list command
+            try:
+                result = subprocess.run(['fc-list', ':family'], 
+                                      capture_output=True, 
+                                      text=True)
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if line.strip():
+                            # Extract font family name
+                            font_name = line.split(':')[0].strip()
+                            fonts.add(font_name)
+            except:
+                # Fallback to common font directories
+                font_dirs = [
+                    "/usr/share/fonts",
+                    "/usr/local/share/fonts",
+                    os.path.expanduser("~/.fonts")
+                ]
+                
+                for font_dir in font_dirs:
+                    if os.path.exists(font_dir):
+                        for root, dirs, files in os.walk(font_dir):
+                            for font_file in files:
+                                if font_file.lower().endswith(('.ttf', '.otf')):
+                                    font_name = os.path.splitext(font_file)[0]
+                                    fonts.add(font_name)
+        
+        return sorted(list(fonts))
+    
+    def validate_fonts(self):
+        """Check which fonts are actually available on the system"""
+        # Show loading message
+        self.root.after(0, lambda: self.show_message("Discovering available fonts...", "info"))
+        
+        # Get system fonts
+        system_fonts = self.get_system_fonts()
+        
+        # Create a dict of validated fonts
+        available = {}
+        
+        # First, add some guaranteed fallback fonts
+        fallback_fonts = {
+            "Arial": "Arial",
+            "Times New Roman": "Times New Roman",
+            "Courier New": "Courier New",
+            "Verdana": "Verdana"
+        }
+        
+        # Test common fonts that should work
+        common_fonts = {
+            "Arial": ["Arial", "arial", "arial.ttf"],
+            "Arial Black": ["Arial Black", "ariblk", "ariblk.ttf"],
+            "Impact": ["Impact", "impact", "impact.ttf"],
+            "Times New Roman": ["Times New Roman", "times", "times.ttf"],
+            "Georgia": ["Georgia", "georgia", "georgia.ttf"],
+            "Verdana": ["Verdana", "verdana", "verdana.ttf"],
+            "Comic Sans MS": ["Comic Sans MS", "comic", "comic.ttf"],
+            "Trebuchet MS": ["Trebuchet MS", "trebuc", "trebuc.ttf"],
+            "Courier New": ["Courier New", "cour", "cour.ttf"],
+            "Calibri": ["Calibri", "calibri", "calibri.ttf"],
+            "Cambria": ["Cambria", "cambria", "cambria.ttc"],
+            "Tahoma": ["Tahoma", "tahoma", "tahoma.ttf"],
+            "Century Gothic": ["Century Gothic", "GOTHIC", "GOTHIC.TTF"],
+            "Palatino Linotype": ["Palatino Linotype", "pala", "pala.ttf"],
+            "Consolas": ["Consolas", "consola", "consola.ttf"],
+            "Segoe UI": ["Segoe UI", "segoeui", "segoeui.ttf"]
+        }
+        
+        # Test each common font
+        for display_name, attempts in common_fonts.items():
+            for attempt in attempts:
+                try:
+                    ImageFont.truetype(attempt, 12)
+                    available[display_name] = attempt
+                    break
+                except:
+                    continue
+        
+        # Also check system fonts that match our patterns
+        for font in system_fonts:
+            # Clean up font name for display
+            display_name = font.replace('-', ' ').replace('_', ' ')
+            
+            # Skip if we already have this font
+            if display_name in available:
+                continue
+                
+            # Try to load it
+            attempts = [
+                font,
+                f"{font}.ttf",
+                f"{font}.otf",
+                font.lower(),
+                font.replace(' ', ''),
+                font.replace(' ', '-')
+            ]
+            
+            for attempt in attempts:
+                try:
+                    ImageFont.truetype(attempt, 12)
+                    available[display_name] = attempt
+                    break
+                except:
+                    continue
+        
+        # Update available fonts
+        if available:
+            self.available_fonts = available
+            sorted_fonts = sorted(list(available.keys()))
+            self.text_mask_font.set(sorted_fonts[0])
+            
+            # Update combobox if it exists (in main thread)
+            def update_ui():
+                if hasattr(self, 'font_combobox'):
+                    self.font_combobox['values'] = sorted_fonts
+                    self.font_combobox._update_font()
+                self.show_message(f"Found {len(available)} fonts available on your system", "good")
+            
+            self.root.after(0, update_ui)
+    
     def show_toast(self, message, style="info"):
         """Show toast notification"""
         toast = ToastNotification(
