@@ -7,7 +7,7 @@ from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
 import os
 import threading
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import numpy as np
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
@@ -52,6 +52,14 @@ class ModernWordCloudApp:
             duration=3000,
             bootstyle=SUCCESS
         )
+        
+        # Text mask variables
+        self.mask_type = tk.StringVar(value="image")  # "image" or "text"
+        self.text_mask_input = tk.StringVar(value="")
+        self.text_mask_font_size = tk.IntVar(value=200)
+        self.text_mask_bold = tk.BooleanVar(value=True)
+        self.text_mask_italic = tk.BooleanVar(value=False)
+        self.text_mask_words_per_line = tk.IntVar(value=1)  # Words per line for multi-line text
         
         # Canvas settings
         self.canvas_width = tk.IntVar(value=800)
@@ -383,32 +391,36 @@ class ModernWordCloudApp:
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
-        # Mask file selection
-        mask_file_frame = ttk.LabelFrame(mask_frame, text="Mask Image", padding=10)
-        mask_file_frame.pack(fill=X, pady=(0, 10))
+        # Mask type selection
+        mask_type_frame = ttk.Frame(mask_frame)
+        mask_type_frame.pack(fill=X, pady=(0, 15))
         
-        mask_info = ttk.Frame(mask_file_frame)
-        mask_info.pack(fill=X, pady=(0, 10))
+        ttk.Label(mask_type_frame, text="Mask Type:", font=('Segoe UI', 10, 'bold')).pack(side=LEFT, padx=(0, 20))
         
-        ttk.Label(mask_info,
-                 textvariable=self.mask_path,
-                 bootstyle="secondary",
-                 font=('Segoe UI', 10)).pack(side=LEFT)
+        ttk.Radiobutton(mask_type_frame,
+                       text="Image Mask",
+                       variable=self.mask_type,
+                       value="image",
+                       command=self.on_mask_type_change,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 20))
         
-        mask_btn_frame = ttk.Frame(mask_file_frame)
-        mask_btn_frame.pack(fill=X)
+        ttk.Radiobutton(mask_type_frame,
+                       text="Text Mask",
+                       variable=self.mask_type,
+                       value="text",
+                       command=self.on_mask_type_change,
+                       bootstyle="primary").pack(side=LEFT)
         
-        ttk.Button(mask_btn_frame,
-                  text="Select Mask",
-                  command=self.select_mask,
-                  bootstyle="primary",
-                  width=15).pack(side=LEFT, padx=(0, 10))
+        # Container for mask options (will switch between image and text)
+        self.mask_options_container = ttk.Frame(mask_frame)
+        self.mask_options_container.pack(fill=X, pady=(0, 10))
         
-        ttk.Button(mask_btn_frame,
-                  text="Clear Mask",
-                  command=self.clear_mask,
-                  bootstyle="secondary",
-                  width=15).pack(side=LEFT)
+        # Create both frames but only show one
+        self.create_image_mask_frame()
+        self.create_text_mask_frame()
+        
+        # Show the default (image mask)
+        self.on_mask_type_change()
         
         # Contour options
         self.contour_frame = ttk.LabelFrame(mask_frame, text="Contour Options (requires mask)", padding=10)
@@ -568,6 +580,159 @@ class ModernWordCloudApp:
                                            anchor=CENTER,
                                            font=('Segoe UI', 10))
         self.mask_preview_label.pack(fill=BOTH, expand=TRUE)
+    
+    def create_image_mask_frame(self):
+        """Create the image mask options frame"""
+        self.image_mask_frame = ttk.Frame(self.mask_options_container)
+        
+        mask_file_frame = ttk.LabelFrame(self.image_mask_frame, text="Image File", padding=10)
+        mask_file_frame.pack(fill=X)
+        
+        mask_info = ttk.Frame(mask_file_frame)
+        mask_info.pack(fill=X, pady=(0, 10))
+        
+        self.image_mask_label = ttk.Label(mask_info,
+                                         text="No image selected",
+                                         bootstyle="secondary",
+                                         font=('Segoe UI', 10))
+        self.image_mask_label.pack(side=LEFT)
+        
+        mask_btn_frame = ttk.Frame(mask_file_frame)
+        mask_btn_frame.pack(fill=X)
+        
+        ttk.Button(mask_btn_frame,
+                  text="Select Image",
+                  command=self.select_mask,
+                  bootstyle="primary",
+                  width=15).pack(side=LEFT, padx=(0, 10))
+        
+        ttk.Button(mask_btn_frame,
+                  text="Clear",
+                  command=self.clear_mask,
+                  bootstyle="secondary",
+                  width=15).pack(side=LEFT)
+    
+    def create_text_mask_frame(self):
+        """Create the text mask options frame"""
+        self.text_mask_frame = ttk.Frame(self.mask_options_container)
+        
+        text_input_frame = ttk.LabelFrame(self.text_mask_frame, text="Text Input", padding=10)
+        text_input_frame.pack(fill=X, pady=(0, 10))
+        
+        # Text input
+        ttk.Label(text_input_frame, text="Enter text for mask:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
+        
+        self.text_mask_entry = ttk.Entry(text_input_frame,
+                                        textvariable=self.text_mask_input,
+                                        font=('Segoe UI', 12),
+                                        bootstyle="primary")
+        self.text_mask_entry.pack(fill=X, pady=(0, 10))
+        self.text_mask_entry.bind('<KeyRelease>', lambda e: self.update_text_mask())
+        
+        # Font size
+        font_size_container = ttk.Frame(text_input_frame)
+        font_size_container.pack(fill=X, pady=(0, 10))
+        
+        font_size_label_frame = ttk.Frame(font_size_container)
+        font_size_label_frame.pack(fill=X)
+        ttk.Label(font_size_label_frame, text="Font Size:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.font_size_label = ttk.Label(font_size_label_frame, text="200",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.font_size_label.pack(side=RIGHT)
+        
+        self.font_size_scale = ttk.Scale(font_size_container,
+                                        from_=50,
+                                        to=500,
+                                        value=200,
+                                        command=self.update_font_size,
+                                        bootstyle="primary")
+        self.font_size_scale.pack(fill=X, pady=(5, 0))
+        
+        # Font style options
+        style_frame = ttk.Frame(text_input_frame)
+        style_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Label(style_frame, text="Font Style:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 20))
+        
+        ttk.Checkbutton(style_frame,
+                       text="Bold",
+                       variable=self.text_mask_bold,
+                       command=self.update_text_mask,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Checkbutton(style_frame,
+                       text="Italic",
+                       variable=self.text_mask_italic,
+                       command=self.update_text_mask,
+                       bootstyle="primary").pack(side=LEFT)
+        
+        # Words per line control
+        words_frame = ttk.Frame(text_input_frame)
+        words_frame.pack(fill=X, pady=(15, 0))
+        
+        words_label_frame = ttk.Frame(words_frame)
+        words_label_frame.pack(fill=X)
+        ttk.Label(words_label_frame, text="Words per line:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.words_per_line_label = ttk.Label(words_label_frame, text="1 word",
+                                             bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.words_per_line_label.pack(side=RIGHT)
+        
+        self.words_per_line_scale = ttk.Scale(words_frame,
+                                              from_=1,
+                                              to=10,
+                                              value=1,
+                                              command=self.update_words_per_line,
+                                              bootstyle="primary")
+        self.words_per_line_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(words_frame, 
+                 text="Tip: Use multiple words per line to create wider text masks",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+    
+    def on_mask_type_change(self):
+        """Handle mask type change"""
+        # Clear the container
+        for widget in self.mask_options_container.winfo_children():
+            widget.pack_forget()
+        
+        # Show the appropriate frame
+        if self.mask_type.get() == "image":
+            self.image_mask_frame.pack(fill=X)
+            # Update label with current mask path
+            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
+                self.image_mask_label.config(text=self.mask_path.get())
+            else:
+                self.image_mask_label.config(text="No image selected")
+                if self.mask_path.get().startswith("Text:"):
+                    self.clear_mask()
+        else:
+            self.text_mask_frame.pack(fill=X)
+            # Clear image mask if switching to text
+            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
+                self.clear_mask()
+            # Update text mask if there's text
+            if self.text_mask_input.get():
+                self.update_text_mask()
+    
+    def update_font_size(self, value):
+        """Update font size label and regenerate text mask"""
+        val = int(float(value))
+        self.text_mask_font_size.set(val)
+        self.font_size_label.config(text=str(val))
+        if self.mask_type.get() == "text" and self.text_mask_input.get():
+            self.update_text_mask()
+    
+    def update_words_per_line(self, value):
+        """Update words per line label and regenerate text mask"""
+        val = int(float(value))
+        self.text_mask_words_per_line.set(val)
+        if val == 1:
+            self.words_per_line_label.config(text="1 word")
+        else:
+            self.words_per_line_label.config(text=f"{val} words")
+        if self.mask_type.get() == "text" and self.text_mask_input.get():
+            self.update_text_mask()
         
     def create_preview_area(self, parent):
         """Create the word cloud preview area"""
@@ -875,6 +1040,9 @@ class ModernWordCloudApp:
                 self.mask_image = np.array(Image.open(file_path))
                 self.mask_path.set(os.path.basename(file_path))
                 
+                # Update the image mask label
+                self.image_mask_label.config(text=os.path.basename(file_path))
+                
                 # Update mask preview
                 img = Image.open(file_path)
                 img.thumbnail((200, 200), Image.Resampling.LANCZOS)
@@ -893,8 +1061,122 @@ class ModernWordCloudApp:
         self.mask_path.set("No mask selected")
         self.mask_preview_label.config(image="", text="No mask selected")
         
+        # Clear UI elements based on mask type
+        if self.mask_type.get() == "image":
+            self.image_mask_label.config(text="No image selected")
+        else:
+            self.text_mask_input.set("")
+        
         # Disable contour options when mask is cleared
         self.update_contour_state(False)
+    
+    def create_text_mask(self, text, width=None, height=None, font_size=None):
+        """Create a mask image from text"""
+        if not text:
+            return None
+        
+        # Use canvas dimensions if not specified
+        if width is None:
+            width = self.canvas_width.get()
+        if height is None:
+            height = self.canvas_height.get()
+        if font_size is None:
+            font_size = self.text_mask_font_size.get()
+        
+        # Create white image
+        img = Image.new('RGB', (width, height), 'white')
+        draw = ImageDraw.Draw(img)
+        
+        # Try to use a nice font, fallback to default
+        font = None
+        font_style = []
+        if self.text_mask_bold.get():
+            font_style.append("bold")
+        if self.text_mask_italic.get():
+            font_style.append("italic")
+        
+        # Try common system fonts
+        font_names = [
+            "Arial Black",
+            "Impact", 
+            "Arial",
+            "Helvetica",
+            "Calibri",
+            "Verdana"
+        ]
+        
+        for font_name in font_names:
+            try:
+                if font_style:
+                    font_full_name = f"{font_name} {' '.join(font_style)}"
+                    font = ImageFont.truetype(font_full_name, font_size)
+                else:
+                    font = ImageFont.truetype(font_name, font_size)
+                break
+            except:
+                continue
+        
+        # Fallback to default font
+        if font is None:
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except:
+                font = ImageFont.load_default()
+        
+        # Handle multi-line text
+        words_per_line = self.text_mask_words_per_line.get()
+        if words_per_line > 1:
+            # Split text into words and group them
+            words = text.split()
+            lines = []
+            for i in range(0, len(words), words_per_line):
+                lines.append(' '.join(words[i:i+words_per_line]))
+            text_to_draw = '\n'.join(lines)
+        else:
+            text_to_draw = text
+        
+        # Get text boundaries for multi-line text
+        bbox = draw.textbbox((0, 0), text_to_draw, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Center the text
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        
+        # Draw text in black (multiline will be handled automatically)
+        draw.text((x, y), text_to_draw, fill='black', font=font, align='center')
+        
+        # Convert to numpy array
+        return np.array(img)
+    
+    def update_text_mask(self):
+        """Update the text mask when text or settings change"""
+        if self.mask_type.get() == "text" and self.text_mask_input.get():
+            # Generate text mask
+            self.mask_image = self.create_text_mask(self.text_mask_input.get())
+            self.mask_path.set(f"Text: {self.text_mask_input.get()}")
+            
+            # Update preview
+            self.update_mask_preview()
+            
+            # Enable contour options
+            self.update_contour_state(True)
+    
+    def update_mask_preview(self):
+        """Update the mask preview display"""
+        if self.mask_image is not None:
+            # Convert numpy array to PIL Image for preview
+            if len(self.mask_image.shape) == 3:
+                preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'RGB')
+            else:
+                preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'L')
+            
+            # Thumbnail for preview
+            preview_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(preview_img)
+            self.mask_preview_label.config(image=photo, text="")
+            self.mask_preview_label.image = photo
     
     def update_contour_width(self, value):
         """Update contour width label"""
