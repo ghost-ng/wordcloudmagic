@@ -246,6 +246,7 @@ class ModernWordCloudApp:
         self.prefer_horizontal = tk.DoubleVar(value=0.9)
         self.rgba_mode = tk.BooleanVar(value=False)
         self.max_words = tk.IntVar(value=200)
+        self.scale = tk.IntVar(value=1)
         
         # Color schemes with descriptions
         self.color_schemes = {
@@ -604,13 +605,13 @@ class ModernWordCloudApp:
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
-        # Word Density
-        density_frame = ttk.LabelFrame(mask_frame, text="Word Density", padding=10)
-        density_frame.pack(fill=X, pady=(0, 10))
+        # Other Settings
+        other_frame = ttk.LabelFrame(mask_frame, text="Other Settings", padding=10)
+        other_frame.pack(fill=X, pady=(0, 10))
         
         # Max words slider
-        max_words_container = ttk.Frame(density_frame)
-        max_words_container.pack(fill=X)
+        max_words_container = ttk.Frame(other_frame)
+        max_words_container.pack(fill=X, pady=(0, 10))
         
         max_words_label_frame = ttk.Frame(max_words_container)
         max_words_label_frame.pack(fill=X)
@@ -627,8 +628,32 @@ class ModernWordCloudApp:
                                         bootstyle="primary")
         self.max_words_scale.pack(fill=X, pady=(5, 0))
         
-        ttk.Label(density_frame, 
+        ttk.Label(max_words_container, 
                  text="More words = denser cloud, fewer words = cleaner look",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Scale slider
+        scale_container = ttk.Frame(other_frame)
+        scale_container.pack(fill=X)
+        
+        scale_label_frame = ttk.Frame(scale_container)
+        scale_label_frame.pack(fill=X)
+        ttk.Label(scale_label_frame, text="Quality Scale:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.scale_label = ttk.Label(scale_label_frame, text="1",
+                                    bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.scale_label.pack(side=RIGHT)
+        
+        self.scale_scale = ttk.Scale(scale_container,
+                                    from_=1,
+                                    to=10,
+                                    value=1,
+                                    command=self.update_scale,
+                                    bootstyle="primary")
+        self.scale_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(scale_container, 
+                 text="Higher values = better quality but slower generation",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
@@ -1761,6 +1786,13 @@ class ModernWordCloudApp:
         self.max_words_label.config(text=str(val))
         self.clear_canvas()
     
+    def update_scale(self, value):
+        """Update scale label and clear canvas"""
+        val = int(float(value))
+        self.scale.set(val)
+        self.scale_label.config(text=str(val))
+        self.clear_canvas()
+    
     def update_mode(self):
         """Update mode between RGB and RGBA"""
         if self.rgba_mode.get():
@@ -1824,7 +1856,8 @@ class ModernWordCloudApp:
                 'width': self.canvas_width.get(),
                 'height': self.canvas_height.get(),
                 'colormap': self.selected_colormap,
-                'max_words': self.max_words.get(),
+                'max_words': int(self.max_words.get()),
+                'scale': self.scale.get(),
                 'relative_scaling': 0.5,
                 'min_font_size': 10,
                 'prefer_horizontal': self.prefer_horizontal.get()
