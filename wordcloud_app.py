@@ -171,6 +171,7 @@ class ModernWordCloudApp:
         self.root = root
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
+        self.root.state('zoomed')  # Start maximized
         
         # Available themes
         self.themes = [
@@ -1060,6 +1061,9 @@ class ModernWordCloudApp:
                 self.height_scale.set(new_height)
             finally:
                 delattr(self, '_updating')
+        
+        # Clear canvas when dimensions change
+        self.clear_canvas()
     
     def update_height(self, value):
         """Update height and maintain aspect ratio if locked"""
@@ -1081,6 +1085,9 @@ class ModernWordCloudApp:
                 self.width_scale.set(new_width)
             finally:
                 delattr(self, '_updating')
+        
+        # Clear canvas when dimensions change
+        self.clear_canvas()
     
     def set_canvas_size(self, width, height):
         """Set canvas size from preset"""
@@ -1102,6 +1109,9 @@ class ModernWordCloudApp:
         # Show toast with preset info
         ratio_text = self.get_ratio_text(width, height)
         self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
+        
+        # Clear canvas when preset is selected
+        self.clear_canvas()
         
         # Clear canvas when preset is selected
         self.clear_canvas()
@@ -1646,10 +1656,9 @@ class ModernWordCloudApp:
         """Clear the canvas completely"""
         self.figure.clear()
         ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Generate a word cloud to see it here', 
-                horizontalalignment='center', verticalalignment='center',
-                transform=ax.transAxes, fontsize=14, color='gray')
+        ax.set_facecolor('white')
         ax.axis('off')
+        self.figure.patch.set_facecolor('white')
         self.canvas.draw()
         
         # Disable save button
