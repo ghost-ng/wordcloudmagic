@@ -59,9 +59,6 @@ class ModernWordCloudApp:
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
         
-        # Set custom icon
-        self.create_tkinter_style_icon()
-        
         # Available themes
         self.themes = [
             "cosmo", "flatly", "litera", "minty", "lumen", 
@@ -159,65 +156,6 @@ class ModernWordCloudApp:
         
         # Validate available fonts after UI creation (in a thread to avoid blocking)
         threading.Thread(target=self.validate_fonts, daemon=True).start()
-    
-    def create_tkinter_style_icon(self):
-        """Create a W icon in the style of the Tkinter feather"""
-        try:
-            # Create a 32x32 icon (standard icon size)
-            icon_size = 32
-            icon = Image.new('RGBA', (icon_size, icon_size), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(icon)
-            
-            # Colors inspired by Tkinter feather (red, blue, yellow)
-            # Draw W using three colored strokes to mimic feather style
-            
-            # Calculate W dimensions
-            margin = 3
-            width = icon_size - 2 * margin
-            height = icon_size - 2 * margin
-            
-            # W coordinates
-            x1 = margin
-            x2 = margin + width // 4
-            x3 = icon_size // 2
-            x4 = icon_size - margin - width // 4
-            x5 = icon_size - margin
-            
-            y1 = margin
-            y2 = icon_size - margin
-            
-            # Draw W with colored segments (thick lines)
-            line_width = 4
-            
-            # Left stroke (red-ish)
-            draw.line([(x1, y1), (x2, y2)], fill=(220, 50, 47), width=line_width)
-            
-            # Left-middle stroke (blue-ish)
-            draw.line([(x2, y2), (x3, y1 + height//3)], fill=(38, 139, 210), width=line_width)
-            
-            # Right-middle stroke (yellow/orange-ish)
-            draw.line([(x3, y1 + height//3), (x4, y2)], fill=(255, 193, 7), width=line_width)
-            
-            # Right stroke (green-ish to complete the colorful look)
-            draw.line([(x4, y2), (x5, y1)], fill=(40, 167, 69), width=line_width)
-            
-            # Add subtle outline for definition
-            # Draw complete W outline in dark gray
-            w_path = [(x1, y1), (x2, y2), (x3, y1 + height//3), 
-                     (x4, y2), (x5, y1)]
-            for i in range(len(w_path) - 1):
-                draw.line([w_path[i], w_path[i+1]], fill=(64, 64, 64), width=1)
-            
-            # Convert to PhotoImage and set as icon
-            photo = ImageTk.PhotoImage(icon)
-            self.root.iconphoto(True, photo)
-            
-            # Keep reference
-            self.icon_image = photo
-            
-        except Exception as e:
-            # Silent fallback to default icon
-            pass
         
     def create_ui(self):
         """Create the main UI"""
