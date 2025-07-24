@@ -7,8 +7,10 @@ from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
 import os
 import threading
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import numpy as np
+import platform
+import subprocess
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -21,6 +23,35 @@ from docx import Document
 from pptx import Presentation
 import re
 from io import BytesIO
+
+class FontCombobox(ttk.Combobox):
+    """Custom combobox that displays fonts in their own style"""
+    def __init__(self, master, font_dict, **kwargs):
+        self.font_dict = font_dict
+        super().__init__(master, **kwargs)
+        self.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
+        
+        # Try to configure the dropdown to show fonts in their style
+        self.bind('<<ComboboxSelected>>', self._on_select)
+        self.bind('<Configure>', self._update_font)
+        
+    def _on_select(self, event=None):
+        """Update the entry font when selection changes"""
+        self._update_font()
+        
+    def _update_font(self, event=None):
+        """Update the displayed font"""
+        try:
+            selected = self.get()
+            if selected in self.font_dict:
+                font_name = self.font_dict[selected]
+                # Try to set the font for the entry part
+                try:
+                    self.configure(font=(font_name, 11))
+                except:
+                    self.configure(font=('Segoe UI', 11))
+        except:
+            pass
 
 class ModernWordCloudApp:
     def __init__(self, root):
@@ -53,10 +84,40 @@ class ModernWordCloudApp:
             bootstyle=SUCCESS
         )
         
+        # Text mask variables
+        self.mask_type = tk.StringVar(value="image")  # "image" or "text"
+        self.text_mask_input = tk.StringVar(value="")
+        self.text_mask_font_size = tk.IntVar(value=200)
+        self.text_mask_bold = tk.BooleanVar(value=True)
+        self.text_mask_italic = tk.BooleanVar(value=False)
+        self.text_mask_words_per_line = tk.IntVar(value=1)  # Words per line for multi-line text
+        self.text_mask_font = tk.StringVar(value="Arial Black")  # Selected font
+        
+        # Available fonts for text mask
+        self.available_fonts = {
+            "Arial Black": "Arial Black",
+            "Impact": "Impact",
+            "Arial": "Arial", 
+            "Helvetica": "Helvetica",
+            "Times New Roman": "Times New Roman",
+            "Georgia": "Georgia",
+            "Verdana": "Verdana",
+            "Comic Sans MS": "Comic Sans MS",
+            "Trebuchet MS": "Trebuchet MS",
+            "Courier New": "Courier New",
+            "Calibri": "Calibri",
+            "Cambria": "Cambria",
+            "Tahoma": "Tahoma",
+            "Century Gothic": "Century Gothic",
+            "Palatino": "Palatino Linotype"
+        }
+        
         # Canvas settings
         self.canvas_width = tk.IntVar(value=800)
         self.canvas_height = tk.IntVar(value=600)
         self.bg_color = tk.StringVar(value="#FFFFFF")
+        self.lock_aspect_ratio = tk.BooleanVar(value=False)
+        self.aspect_ratio = 800 / 600  # Initial aspect ratio
         
         # Bind canvas size changes to preview update
         self.canvas_width.trace('w', self.update_preview_size)
@@ -92,6 +153,9 @@ class ModernWordCloudApp:
         }
         
         self.create_ui()
+        
+        # Validate available fonts after UI creation (in a thread to avoid blocking)
+        threading.Thread(target=self.validate_fonts, daemon=True).start()
         
     def create_ui(self):
         """Create the main UI"""
@@ -129,8 +193,8 @@ class ModernWordCloudApp:
         left_panel.pack_propagate(False)
         paned.add(left_panel, weight=1)
         
-        # Right panel (preview)
-        right_panel = ttk.Frame(paned, padding="10")
+        # Right panel (preview) - add padding to create space from left panel
+        right_panel = ttk.Frame(paned, padding=(20, 10, 10, 10))  # More padding on left side
         paned.add(right_panel, weight=2)
         
         # Create notebook for organized controls
@@ -383,32 +447,36 @@ class ModernWordCloudApp:
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
-        # Mask file selection
-        mask_file_frame = ttk.LabelFrame(mask_frame, text="Mask Image", padding=10)
-        mask_file_frame.pack(fill=X, pady=(0, 10))
+        # Mask type selection
+        mask_type_frame = ttk.Frame(mask_frame)
+        mask_type_frame.pack(fill=X, pady=(0, 15))
         
-        mask_info = ttk.Frame(mask_file_frame)
-        mask_info.pack(fill=X, pady=(0, 10))
+        ttk.Label(mask_type_frame, text="Mask Type:", font=('Segoe UI', 10, 'bold')).pack(side=LEFT, padx=(0, 20))
         
-        ttk.Label(mask_info,
-                 textvariable=self.mask_path,
-                 bootstyle="secondary",
-                 font=('Segoe UI', 10)).pack(side=LEFT)
+        ttk.Radiobutton(mask_type_frame,
+                       text="Image Mask",
+                       variable=self.mask_type,
+                       value="image",
+                       command=self.on_mask_type_change,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 20))
         
-        mask_btn_frame = ttk.Frame(mask_file_frame)
-        mask_btn_frame.pack(fill=X)
+        ttk.Radiobutton(mask_type_frame,
+                       text="Text Mask",
+                       variable=self.mask_type,
+                       value="text",
+                       command=self.on_mask_type_change,
+                       bootstyle="primary").pack(side=LEFT)
         
-        ttk.Button(mask_btn_frame,
-                  text="Select Mask",
-                  command=self.select_mask,
-                  bootstyle="primary",
-                  width=15).pack(side=LEFT, padx=(0, 10))
+        # Container for mask options (will switch between image and text)
+        self.mask_options_container = ttk.Frame(mask_frame)
+        self.mask_options_container.pack(fill=X, pady=(0, 10))
         
-        ttk.Button(mask_btn_frame,
-                  text="Clear Mask",
-                  command=self.clear_mask,
-                  bootstyle="secondary",
-                  width=15).pack(side=LEFT)
+        # Create both frames but only show one
+        self.create_image_mask_frame()
+        self.create_text_mask_frame()
+        
+        # Show the default (image mask)
+        self.on_mask_type_change()
         
         # Contour options
         self.contour_frame = ttk.LabelFrame(mask_frame, text="Contour Options (requires mask)", padding=10)
@@ -490,33 +558,80 @@ class ModernWordCloudApp:
         canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
         canvas_frame.pack(fill=X, pady=(0, 10))
         
-        # Canvas size
-        size_container = ttk.Frame(canvas_frame)
-        size_container.pack(fill=X, pady=(0, 10))
+        # Lock aspect ratio checkbox
+        ratio_frame = ttk.Frame(canvas_frame)
+        ratio_frame.pack(fill=X, pady=(0, 10))
         
-        # Width
-        width_frame = ttk.Frame(size_container)
-        width_frame.pack(side=LEFT, padx=(0, 20))
-        ttk.Label(width_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
-        ttk.Spinbox(width_frame,
-                   from_=400,
-                   to=2000,
-                   textvariable=self.canvas_width,
-                   width=10,
-                   bootstyle="primary").pack(side=LEFT, padx=(5, 0))
-        ttk.Label(width_frame, text="px", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.lock_ratio_check = ttk.Checkbutton(ratio_frame,
+                                               text="Lock aspect ratio",
+                                               variable=self.lock_aspect_ratio,
+                                               command=self.on_lock_ratio_change,
+                                               bootstyle="primary")
+        self.lock_ratio_check.pack(side=LEFT)
         
-        # Height
-        height_frame = ttk.Frame(size_container)
-        height_frame.pack(side=LEFT)
-        ttk.Label(height_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
-        ttk.Spinbox(height_frame,
-                   from_=300,
-                   to=2000,
-                   textvariable=self.canvas_height,
-                   width=10,
-                   bootstyle="primary").pack(side=LEFT, padx=(5, 0))
-        ttk.Label(height_frame, text="px", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.ratio_label = ttk.Label(ratio_frame, text="",
+                                    font=('Segoe UI', 9, 'italic'),
+                                    bootstyle="secondary")
+        self.ratio_label.pack(side=LEFT, padx=(10, 0))
+        
+        # Width slider
+        width_container = ttk.Frame(canvas_frame)
+        width_container.pack(fill=X, pady=(0, 15))
+        
+        width_label_frame = ttk.Frame(width_container)
+        width_label_frame.pack(fill=X)
+        ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.width_label = ttk.Label(width_label_frame, text="800 px",
+                                    bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.width_label.pack(side=RIGHT)
+        
+        self.width_scale = ttk.Scale(width_container,
+                                    from_=400,
+                                    to=4000,
+                                    value=800,
+                                    command=self.update_width,
+                                    bootstyle="primary")
+        self.width_scale.pack(fill=X, pady=(5, 0))
+        
+        # Height slider
+        height_container = ttk.Frame(canvas_frame)
+        height_container.pack(fill=X, pady=(0, 10))
+        
+        height_label_frame = ttk.Frame(height_container)
+        height_label_frame.pack(fill=X)
+        ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.height_label = ttk.Label(height_label_frame, text="600 px",
+                                     bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.height_label.pack(side=RIGHT)
+        
+        self.height_scale = ttk.Scale(height_container,
+                                     from_=300,
+                                     to=4000,
+                                     value=600,
+                                     command=self.update_height,
+                                     bootstyle="primary")
+        self.height_scale.pack(fill=X, pady=(5, 0))
+        
+        # Size presets
+        preset_frame = ttk.Frame(canvas_frame)
+        preset_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Label(preset_frame, text="", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        
+        presets = [
+            ("Square", 800, 800),
+            ("HD", 1920, 1080),
+            ("4:3", 800, 600),
+            ("16:9", 1280, 720),
+            ("A4", 800, 1131)
+        ]
+        
+        for name, width, height in presets:
+            ttk.Button(preset_frame,
+                      text=name,
+                      command=lambda w=width, h=height: self.set_canvas_size(w, h),
+                      bootstyle="secondary-outline",
+                      width=8).pack(side=LEFT, padx=2)
         
         # Mode selection (RGB/RGBA)
         mode_container = ttk.Frame(canvas_frame)
@@ -568,24 +683,320 @@ class ModernWordCloudApp:
                                            anchor=CENTER,
                                            font=('Segoe UI', 10))
         self.mask_preview_label.pack(fill=BOTH, expand=TRUE)
+    
+    def create_image_mask_frame(self):
+        """Create the image mask options frame"""
+        self.image_mask_frame = ttk.Frame(self.mask_options_container)
         
+        mask_file_frame = ttk.LabelFrame(self.image_mask_frame, text="Image File", padding=10)
+        mask_file_frame.pack(fill=X)
+        
+        mask_info = ttk.Frame(mask_file_frame)
+        mask_info.pack(fill=X, pady=(0, 10))
+        
+        self.image_mask_label = ttk.Label(mask_info,
+                                         text="No image selected",
+                                         bootstyle="secondary",
+                                         font=('Segoe UI', 10))
+        self.image_mask_label.pack(side=LEFT)
+        
+        mask_btn_frame = ttk.Frame(mask_file_frame)
+        mask_btn_frame.pack(fill=X)
+        
+        ttk.Button(mask_btn_frame,
+                  text="Select Image",
+                  command=self.select_mask,
+                  bootstyle="primary",
+                  width=15).pack(side=LEFT, padx=(0, 10))
+        
+        ttk.Button(mask_btn_frame,
+                  text="Clear",
+                  command=self.clear_mask,
+                  bootstyle="secondary",
+                  width=15).pack(side=LEFT)
+    
+    def create_text_mask_frame(self):
+        """Create the text mask options frame"""
+        self.text_mask_frame = ttk.Frame(self.mask_options_container)
+        
+        text_input_frame = ttk.LabelFrame(self.text_mask_frame, text="Text Input", padding=10)
+        text_input_frame.pack(fill=X, pady=(0, 10))
+        
+        # Text input
+        ttk.Label(text_input_frame, text="Enter text for mask:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
+        
+        self.text_mask_entry = ttk.Entry(text_input_frame,
+                                        textvariable=self.text_mask_input,
+                                        font=('Segoe UI', 12),
+                                        bootstyle="primary")
+        self.text_mask_entry.pack(fill=X, pady=(0, 10))
+        self.text_mask_entry.bind('<KeyRelease>', lambda e: self.update_text_mask())
+        
+        # Font selection
+        font_frame = ttk.Frame(text_input_frame)
+        font_frame.pack(fill=X, pady=(0, 10))
+        
+        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        
+        self.font_combobox = FontCombobox(font_frame,
+                                         self.available_fonts,
+                                         textvariable=self.text_mask_font,
+                                         values=list(self.available_fonts.keys()),
+                                         state="readonly",
+                                         width=25)
+        self.font_combobox.pack(side=LEFT, fill=X, expand=True)
+        self.font_combobox.bind('<<ComboboxSelected>>', lambda e: self.update_text_mask())
+        
+        # Font size
+        font_size_container = ttk.Frame(text_input_frame)
+        font_size_container.pack(fill=X, pady=(0, 10))
+        
+        font_size_label_frame = ttk.Frame(font_size_container)
+        font_size_label_frame.pack(fill=X)
+        ttk.Label(font_size_label_frame, text="Font Size:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.font_size_label = ttk.Label(font_size_label_frame, text="200",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.font_size_label.pack(side=RIGHT)
+        
+        self.font_size_scale = ttk.Scale(font_size_container,
+                                        from_=50,
+                                        to=2000,
+                                        value=200,
+                                        command=self.update_font_size,
+                                        bootstyle="primary")
+        self.font_size_scale.pack(fill=X, pady=(5, 0))
+        
+        # Font style options
+        style_frame = ttk.Frame(text_input_frame)
+        style_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Label(style_frame, text="Font Style:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 20))
+        
+        ttk.Checkbutton(style_frame,
+                       text="Bold",
+                       variable=self.text_mask_bold,
+                       command=self.update_text_mask,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Checkbutton(style_frame,
+                       text="Italic",
+                       variable=self.text_mask_italic,
+                       command=self.update_text_mask,
+                       bootstyle="primary").pack(side=LEFT)
+        
+        # Words per line control
+        words_frame = ttk.Frame(text_input_frame)
+        words_frame.pack(fill=X, pady=(15, 0))
+        
+        words_label_frame = ttk.Frame(words_frame)
+        words_label_frame.pack(fill=X)
+        ttk.Label(words_label_frame, text="Words per line:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.words_per_line_label = ttk.Label(words_label_frame, text="1 word",
+                                             bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.words_per_line_label.pack(side=RIGHT)
+        
+        self.words_per_line_scale = ttk.Scale(words_frame,
+                                              from_=1,
+                                              to=10,
+                                              value=1,
+                                              command=self.update_words_per_line,
+                                              bootstyle="primary")
+        self.words_per_line_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(words_frame, 
+                 text="Tip: Use multiple words per line to create wider text masks",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+    
+    def on_mask_type_change(self):
+        """Handle mask type change"""
+        # Clear the container
+        for widget in self.mask_options_container.winfo_children():
+            widget.pack_forget()
+        
+        # Show the appropriate frame
+        if self.mask_type.get() == "image":
+            self.image_mask_frame.pack(fill=X)
+            # Update label with current mask path
+            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
+                self.image_mask_label.config(text=self.mask_path.get())
+            else:
+                self.image_mask_label.config(text="No image selected")
+                if self.mask_path.get().startswith("Text:"):
+                    self.clear_mask()
+        else:
+            self.text_mask_frame.pack(fill=X)
+            # Clear image mask if switching to text
+            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
+                self.clear_mask()
+            # Update text mask if there's text
+            if self.text_mask_input.get():
+                self.update_text_mask()
+    
+    def update_font_size(self, value):
+        """Update font size label and regenerate text mask"""
+        val = int(float(value))
+        self.text_mask_font_size.set(val)
+        self.font_size_label.config(text=str(val))
+        if self.mask_type.get() == "text" and self.text_mask_input.get():
+            self.update_text_mask()
+    
+    def update_words_per_line(self, value):
+        """Update words per line label and regenerate text mask"""
+        val = int(float(value))
+        self.text_mask_words_per_line.set(val)
+        if val == 1:
+            self.words_per_line_label.config(text="1 word")
+        else:
+            self.words_per_line_label.config(text=f"{val} words")
+        if self.mask_type.get() == "text" and self.text_mask_input.get():
+            self.update_text_mask()
+    
+    def get_ratio_text(self, width, height):
+        """Get a readable aspect ratio text"""
+        # Calculate GCD to simplify ratio
+        from math import gcd
+        g = gcd(width, height)
+        w = width // g
+        h = height // g
+        
+        # Check for common ratios
+        common_ratios = {
+            (16, 9): "16:9",
+            (9, 16): "9:16",
+            (4, 3): "4:3",
+            (3, 4): "3:4",
+            (16, 10): "16:10",
+            (1, 1): "1:1",
+            (3, 2): "3:2",
+            (2, 3): "2:3"
+        }
+        
+        if (w, h) in common_ratios:
+            return common_ratios[(w, h)]
+        
+        # Simplify further if numbers are too large
+        while w > 20 or h > 20:
+            if w % 2 == 0 and h % 2 == 0:
+                w //= 2
+                h //= 2
+            else:
+                break
+        
+        return f"{w}:{h}"
+    
+    def on_lock_ratio_change(self):
+        """Handle lock aspect ratio checkbox change"""
+        if self.lock_aspect_ratio.get():
+            # Calculate and store current aspect ratio
+            width = self.canvas_width.get()
+            height = self.canvas_height.get()
+            if height > 0:
+                self.aspect_ratio = width / height
+                # Show ratio in simplified form
+                ratio_text = self.get_ratio_text(width, height)
+                self.ratio_label.config(text=f"({ratio_text})")
+        else:
+            self.ratio_label.config(text="")
+    
+    def update_width(self, value):
+        """Update width and maintain aspect ratio if locked"""
+        val = int(float(value))
+        self.canvas_width.set(val)
+        self.width_label.config(text=f"{val} px")
+        
+        if self.lock_aspect_ratio.get():
+            # Update height to maintain aspect ratio
+            new_height = int(val / self.aspect_ratio)
+            new_height = max(300, min(4000, new_height))  # Clamp to valid range
+            self.canvas_height.set(new_height)
+            self.height_label.config(text=f"{new_height} px")
+            self.height_scale.set(new_height)
+    
+    def update_height(self, value):
+        """Update height and maintain aspect ratio if locked"""
+        val = int(float(value))
+        self.canvas_height.set(val)
+        self.height_label.config(text=f"{val} px")
+        
+        if self.lock_aspect_ratio.get():
+            # Update width to maintain aspect ratio
+            new_width = int(val * self.aspect_ratio)
+            new_width = max(400, min(4000, new_width))  # Clamp to valid range
+            self.canvas_width.set(new_width)
+            self.width_label.config(text=f"{new_width} px")
+            self.width_scale.set(new_width)
+    
+    def set_canvas_size(self, width, height):
+        """Set canvas size from preset"""
+        # Update the aspect ratio if locked
+        if self.lock_aspect_ratio.get():
+            self.aspect_ratio = width / height
+            # Update ratio display
+            ratio_text = self.get_ratio_text(width, height)
+            self.ratio_label.config(text=f"({ratio_text})")
+        
+        # Update values and UI
+        self.canvas_width.set(width)
+        self.canvas_height.set(height)
+        self.width_label.config(text=f"{width} px")
+        self.height_label.config(text=f"{height} px")
+        self.width_scale.set(width)
+        self.height_scale.set(height)
+        
+        # Show toast with preset info
+        ratio_text = self.get_ratio_text(width, height)
+        self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
+        
+    def calculate_preview_size(self):
+        """Calculate preview display size maintaining aspect ratio within max bounds"""
+        actual_width = self.canvas_width.get()
+        actual_height = self.canvas_height.get()
+        
+        # Calculate scale factor to fit within preview bounds
+        scale_x = self.preview_max_width / actual_width
+        scale_y = self.preview_max_height / actual_height
+        scale = min(scale_x, scale_y, 1.0)  # Don't upscale, only downscale
+        
+        display_width = int(actual_width * scale)
+        display_height = int(actual_height * scale)
+        
+        return display_width, display_height
+    
     def create_preview_area(self, parent):
         """Create the word cloud preview area"""
         preview_container = ttk.LabelFrame(parent, text="Word Cloud Preview", padding=15)
         preview_container.pack(fill=BOTH, expand=TRUE)
         
-        # Canvas for word cloud
-        canvas_frame = ttk.Frame(preview_container, bootstyle="secondary", padding=2)
-        canvas_frame.pack(fill=BOTH, expand=TRUE, pady=(0, 15))
+        # Create a centered frame for the preview with margins
+        preview_wrapper = ttk.Frame(preview_container)
+        preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
-        # Calculate initial figure size based on canvas settings
-        fig_width = self.canvas_width.get() / 100  # Convert to inches (100 DPI)
-        fig_height = self.canvas_height.get() / 100
+        # Scale indicator label (initially hidden)
+        self.scale_indicator = ttk.Label(preview_wrapper, 
+                                        text="",
+                                        font=('Segoe UI', 9, 'italic'),
+                                        bootstyle="secondary")
+        self.scale_indicator.pack(pady=(0, 5))
         
-        self.figure = plt.Figure(figsize=(fig_width, fig_height), facecolor='white')
+        # Canvas for word cloud with max width constraint
+        canvas_container = ttk.Frame(preview_wrapper)
+        canvas_container.pack(expand=TRUE)  # Center it
+        
+        canvas_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
+        canvas_frame.pack(pady=(0, 15))
+        
+        # Fixed preview size (max 600x500 for display to leave room for UI)
+        self.preview_max_width = 600
+        self.preview_max_height = 500
+        
+        # Calculate initial display size
+        display_width, display_height = self.calculate_preview_size()
+        
+        self.figure = plt.Figure(figsize=(display_width/100, display_height/100), facecolor='white')
         self.canvas = FigureCanvasTkAgg(self.figure, master=canvas_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(fill=BOTH, expand=TRUE)
+        self.canvas_widget.pack()  # Don't expand, keep fixed size
         
         # Initial empty plot with message
         ax = self.figure.add_subplot(111)
@@ -598,14 +1009,15 @@ class ModernWordCloudApp:
         # Store reference to preview canvas frame for theme updates
         self.preview_canvas_frame = canvas_frame
         
-        # Button frame
-        button_frame = ttk.Frame(preview_container)
-        button_frame.pack(fill=X)
+        # Button frame (centered below preview)
+        button_frame = ttk.Frame(preview_wrapper)
+        button_frame.pack()
         
         # Progress bar (initially hidden)
         self.progress = ttk.Progressbar(button_frame, 
                                        mode='indeterminate',
-                                       bootstyle="success-striped")
+                                       bootstyle="success-striped",
+                                       length=300)
         
         # Generate and save buttons
         btn_container = ttk.Frame(button_frame)
@@ -875,6 +1287,9 @@ class ModernWordCloudApp:
                 self.mask_image = np.array(Image.open(file_path))
                 self.mask_path.set(os.path.basename(file_path))
                 
+                # Update the image mask label
+                self.image_mask_label.config(text=os.path.basename(file_path))
+                
                 # Update mask preview
                 img = Image.open(file_path)
                 img.thumbnail((200, 200), Image.Resampling.LANCZOS)
@@ -893,8 +1308,133 @@ class ModernWordCloudApp:
         self.mask_path.set("No mask selected")
         self.mask_preview_label.config(image="", text="No mask selected")
         
+        # Clear UI elements based on mask type
+        if self.mask_type.get() == "image":
+            self.image_mask_label.config(text="No image selected")
+        else:
+            self.text_mask_input.set("")
+        
         # Disable contour options when mask is cleared
         self.update_contour_state(False)
+    
+    def create_text_mask(self, text, width=None, height=None, font_size=None):
+        """Create a mask image from text"""
+        if not text:
+            return None
+        
+        # Use canvas dimensions if not specified
+        if width is None:
+            width = self.canvas_width.get()
+        if height is None:
+            height = self.canvas_height.get()
+        if font_size is None:
+            font_size = self.text_mask_font_size.get()
+        
+        # Create white image
+        img = Image.new('RGB', (width, height), 'white')
+        draw = ImageDraw.Draw(img)
+        
+        # Get selected font
+        selected_font = self.text_mask_font.get()
+        font_name = self.available_fonts.get(selected_font, "Arial")
+        
+        # Build font style
+        font_style = []
+        if self.text_mask_bold.get():
+            font_style.append("Bold")
+        if self.text_mask_italic.get():
+            font_style.append("Italic")
+        
+        # Try to load the font with style
+        font = None
+        font_attempts = []
+        
+        # First try with full style
+        if font_style:
+            font_attempts.append(f"{font_name} {' '.join(font_style)}")
+        
+        # Then try just the font name
+        font_attempts.append(font_name)
+        
+        # Then try with .ttf extension
+        font_attempts.append(f"{font_name.lower().replace(' ', '')}.ttf")
+        
+        # Try each font attempt
+        for attempt in font_attempts:
+            try:
+                font = ImageFont.truetype(attempt, font_size)
+                break
+            except:
+                continue
+        
+        # Fallback fonts
+        if font is None:
+            fallback_fonts = ["arial.ttf", "Arial", "helvetica", "verdana"]
+            for fallback in fallback_fonts:
+                try:
+                    font = ImageFont.truetype(fallback, font_size)
+                    break
+                except:
+                    continue
+        
+        # Final fallback to default
+        if font is None:
+            font = ImageFont.load_default()
+        
+        # Handle multi-line text
+        words_per_line = self.text_mask_words_per_line.get()
+        if words_per_line > 1:
+            # Split text into words and group them
+            words = text.split()
+            lines = []
+            for i in range(0, len(words), words_per_line):
+                lines.append(' '.join(words[i:i+words_per_line]))
+            text_to_draw = '\n'.join(lines)
+        else:
+            text_to_draw = text
+        
+        # Get text boundaries for multi-line text
+        bbox = draw.textbbox((0, 0), text_to_draw, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Center the text
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        
+        # Draw text in black (multiline will be handled automatically)
+        draw.text((x, y), text_to_draw, fill='black', font=font, align='center')
+        
+        # Convert to numpy array
+        return np.array(img)
+    
+    def update_text_mask(self):
+        """Update the text mask when text or settings change"""
+        if self.mask_type.get() == "text" and self.text_mask_input.get():
+            # Generate text mask
+            self.mask_image = self.create_text_mask(self.text_mask_input.get())
+            self.mask_path.set(f"Text: {self.text_mask_input.get()}")
+            
+            # Update preview
+            self.update_mask_preview()
+            
+            # Enable contour options
+            self.update_contour_state(True)
+    
+    def update_mask_preview(self):
+        """Update the mask preview display"""
+        if self.mask_image is not None:
+            # Convert numpy array to PIL Image for preview
+            if len(self.mask_image.shape) == 3:
+                preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'RGB')
+            else:
+                preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'L')
+            
+            # Thumbnail for preview
+            preview_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(preview_img)
+            self.mask_preview_label.config(image=photo, text="")
+            self.mask_preview_label.image = photo
     
     def update_contour_width(self, value):
         """Update contour width label"""
@@ -910,9 +1450,11 @@ class ModernWordCloudApp:
         if color:
             hex_color = color.hex
             self.contour_color.set(hex_color)
-            # Update preview - create a colored frame
-            self.contour_color_preview.configure(style="")
-            self.contour_color_preview.configure(background=hex_color)
+            # Update preview - ttk frames don't support background, use style instead
+            style = ttk.Style()
+            style_name = f"ContourPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.contour_color_preview.configure(style=style_name)
     
     def choose_bg_color(self):
         """Open color chooser for background color"""
@@ -922,19 +1464,29 @@ class ModernWordCloudApp:
         if color:
             hex_color = color.hex
             self.bg_color.set(hex_color)
-            # Update preview
-            self.bg_color_preview.configure(style="")
-            self.bg_color_preview.configure(background=hex_color)
+            # Update preview - ttk frames don't support background, use style instead
+            style = ttk.Style()
+            style_name = f"BgPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.bg_color_preview.configure(style=style_name)
     
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
         try:
-            # Calculate new figure size
-            fig_width = self.canvas_width.get() / 100  # Convert to inches
-            fig_height = self.canvas_height.get() / 100
+            # Calculate new display size
+            display_width, display_height = self.calculate_preview_size()
             
-            # Update figure size
-            self.figure.set_size_inches(fig_width, fig_height)
+            # Update figure size for display
+            self.figure.set_size_inches(display_width/100, display_height/100)
+            
+            # Update scale indicator
+            actual_width = self.canvas_width.get()
+            actual_height = self.canvas_height.get()
+            if display_width < actual_width or display_height < actual_height:
+                reduction = 100 - int((display_width / actual_width) * 100)
+                self.scale_indicator.config(text=f"Preview reduced by {reduction}% to fit screen")
+            else:
+                self.scale_indicator.config(text="")
             
             # Redraw canvas
             self.canvas.draw()
@@ -1061,43 +1613,56 @@ class ModernWordCloudApp:
     
     def _update_preview(self):
         """Update the preview canvas with generated word cloud"""
+        # Ensure preview size is updated
+        display_width, display_height = self.calculate_preview_size()
+        self.figure.set_size_inches(display_width/100, display_height/100)
+        
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         
-        # Get the word cloud as an image
+        # Get the word cloud as an image (full resolution)
         wc_image = self.wordcloud.to_image()
         
         if self.rgba_mode.get():
             # For RGBA mode, create a checkered background to show transparency
             import numpy as np
-            height, width = wc_image.size[1], wc_image.size[0]
             
-            # Create checkered pattern
+            # Create checkered pattern at display resolution
             checker_size = 20
-            checkerboard = np.zeros((height, width, 3))
-            for i in range(0, height, checker_size * 2):
-                for j in range(0, width, checker_size * 2):
+            checkerboard = np.zeros((display_height, display_width, 3))
+            for i in range(0, display_height, checker_size * 2):
+                for j in range(0, display_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.9
                     checkerboard[i+checker_size:i+2*checker_size, j+checker_size:j+2*checker_size] = 0.9
-            for i in range(checker_size, height, checker_size * 2):
-                for j in range(0, width, checker_size * 2):
+            for i in range(checker_size, display_height, checker_size * 2):
+                for j in range(0, display_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.95
-            for i in range(0, height, checker_size * 2):
-                for j in range(checker_size, width, checker_size * 2):
+            for i in range(0, display_height, checker_size * 2):
+                for j in range(checker_size, display_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.95
             
             # Show checkerboard first
-            ax.imshow(checkerboard, extent=[0, width, height, 0])
+            ax.imshow(checkerboard)
             
-            # Overlay the word cloud with alpha
-            ax.imshow(wc_image, interpolation='bilinear', extent=[0, width, height, 0])
+            # Overlay the word cloud (will be automatically scaled to fit)
+            ax.imshow(wc_image, interpolation='bilinear', alpha=1.0)
         else:
             # For RGB mode, just show the image
             ax.imshow(wc_image, interpolation='bilinear')
         
         ax.axis('off')
-        ax.set_xlim(0, wc_image.size[0])
-        ax.set_ylim(wc_image.size[1], 0)
+        
+        # Add size indicator if preview is scaled down
+        actual_width = self.canvas_width.get()
+        actual_height = self.canvas_height.get()
+        if display_width < actual_width or display_height < actual_height:
+            scale_percent = int((display_width / actual_width) * 100)
+            reduction = 100 - scale_percent
+            ax.text(0.02, 0.98, f"Preview reduced by {reduction}% to fit\nActual size: {actual_width}×{actual_height}px\nPreview size: {display_width}×{display_height}px", 
+                   transform=ax.transAxes, 
+                   fontsize=9, 
+                   verticalalignment='top',
+                   bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
         
         self.canvas.draw()
         
@@ -1150,6 +1715,192 @@ class ModernWordCloudApp:
             except Exception as e:
                 self.show_toast(f"Error saving word cloud: {str(e)}", "danger")
 
+    def get_system_fonts(self):
+        """Discover fonts available on the system"""
+        fonts = set()
+        system = platform.system()
+        
+        if system == "Windows":
+            # Windows font directories
+            font_dirs = [
+                os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts'),
+                os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Windows', 'Fonts')
+            ]
+            
+            for font_dir in font_dirs:
+                if os.path.exists(font_dir):
+                    try:
+                        for font_file in os.listdir(font_dir):
+                            if font_file.lower().endswith(('.ttf', '.otf')):
+                                # Try to extract font name from file
+                                font_path = os.path.join(font_dir, font_file)
+                                try:
+                                    # Try to load and get font name
+                                    font = ImageFont.truetype(font_path, 12)
+                                    # Use filename without extension as fallback
+                                    font_name = os.path.splitext(font_file)[0]
+                                    fonts.add(font_name)
+                                except:
+                                    pass
+                    except:
+                        pass
+            
+            # Also try to get fonts from registry (more reliable for font names)
+            try:
+                import winreg
+                reg_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as key:
+                    i = 0
+                    while True:
+                        try:
+                            name, value, _ = winreg.EnumValue(key, i)
+                            # Extract font name from registry entry
+                            font_name = name.split(' (')[0]  # Remove style info
+                            fonts.add(font_name)
+                            i += 1
+                        except WindowsError:
+                            break
+            except:
+                pass
+                
+        elif system == "Darwin":  # macOS
+            font_dirs = [
+                "/System/Library/Fonts",
+                "/Library/Fonts",
+                os.path.expanduser("~/Library/Fonts")
+            ]
+            
+            for font_dir in font_dirs:
+                if os.path.exists(font_dir):
+                    try:
+                        for font_file in os.listdir(font_dir):
+                            if font_file.lower().endswith(('.ttf', '.otf', '.ttc')):
+                                font_name = os.path.splitext(font_file)[0]
+                                fonts.add(font_name)
+                    except:
+                        pass
+                        
+        else:  # Linux
+            # Try fc-list command
+            try:
+                result = subprocess.run(['fc-list', ':family'], 
+                                      capture_output=True, 
+                                      text=True)
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if line.strip():
+                            # Extract font family name
+                            font_name = line.split(':')[0].strip()
+                            fonts.add(font_name)
+            except:
+                # Fallback to common font directories
+                font_dirs = [
+                    "/usr/share/fonts",
+                    "/usr/local/share/fonts",
+                    os.path.expanduser("~/.fonts")
+                ]
+                
+                for font_dir in font_dirs:
+                    if os.path.exists(font_dir):
+                        for root, dirs, files in os.walk(font_dir):
+                            for font_file in files:
+                                if font_file.lower().endswith(('.ttf', '.otf')):
+                                    font_name = os.path.splitext(font_file)[0]
+                                    fonts.add(font_name)
+        
+        return sorted(list(fonts))
+    
+    def validate_fonts(self):
+        """Check which fonts are actually available on the system"""
+        # Show loading message
+        self.root.after(0, lambda: self.show_message("Discovering available fonts...", "info"))
+        
+        # Get system fonts
+        system_fonts = self.get_system_fonts()
+        
+        # Create a dict of validated fonts
+        available = {}
+        
+        # First, add some guaranteed fallback fonts
+        fallback_fonts = {
+            "Arial": "Arial",
+            "Times New Roman": "Times New Roman",
+            "Courier New": "Courier New",
+            "Verdana": "Verdana"
+        }
+        
+        # Test common fonts that should work
+        common_fonts = {
+            "Arial": ["Arial", "arial", "arial.ttf"],
+            "Arial Black": ["Arial Black", "ariblk", "ariblk.ttf"],
+            "Impact": ["Impact", "impact", "impact.ttf"],
+            "Times New Roman": ["Times New Roman", "times", "times.ttf"],
+            "Georgia": ["Georgia", "georgia", "georgia.ttf"],
+            "Verdana": ["Verdana", "verdana", "verdana.ttf"],
+            "Comic Sans MS": ["Comic Sans MS", "comic", "comic.ttf"],
+            "Trebuchet MS": ["Trebuchet MS", "trebuc", "trebuc.ttf"],
+            "Courier New": ["Courier New", "cour", "cour.ttf"],
+            "Calibri": ["Calibri", "calibri", "calibri.ttf"],
+            "Cambria": ["Cambria", "cambria", "cambria.ttc"],
+            "Tahoma": ["Tahoma", "tahoma", "tahoma.ttf"],
+            "Century Gothic": ["Century Gothic", "GOTHIC", "GOTHIC.TTF"],
+            "Palatino Linotype": ["Palatino Linotype", "pala", "pala.ttf"],
+            "Consolas": ["Consolas", "consola", "consola.ttf"],
+            "Segoe UI": ["Segoe UI", "segoeui", "segoeui.ttf"]
+        }
+        
+        # Test each common font
+        for display_name, attempts in common_fonts.items():
+            for attempt in attempts:
+                try:
+                    ImageFont.truetype(attempt, 12)
+                    available[display_name] = attempt
+                    break
+                except:
+                    continue
+        
+        # Also check system fonts that match our patterns
+        for font in system_fonts:
+            # Clean up font name for display
+            display_name = font.replace('-', ' ').replace('_', ' ')
+            
+            # Skip if we already have this font
+            if display_name in available:
+                continue
+                
+            # Try to load it
+            attempts = [
+                font,
+                f"{font}.ttf",
+                f"{font}.otf",
+                font.lower(),
+                font.replace(' ', ''),
+                font.replace(' ', '-')
+            ]
+            
+            for attempt in attempts:
+                try:
+                    ImageFont.truetype(attempt, 12)
+                    available[display_name] = attempt
+                    break
+                except:
+                    continue
+        
+        # Update available fonts
+        if available:
+            self.available_fonts = available
+            sorted_fonts = sorted(list(available.keys()))
+            self.text_mask_font.set(sorted_fonts[0])
+            
+            # Update combobox if it exists (in main thread)
+            def update_ui():
+                if hasattr(self, 'font_combobox'):
+                    self.font_combobox['values'] = sorted_fonts
+                    self.font_combobox._update_font()
+                self.show_message(f"Found {len(available)} fonts available on your system", "good")
+            
+            self.root.after(0, update_ui)
+    
     def show_toast(self, message, style="info"):
         """Show toast notification"""
         toast = ToastNotification(
