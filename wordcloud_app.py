@@ -85,7 +85,7 @@ class ModernWordCloudApp:
         )
         
         # Text mask variables
-        self.mask_type = tk.StringVar(value="image")  # "image" or "text"
+        self.mask_type = tk.StringVar(value="none")  # "none", "image" or "text"
         self.text_mask_input = tk.StringVar(value="")
         self.text_mask_font_size = tk.IntVar(value=200)
         self.text_mask_bold = tk.BooleanVar(value=True)
@@ -449,84 +449,17 @@ class ModernWordCloudApp:
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
-        # Mask type selection
-        mask_type_frame = ttk.Frame(mask_frame)
-        mask_type_frame.pack(fill=X, pady=(0, 15))
+        # Create notebook for mask options
+        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
+        self.mask_notebook.pack(fill=BOTH, expand=TRUE)
         
-        ttk.Label(mask_type_frame, text="Mask Type:", font=('Segoe UI', 10, 'bold')).pack(side=LEFT, padx=(0, 20))
+        # Create tabs
+        self.create_no_mask_tab()
+        self.create_image_mask_tab()
+        self.create_text_mask_tab()
         
-        ttk.Radiobutton(mask_type_frame,
-                       text="Image Mask",
-                       variable=self.mask_type,
-                       value="image",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 20))
-        
-        ttk.Radiobutton(mask_type_frame,
-                       text="Text Mask",
-                       variable=self.mask_type,
-                       value="text",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT)
-        
-        # Container for mask options (will switch between image and text)
-        self.mask_options_container = ttk.Frame(mask_frame)
-        self.mask_options_container.pack(fill=X, pady=(0, 10))
-        
-        # Create both frames but only show one
-        self.create_image_mask_frame()
-        self.create_text_mask_frame()
-        
-        # Show the default (image mask)
-        self.on_mask_type_change()
-        
-        # Contour options
-        self.contour_frame = ttk.LabelFrame(mask_frame, text="Contour Options (requires mask)", padding=10)
-        self.contour_frame.pack(fill=X, pady=(0, 10))
-        
-        # Contour width
-        width_container = ttk.Frame(self.contour_frame)
-        width_container.pack(fill=X, pady=(0, 10))
-        
-        width_label_frame = ttk.Frame(width_container)
-        width_label_frame.pack(fill=X)
-        self.contour_width_lbl = ttk.Label(width_label_frame, text="Contour Width:", font=('Segoe UI', 10))
-        self.contour_width_lbl.pack(side=LEFT)
-        self.contour_width_label = ttk.Label(width_label_frame, text="2 pixels",
-                                           bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.contour_width_label.pack(side=RIGHT)
-        
-        self.contour_width_scale = ttk.Scale(width_container,
-                                           from_=0,
-                                           to=10,
-                                           value=2,
-                                           command=self.update_contour_width,
-                                           bootstyle="primary")
-        self.contour_width_scale.pack(fill=X, pady=(5, 0))
-        
-        # Contour color
-        color_container = ttk.Frame(self.contour_frame)
-        color_container.pack(fill=X)
-        
-        self.contour_color_lbl = ttk.Label(color_container, text="Contour Color:", font=('Segoe UI', 10))
-        self.contour_color_lbl.pack(side=LEFT)
-        
-        self.contour_color_preview = ttk.Frame(color_container, width=30, height=30, bootstyle="dark")
-        self.contour_color_preview.pack(side=RIGHT, padx=(10, 0))
-        
-        self.contour_color_btn = ttk.Button(color_container,
-                                          text="Choose Color",
-                                          command=self.choose_contour_color,
-                                          bootstyle="primary-outline",
-                                          width=15)
-        self.contour_color_btn.pack(side=RIGHT)
-        
-        # Store contour widgets for enabling/disabling
-        self.contour_widgets = [self.contour_width_scale, self.contour_color_btn,
-                               self.contour_width_lbl, self.contour_color_lbl]
-        
-        # Initially disable contour options
-        self.update_contour_state()
+        # Bind tab change event
+        self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
         # Word Orientation
         orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
@@ -676,21 +609,115 @@ class ModernWordCloudApp:
                                       width=15)
         self.bg_color_btn.pack(side=RIGHT)
         
-        # Mask preview (smaller now)
-        preview_container = ttk.LabelFrame(mask_frame, text="Mask Preview", padding=10)
-        preview_container.pack(fill=BOTH, expand=TRUE)
+    def create_no_mask_tab(self):
+        """Create the no mask tab"""
+        no_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(no_mask_frame, text="No Mask")
         
-        self.mask_preview_label = ttk.Label(preview_container,
-                                           text="No mask selected",
-                                           anchor=CENTER,
-                                           font=('Segoe UI', 10))
-        self.mask_preview_label.pack(fill=BOTH, expand=TRUE)
+        # Info label
+        info_label = ttk.Label(no_mask_frame, 
+                              text="Word cloud will be generated in a rectangular shape.\nNo special shape or contours will be applied.",
+                              font=('Segoe UI', 10),
+                              bootstyle="secondary")
+        info_label.pack(pady=20)
     
-    def create_image_mask_frame(self):
-        """Create the image mask options frame"""
-        self.image_mask_frame = ttk.Frame(self.mask_options_container)
+    def create_image_mask_tab(self):
+        """Create the image mask tab"""
+        image_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(image_mask_frame, text="Image Mask")
         
-        mask_file_frame = ttk.LabelFrame(self.image_mask_frame, text="Image File", padding=10)
+        # Create the image mask frame content
+        self.create_image_mask_frame(image_mask_frame)
+        
+        # Add contour options to this tab
+        self.create_contour_options(image_mask_frame)
+        
+        # Add mask preview to this tab
+        self.create_mask_preview(image_mask_frame)
+    
+    def create_text_mask_tab(self):
+        """Create the text mask tab"""
+        text_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(text_mask_frame, text="Text Mask")
+        
+        # Create the text mask frame content
+        self.create_text_mask_frame(text_mask_frame)
+        
+        # Add contour options to this tab
+        self.create_contour_options(text_mask_frame)
+        
+        # Add mask preview to this tab
+        self.create_mask_preview(text_mask_frame)
+    
+    def create_contour_options(self, parent):
+        """Create contour options frame"""
+        contour_frame = ttk.LabelFrame(parent, text="Contour Options", padding=10)
+        contour_frame.pack(fill=X, pady=(10, 10))
+        
+        # Contour width
+        width_container = ttk.Frame(contour_frame)
+        width_container.pack(fill=X, pady=(0, 10))
+        
+        width_label_frame = ttk.Frame(width_container)
+        width_label_frame.pack(fill=X)
+        contour_width_lbl = ttk.Label(width_label_frame, text="Contour Width:", font=('Segoe UI', 10))
+        contour_width_lbl.pack(side=LEFT)
+        contour_width_label = ttk.Label(width_label_frame, text="2 pixels",
+                                       bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        contour_width_label.pack(side=RIGHT)
+        
+        contour_width_scale = ttk.Scale(width_container,
+                                       from_=0,
+                                       to=10,
+                                       value=2,
+                                       command=lambda v: self.update_contour_width(v, contour_width_label),
+                                       bootstyle="primary")
+        contour_width_scale.pack(fill=X, pady=(5, 0))
+        
+        # Contour color
+        color_container = ttk.Frame(contour_frame)
+        color_container.pack(fill=X)
+        
+        contour_color_lbl = ttk.Label(color_container, text="Contour Color:", font=('Segoe UI', 10))
+        contour_color_lbl.pack(side=LEFT)
+        
+        contour_color_preview = ttk.Frame(color_container, width=30, height=30, bootstyle="dark")
+        contour_color_preview.pack(side=RIGHT, padx=(10, 0))
+        
+        contour_color_btn = ttk.Button(color_container,
+                                      text="Choose Color",
+                                      command=lambda: self.choose_contour_color(contour_color_preview),
+                                      bootstyle="primary-outline",
+                                      width=15)
+        contour_color_btn.pack(side=RIGHT)
+        
+        # Store references if this is the first creation
+        if not hasattr(self, 'contour_width_label'):
+            self.contour_width_label = contour_width_label
+            self.contour_width_scale = contour_width_scale
+            self.contour_color_preview = contour_color_preview
+    
+    def create_mask_preview(self, parent):
+        """Create mask preview frame"""
+        preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
+        preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
+        
+        # Create a label for this specific tab
+        preview_label = ttk.Label(preview_container,
+                                 text="No mask selected",
+                                 anchor=CENTER,
+                                 font=('Segoe UI', 10))
+        preview_label.pack(fill=BOTH, expand=TRUE)
+        
+        # Store reference based on parent tab
+        if "image" in str(parent):
+            self.image_mask_preview_label = preview_label
+        else:
+            self.text_mask_preview_label = preview_label
+    
+    def create_image_mask_frame(self, parent):
+        """Create the image mask options frame"""
+        mask_file_frame = ttk.LabelFrame(parent, text="Image File", padding=10)
         mask_file_frame.pack(fill=X)
         
         mask_info = ttk.Frame(mask_file_frame)
@@ -717,12 +744,10 @@ class ModernWordCloudApp:
                   bootstyle="secondary",
                   width=15).pack(side=LEFT)
     
-    def create_text_mask_frame(self):
+    def create_text_mask_frame(self, parent):
         """Create the text mask options frame"""
-        self.text_mask_frame = ttk.Frame(self.mask_options_container)
-        
-        text_input_frame = ttk.LabelFrame(self.text_mask_frame, text="Text Input", padding=10)
-        text_input_frame.pack(fill=X, pady=(0, 10))
+        text_input_frame = ttk.LabelFrame(parent, text="Text Input", padding=10)
+        text_input_frame.pack(fill=X)
         
         # Text input
         ttk.Label(text_input_frame, text="Enter text for mask:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
@@ -810,30 +835,22 @@ class ModernWordCloudApp:
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
     
-    def on_mask_type_change(self):
-        """Handle mask type change"""
-        # Clear the container
-        for widget in self.mask_options_container.winfo_children():
-            widget.pack_forget()
-        
-        # Show the appropriate frame
-        if self.mask_type.get() == "image":
-            self.image_mask_frame.pack(fill=X)
-            # Update label with current mask path
-            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
-                self.image_mask_label.config(text=self.mask_path.get())
-            else:
-                self.image_mask_label.config(text="No image selected")
-                if self.mask_path.get().startswith("Text:"):
-                    self.clear_mask()
-        else:
-            self.text_mask_frame.pack(fill=X)
-            # Clear image mask if switching to text
-            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
-                self.clear_mask()
-            # Update text mask if there's text
+    def on_mask_tab_changed(self, event):
+        """Handle mask tab change"""
+        selected_tab = self.mask_notebook.index(self.mask_notebook.select())
+        if selected_tab == 0:  # No Mask
+            self.mask_type.set("none")
+            self.mask_image = None
+            self.mask_path.set("No mask")
+        elif selected_tab == 1:  # Image Mask
+            self.mask_type.set("image")
+            # Keep existing image mask if any
+        elif selected_tab == 2:  # Text Mask
+            self.mask_type.set("text")
+            # Update text mask if text exists
             if self.text_mask_input.get():
                 self.update_text_mask()
+    
     
     def update_font_size(self, value):
         """Update font size label and regenerate text mask"""
@@ -950,15 +967,19 @@ class ModernWordCloudApp:
         ratio_text = self.get_ratio_text(width, height)
         self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
         
+        # Clear canvas when preset is selected
+        self.clear_canvas()
+        
     def calculate_preview_size(self):
-        """Calculate preview display size maintaining aspect ratio within max bounds"""
+        """Calculate preview display size maintaining aspect ratio with max width constraint"""
         actual_width = self.canvas_width.get()
         actual_height = self.canvas_height.get()
         
-        # Calculate scale factor to fit within preview bounds
-        scale_x = self.preview_max_width / actual_width
-        scale_y = self.preview_max_height / actual_height
-        scale = min(scale_x, scale_y, 1.0)  # Don't upscale, only downscale
+        # Calculate scale factor based on max width only
+        if actual_width > self.preview_max_width:
+            scale = self.preview_max_width / actual_width
+        else:
+            scale = 1.0  # Don't upscale
         
         display_width = int(actual_width * scale)
         display_height = int(actual_height * scale)
@@ -988,9 +1009,8 @@ class ModernWordCloudApp:
         canvas_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
         canvas_frame.pack(pady=(0, 15))
         
-        # Fixed preview size (max 600x500 for display to leave room for UI)
+        # Fixed preview max width (will scale height proportionally)
         self.preview_max_width = 600
-        self.preview_max_height = 500
         
         # Calculate initial display size
         display_width, display_height = self.calculate_preview_size()
@@ -1296,8 +1316,9 @@ class ModernWordCloudApp:
                 img = Image.open(file_path)
                 img.thumbnail((200, 200), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
-                self.mask_preview_label.config(image=photo, text="")
-                self.mask_preview_label.image = photo  # Keep a reference
+                if hasattr(self, 'image_mask_preview_label'):
+                    self.image_mask_preview_label.config(image=photo, text="")
+                    self.image_mask_preview_label.image = photo  # Keep a reference
                 
                 # Enable contour options when mask is selected
                 self.update_contour_state(True)
@@ -1308,12 +1329,13 @@ class ModernWordCloudApp:
         """Clear selected mask"""
         self.mask_image = None
         self.mask_path.set("No mask selected")
-        self.mask_preview_label.config(image="", text="No mask selected")
         
-        # Clear UI elements based on mask type
-        if self.mask_type.get() == "image":
+        # Clear appropriate preview label
+        if self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+            self.image_mask_preview_label.config(image="", text="No mask selected")
             self.image_mask_label.config(text="No image selected")
-        else:
+        elif self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+            self.text_mask_preview_label.config(image="", text="No mask selected")
             self.text_mask_input.set("")
         
         # Disable contour options when mask is cleared
@@ -1435,16 +1457,25 @@ class ModernWordCloudApp:
             # Thumbnail for preview
             preview_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(preview_img)
-            self.mask_preview_label.config(image=photo, text="")
-            self.mask_preview_label.image = photo
+            
+            # Update appropriate preview label
+            if self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+                self.text_mask_preview_label.config(image=photo, text="")
+                self.text_mask_preview_label.image = photo
+            elif self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+                self.image_mask_preview_label.config(image=photo, text="")
+                self.image_mask_preview_label.image = photo
     
-    def update_contour_width(self, value):
+    def update_contour_width(self, value, label=None):
         """Update contour width label"""
         val = int(float(value))
         self.contour_width.set(val)
-        self.contour_width_label.config(text=f"{val} pixels")
+        if label:
+            label.config(text=f"{val} pixels")
+        elif hasattr(self, 'contour_width_label'):
+            self.contour_width_label.config(text=f"{val} pixels")
     
-    def choose_contour_color(self):
+    def choose_contour_color(self, preview_frame=None):
         """Open color chooser for contour color"""
         dialog = ColorChooserDialog()
         dialog.show()
@@ -1456,7 +1487,10 @@ class ModernWordCloudApp:
             style = ttk.Style()
             style_name = f"ContourPreview.TFrame"
             style.configure(style_name, background=hex_color)
-            self.contour_color_preview.configure(style=style_name)
+            if preview_frame:
+                preview_frame.configure(style=style_name)
+            elif hasattr(self, 'contour_color_preview'):
+                self.contour_color_preview.configure(style=style_name)
     
     def choose_bg_color(self):
         """Open color chooser for background color"""
@@ -1471,6 +1505,20 @@ class ModernWordCloudApp:
             style_name = f"BgPreview.TFrame"
             style.configure(style_name, background=hex_color)
             self.bg_color_preview.configure(style=style_name)
+    
+    def clear_canvas(self):
+        """Clear the canvas completely"""
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 'Generate a word cloud to see it here', 
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax.transAxes, fontsize=14, color='gray')
+        ax.axis('off')
+        self.canvas.draw()
+        
+        # Disable save button
+        if hasattr(self, 'save_btn'):
+            self.save_btn.config(state=DISABLED)
     
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
@@ -1490,8 +1538,8 @@ class ModernWordCloudApp:
             else:
                 self.scale_indicator.config(text="")
             
-            # Redraw canvas
-            self.canvas.draw()
+            # Clear canvas when size changes
+            self.clear_canvas()
         except:
             pass  # Ignore errors during initialization
     
