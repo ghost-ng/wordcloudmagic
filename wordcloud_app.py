@@ -189,9 +189,9 @@ class ModernWordCloudApp:
         paned.pack(fill=BOTH, expand=TRUE)
         
         # Left panel (controls)
-        left_panel = ttk.Frame(paned, padding="10")
+        left_panel = ttk.Frame(paned, padding="10", width=500)
         left_panel.pack_propagate(False)
-        paned.add(left_panel, weight=1, minsize=450)  # Set minimum width for tabs
+        paned.add(left_panel, weight=1)
         
         # Right panel (preview) - add padding to create space from left panel
         right_panel = ttk.Frame(paned, padding=(20, 10, 10, 10))  # More padding on left side
