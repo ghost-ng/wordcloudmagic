@@ -1205,6 +1205,14 @@ class ModernWordCloudApp:
                                   width=20,
                                   state=DISABLED)
         self.save_btn.pack(side=LEFT)
+        
+        # Clear button
+        self.clear_btn = ttk.Button(btn_container,
+                                  text="🗑️ Clear",
+                                  command=self.clear_canvas,
+                                  bootstyle="secondary",
+                                  width=15)
+        self.clear_btn.pack(side=LEFT, padx=(10, 0))
     
     def create_message_bar(self):
         """Create the message bar at the top of the interface"""
@@ -1661,9 +1669,13 @@ class ModernWordCloudApp:
         self.figure.patch.set_facecolor('white')
         self.canvas.draw()
         
-        # Disable save button
+        # Disable save button since there's nothing to save
         if hasattr(self, 'save_btn'):
             self.save_btn.config(state=DISABLED)
+        
+        # Clear any stored wordcloud
+        if hasattr(self, 'current_wordcloud'):
+            self.current_wordcloud = None
     
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
