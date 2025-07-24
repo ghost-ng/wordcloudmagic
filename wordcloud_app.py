@@ -433,7 +433,7 @@ class ModernWordCloudApp:
                                  width=12)
             btn.grid(row=row, column=col, padx=5, pady=5, sticky=W)
             col += 1
-            if col > 1:
+            if col > 3:  # Changed from 1 to 3 for 4 columns
                 col = 0
                 row += 1
         
@@ -611,15 +611,25 @@ class ModernWordCloudApp:
         
     def create_no_mask_tab(self):
         """Create the no mask tab"""
-        no_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        no_mask_frame = ttk.Frame(self.mask_notebook)
         self.mask_notebook.add(no_mask_frame, text="No Mask")
         
+        # Info frame with border
+        info_frame = ttk.LabelFrame(no_mask_frame, text="Information", padding=15)
+        info_frame.pack(fill=X, padx=20, pady=20)
+        
         # Info label
-        info_label = ttk.Label(no_mask_frame, 
+        info_label = ttk.Label(info_frame, 
                               text="Word cloud will be generated in a rectangular shape.\nNo special shape or contours will be applied.",
                               font=('Segoe UI', 10),
                               bootstyle="secondary")
-        info_label.pack(pady=20)
+        info_label.pack()
+        
+        # Add a note about using other tabs
+        ttk.Label(info_frame,
+                 text="\nTo use a custom shape, select the Image Mask or Text Mask tab.",
+                 font=('Segoe UI', 9, 'italic'),
+                 bootstyle="info").pack()
     
     def create_image_mask_tab(self):
         """Create the image mask tab"""
@@ -920,31 +930,45 @@ class ModernWordCloudApp:
     
     def update_width(self, value):
         """Update width and maintain aspect ratio if locked"""
+        if hasattr(self, '_updating'):  # Prevent recursion
+            return
+            
         val = int(float(value))
         self.canvas_width.set(val)
         self.width_label.config(text=f"{val} px")
         
-        if self.lock_aspect_ratio.get():
-            # Update height to maintain aspect ratio
-            new_height = int(val / self.aspect_ratio)
-            new_height = max(300, min(4000, new_height))  # Clamp to valid range
-            self.canvas_height.set(new_height)
-            self.height_label.config(text=f"{new_height} px")
-            self.height_scale.set(new_height)
+        if self.lock_aspect_ratio.get() and self.aspect_ratio > 0:
+            self._updating = True
+            try:
+                # Update height to maintain aspect ratio
+                new_height = int(val / self.aspect_ratio)
+                new_height = max(300, min(4000, new_height))  # Clamp to valid range
+                self.canvas_height.set(new_height)
+                self.height_label.config(text=f"{new_height} px")
+                self.height_scale.set(new_height)
+            finally:
+                delattr(self, '_updating')
     
     def update_height(self, value):
         """Update height and maintain aspect ratio if locked"""
+        if hasattr(self, '_updating'):  # Prevent recursion
+            return
+            
         val = int(float(value))
         self.canvas_height.set(val)
         self.height_label.config(text=f"{val} px")
         
-        if self.lock_aspect_ratio.get():
-            # Update width to maintain aspect ratio
-            new_width = int(val * self.aspect_ratio)
-            new_width = max(400, min(4000, new_width))  # Clamp to valid range
-            self.canvas_width.set(new_width)
-            self.width_label.config(text=f"{new_width} px")
-            self.width_scale.set(new_width)
+        if self.lock_aspect_ratio.get() and self.aspect_ratio > 0:
+            self._updating = True
+            try:
+                # Update width to maintain aspect ratio
+                new_width = int(val * self.aspect_ratio)
+                new_width = max(400, min(4000, new_width))  # Clamp to valid range
+                self.canvas_width.set(new_width)
+                self.width_label.config(text=f"{new_width} px")
+                self.width_scale.set(new_width)
+            finally:
+                delattr(self, '_updating')
     
     def set_canvas_size(self, width, height):
         """Set canvas size from preset"""
