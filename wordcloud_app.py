@@ -639,7 +639,7 @@ class ModernWordCloudApp:
         
         scale_label_frame = ttk.Frame(scale_container)
         scale_label_frame.pack(fill=X)
-        ttk.Label(scale_label_frame, text="Quality Scale:", font=('Segoe UI', 10)).pack(side=LEFT)
+        ttk.Label(scale_label_frame, text="Computation Scale:", font=('Segoe UI', 10)).pack(side=LEFT)
         self.scale_label = ttk.Label(scale_label_frame, text="1",
                                     bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.scale_label.pack(side=RIGHT)
@@ -653,7 +653,7 @@ class ModernWordCloudApp:
         self.scale_scale.pack(fill=X, pady=(5, 0))
         
         ttk.Label(scale_container, 
-                 text="Higher values = better quality but slower generation",
+                 text="Higher = faster generation but coarser word placement",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
