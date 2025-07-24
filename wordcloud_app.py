@@ -116,6 +116,8 @@ class ModernWordCloudApp:
         self.canvas_width = tk.IntVar(value=800)
         self.canvas_height = tk.IntVar(value=600)
         self.bg_color = tk.StringVar(value="#FFFFFF")
+        self.lock_aspect_ratio = tk.BooleanVar(value=False)
+        self.aspect_ratio = 800 / 600  # Initial aspect ratio
         
         # Bind canvas size changes to preview update
         self.canvas_width.trace('w', self.update_preview_size)
@@ -556,33 +558,80 @@ class ModernWordCloudApp:
         canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
         canvas_frame.pack(fill=X, pady=(0, 10))
         
-        # Canvas size
-        size_container = ttk.Frame(canvas_frame)
-        size_container.pack(fill=X, pady=(0, 10))
+        # Lock aspect ratio checkbox
+        ratio_frame = ttk.Frame(canvas_frame)
+        ratio_frame.pack(fill=X, pady=(0, 10))
         
-        # Width
-        width_frame = ttk.Frame(size_container)
-        width_frame.pack(side=LEFT, padx=(0, 20))
-        ttk.Label(width_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
-        ttk.Spinbox(width_frame,
-                   from_=400,
-                   to=2000,
-                   textvariable=self.canvas_width,
-                   width=10,
-                   bootstyle="primary").pack(side=LEFT, padx=(5, 0))
-        ttk.Label(width_frame, text="px", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.lock_ratio_check = ttk.Checkbutton(ratio_frame,
+                                               text="Lock aspect ratio",
+                                               variable=self.lock_aspect_ratio,
+                                               command=self.on_lock_ratio_change,
+                                               bootstyle="primary")
+        self.lock_ratio_check.pack(side=LEFT)
         
-        # Height
-        height_frame = ttk.Frame(size_container)
-        height_frame.pack(side=LEFT)
-        ttk.Label(height_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
-        ttk.Spinbox(height_frame,
-                   from_=300,
-                   to=2000,
-                   textvariable=self.canvas_height,
-                   width=10,
-                   bootstyle="primary").pack(side=LEFT, padx=(5, 0))
-        ttk.Label(height_frame, text="px", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.ratio_label = ttk.Label(ratio_frame, text="",
+                                    font=('Segoe UI', 9, 'italic'),
+                                    bootstyle="secondary")
+        self.ratio_label.pack(side=LEFT, padx=(10, 0))
+        
+        # Width slider
+        width_container = ttk.Frame(canvas_frame)
+        width_container.pack(fill=X, pady=(0, 15))
+        
+        width_label_frame = ttk.Frame(width_container)
+        width_label_frame.pack(fill=X)
+        ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.width_label = ttk.Label(width_label_frame, text="800 px",
+                                    bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.width_label.pack(side=RIGHT)
+        
+        self.width_scale = ttk.Scale(width_container,
+                                    from_=400,
+                                    to=2000,
+                                    value=800,
+                                    command=self.update_width,
+                                    bootstyle="primary")
+        self.width_scale.pack(fill=X, pady=(5, 0))
+        
+        # Height slider
+        height_container = ttk.Frame(canvas_frame)
+        height_container.pack(fill=X, pady=(0, 10))
+        
+        height_label_frame = ttk.Frame(height_container)
+        height_label_frame.pack(fill=X)
+        ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.height_label = ttk.Label(height_label_frame, text="600 px",
+                                     bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.height_label.pack(side=RIGHT)
+        
+        self.height_scale = ttk.Scale(height_container,
+                                     from_=300,
+                                     to=2000,
+                                     value=600,
+                                     command=self.update_height,
+                                     bootstyle="primary")
+        self.height_scale.pack(fill=X, pady=(5, 0))
+        
+        # Size presets
+        preset_frame = ttk.Frame(canvas_frame)
+        preset_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Label(preset_frame, text="Presets:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        
+        presets = [
+            ("Square", 800, 800),
+            ("HD", 1920, 1080),
+            ("4:3", 800, 600),
+            ("16:9", 1280, 720),
+            ("A4", 800, 1131)
+        ]
+        
+        for name, width, height in presets:
+            ttk.Button(preset_frame,
+                      text=name,
+                      command=lambda w=width, h=height: self.set_canvas_size(w, h),
+                      bootstyle="secondary-outline",
+                      width=8).pack(side=LEFT, padx=2)
         
         # Mode selection (RGB/RGBA)
         mode_container = ttk.Frame(canvas_frame)
@@ -802,6 +851,102 @@ class ModernWordCloudApp:
             self.words_per_line_label.config(text=f"{val} words")
         if self.mask_type.get() == "text" and self.text_mask_input.get():
             self.update_text_mask()
+    
+    def get_ratio_text(self, width, height):
+        """Get a readable aspect ratio text"""
+        # Calculate GCD to simplify ratio
+        from math import gcd
+        g = gcd(width, height)
+        w = width // g
+        h = height // g
+        
+        # Check for common ratios
+        common_ratios = {
+            (16, 9): "16:9",
+            (9, 16): "9:16",
+            (4, 3): "4:3",
+            (3, 4): "3:4",
+            (16, 10): "16:10",
+            (1, 1): "1:1",
+            (3, 2): "3:2",
+            (2, 3): "2:3"
+        }
+        
+        if (w, h) in common_ratios:
+            return common_ratios[(w, h)]
+        
+        # Simplify further if numbers are too large
+        while w > 20 or h > 20:
+            if w % 2 == 0 and h % 2 == 0:
+                w //= 2
+                h //= 2
+            else:
+                break
+        
+        return f"{w}:{h}"
+    
+    def on_lock_ratio_change(self):
+        """Handle lock aspect ratio checkbox change"""
+        if self.lock_aspect_ratio.get():
+            # Calculate and store current aspect ratio
+            width = self.canvas_width.get()
+            height = self.canvas_height.get()
+            if height > 0:
+                self.aspect_ratio = width / height
+                # Show ratio in simplified form
+                ratio_text = self.get_ratio_text(width, height)
+                self.ratio_label.config(text=f"({ratio_text})")
+        else:
+            self.ratio_label.config(text="")
+    
+    def update_width(self, value):
+        """Update width and maintain aspect ratio if locked"""
+        val = int(float(value))
+        self.canvas_width.set(val)
+        self.width_label.config(text=f"{val} px")
+        
+        if self.lock_aspect_ratio.get():
+            # Update height to maintain aspect ratio
+            new_height = int(val / self.aspect_ratio)
+            new_height = max(300, min(2000, new_height))  # Clamp to valid range
+            self.canvas_height.set(new_height)
+            self.height_label.config(text=f"{new_height} px")
+            self.height_scale.set(new_height)
+    
+    def update_height(self, value):
+        """Update height and maintain aspect ratio if locked"""
+        val = int(float(value))
+        self.canvas_height.set(val)
+        self.height_label.config(text=f"{val} px")
+        
+        if self.lock_aspect_ratio.get():
+            # Update width to maintain aspect ratio
+            new_width = int(val * self.aspect_ratio)
+            new_width = max(400, min(2000, new_width))  # Clamp to valid range
+            self.canvas_width.set(new_width)
+            self.width_label.config(text=f"{new_width} px")
+            self.width_scale.set(new_width)
+    
+    def set_canvas_size(self, width, height):
+        """Set canvas size from preset"""
+        # Update the aspect ratio if locked
+        if self.lock_aspect_ratio.get():
+            self.aspect_ratio = width / height
+            # Update ratio display
+            ratio_text = self.get_ratio_text(width, height)
+            self.ratio_label.config(text=f"({ratio_text})")
+        
+        # Update values and UI
+        self.canvas_width.set(width)
+        self.canvas_height.set(height)
+        self.width_label.config(text=f"{width} px")
+        self.height_label.config(text=f"{height} px")
+        self.width_scale.set(width)
+        self.height_scale.set(height)
+        
+        # Show toast with preset info
+        ratio_text = self.get_ratio_text(width, height)
+        self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
         
     def create_preview_area(self, parent):
         """Create the word cloud preview area"""
