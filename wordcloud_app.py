@@ -5,6 +5,7 @@ from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 from tkinter import filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
+import tkinter.font as tkFont
 import os
 import threading
 from PIL import Image, ImageTk, ImageDraw, ImageFont
@@ -24,34 +25,146 @@ from pptx import Presentation
 import re
 from io import BytesIO
 
-class FontCombobox(ttk.Combobox):
-    """Custom combobox that displays fonts in their own style"""
-    def __init__(self, master, font_dict, **kwargs):
-        self.font_dict = font_dict
+class FontListbox(ttk.Frame):
+    """Custom font selector that displays fonts in their actual style"""
+    def __init__(self, master, font_dict, textvariable=None, width=35, height=6, **kwargs):
         super().__init__(master, **kwargs)
-        self.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
+        self.font_dict = font_dict
+        self.textvariable = textvariable
+        self.fonts_loaded = {}
+        self.selected_index = -1
+        self.items = []
         
-        # Try to configure the dropdown to show fonts in their style
-        self.bind('<<ComboboxSelected>>', self._on_select)
-        self.bind('<Configure>', self._update_font)
+        # Create frame for the selector
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
         
-    def _on_select(self, event=None):
-        """Update the entry font when selection changes"""
-        self._update_font()
+        # Create scrollbar
+        scrollbar = ttk.Scrollbar(self, orient="vertical")
+        scrollbar.grid(row=0, column=1, sticky=(N, S))
         
-    def _update_font(self, event=None):
-        """Update the displayed font"""
-        try:
-            selected = self.get()
-            if selected in self.font_dict:
-                font_name = self.font_dict[selected]
-                # Try to set the font for the entry part
-                try:
-                    self.configure(font=(font_name, 11))
-                except:
-                    self.configure(font=('Segoe UI', 11))
-        except:
-            pass
+        # Create Canvas
+        self.canvas = tk.Canvas(self, 
+                               width=width * 8,  # Approximate width in pixels
+                               height=height * 22,  # Approximate height in pixels
+                               bg='white',
+                               highlightthickness=1)
+        self.canvas.grid(row=0, column=0, sticky=(N, S, E, W))
+        scrollbar.config(command=self.canvas.yview)
+        self.canvas.config(yscrollcommand=scrollbar.set)
+        
+        # Bind events
+        self.canvas.bind('<Button-1>', self._on_click)
+        self.canvas.bind('<Configure>', self._on_canvas_configure)
+        
+        # Populate fonts
+        self._populate_fonts()
+        
+    def _populate_fonts(self):
+        """Populate the canvas with fonts in their actual styles"""
+        # Clear existing items
+        self.canvas.delete("all")
+        self.items = []
+        self.fonts_loaded = {}
+        
+        y_position = 5
+        item_height = 25
+        
+        for i, font_name in enumerate(sorted(self.font_dict.keys())):
+            # Try to create font
+            try:
+                font_face = self.font_dict[font_name]
+                item_font = tkFont.Font(family=font_face, size=12)
+                self.fonts_loaded[font_name] = item_font
+            except:
+                # If font fails to load, use default
+                item_font = tkFont.Font(family='Segoe UI', size=12)
+            
+            # Create text item
+            text_id = self.canvas.create_text(10, y_position + item_height//2,
+                                             text=font_name,
+                                             font=item_font,
+                                             anchor='w',
+                                             fill='black',
+                                             tags=f"font_{i}")
+            
+            # Create selection rectangle (initially hidden)
+            rect_id = self.canvas.create_rectangle(2, y_position, 
+                                                  self.canvas.winfo_width() - 2, 
+                                                  y_position + item_height,
+                                                  fill='#0078d4',
+                                                  outline='',
+                                                  state='hidden',
+                                                  tags=f"select_{i}")
+            
+            self.items.append({
+                'name': font_name,
+                'text_id': text_id,
+                'rect_id': rect_id,
+                'y_start': y_position,
+                'y_end': y_position + item_height
+            })
+            
+            y_position += item_height
+        
+        # Update scroll region
+        self.canvas.config(scrollregion=self.canvas.bbox("all"))
+        
+        # Set initial selection
+        if self.textvariable:
+            current_value = self.textvariable.get()
+            if current_value in self.font_dict:
+                index = sorted(self.font_dict.keys()).index(current_value)
+                self._select_item(index)
+    
+    def _on_click(self, event):
+        """Handle click events"""
+        # Convert canvas coordinates
+        canvas_y = self.canvas.canvasy(event.y)
+        
+        # Find clicked item
+        for i, item in enumerate(self.items):
+            if item['y_start'] <= canvas_y <= item['y_end']:
+                self._select_item(i)
+                break
+    
+    def _select_item(self, index):
+        """Select an item by index"""
+        # Deselect previous
+        if 0 <= self.selected_index < len(self.items):
+            prev_item = self.items[self.selected_index]
+            self.canvas.itemconfig(prev_item['rect_id'], state='hidden')
+            self.canvas.itemconfig(prev_item['text_id'], fill='black')
+        
+        # Select new item
+        if 0 <= index < len(self.items):
+            self.selected_index = index
+            item = self.items[index]
+            self.canvas.itemconfig(item['rect_id'], state='normal')
+            self.canvas.itemconfig(item['text_id'], fill='white')
+            
+            # Update variable
+            if self.textvariable:
+                self.textvariable.set(item['name'])
+                self.event_generate('<<FontSelected>>', when='tail')
+            
+            # Ensure item is visible
+            bbox = self.canvas.bbox(item['text_id'])
+            if bbox:
+                self.canvas.yview_moveto(bbox[1] / self.canvas.winfo_height())
+    
+    def _on_canvas_configure(self, event):
+        """Update rectangles when canvas is resized"""
+        canvas_width = event.width
+        for item in self.items:
+            self.canvas.coords(item['rect_id'], 
+                             2, item['y_start'], 
+                             canvas_width - 2, item['y_end'])
+    
+    def set_fonts(self, font_dict):
+        """Update the available fonts"""
+        self.font_dict = font_dict
+        self._populate_fonts()
 
 class ModernWordCloudApp:
     def __init__(self, root):
@@ -773,16 +886,15 @@ class ModernWordCloudApp:
         font_frame = ttk.Frame(text_input_frame)
         font_frame.pack(fill=X, pady=(0, 10))
         
-        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
         
-        self.font_combobox = FontCombobox(font_frame,
-                                         self.available_fonts,
-                                         textvariable=self.text_mask_font,
-                                         values=list(self.available_fonts.keys()),
-                                         state="readonly",
-                                         width=25)
-        self.font_combobox.pack(side=LEFT, fill=X, expand=True)
-        self.font_combobox.bind('<<ComboboxSelected>>', lambda e: self.update_text_mask())
+        self.font_listbox = FontListbox(font_frame,
+                                       self.available_fonts,
+                                       textvariable=self.text_mask_font,
+                                       width=35,
+                                       height=5)
+        self.font_listbox.pack(fill=X)
+        self.font_listbox.bind('<<FontSelected>>', lambda e: self.update_text_mask())
         
         # Font size
         font_size_container = ttk.Frame(text_input_frame)
@@ -1966,11 +2078,10 @@ class ModernWordCloudApp:
             sorted_fonts = sorted(list(available.keys()))
             self.text_mask_font.set(sorted_fonts[0])
             
-            # Update combobox if it exists (in main thread)
+            # Update font listbox if it exists (in main thread)
             def update_ui():
-                if hasattr(self, 'font_combobox'):
-                    self.font_combobox['values'] = sorted_fonts
-                    self.font_combobox._update_font()
+                if hasattr(self, 'font_listbox'):
+                    self.font_listbox.set_fonts(available)
                 self.show_message(f"Found {len(available)} fonts available on your system", "good")
             
             self.root.after(0, update_ui)
