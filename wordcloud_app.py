@@ -266,8 +266,8 @@ class ModernWordCloudApp:
         left_panel.pack_propagate(False)
         paned.add(left_panel, weight=1)
         
-        # Right panel (preview)
-        right_panel = ttk.Frame(paned, padding="10")
+        # Right panel (preview) - add padding to create space from left panel
+        right_panel = ttk.Frame(paned, padding=(20, 10, 10, 10))  # More padding on left side
         paned.add(right_panel, weight=2)
         
         # Create notebook for organized controls
@@ -1043,7 +1043,7 @@ class ModernWordCloudApp:
         
         # Create a centered frame for the preview with margins
         preview_wrapper = ttk.Frame(preview_container)
-        preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=20)  # Add horizontal margins
+        preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
         # Scale indicator label (initially hidden)
         self.scale_indicator = ttk.Label(preview_wrapper, 
