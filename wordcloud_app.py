@@ -818,7 +818,7 @@ class ModernWordCloudApp:
         
         # Set initial tab based on color mode
         self.color_notebook.select(1)  # Select preset tab by default
-        
+        self.update_custom_gradient_preview()
         # Create scrollable frame for color buttons
         color_scroll = preset_scrollable
         
