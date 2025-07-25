@@ -16,6 +16,7 @@ from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
+from matplotlib.colors import LinearSegmentedColormap
 matplotlib.use('TkAgg')
 
 # File handling imports
@@ -167,6 +168,56 @@ class FontListbox(ttk.Frame):
         self._populate_fonts()
 
 class ModernWordCloudApp:
+    def create_custom_gradients(self):
+        """Create and register custom color gradients"""
+        gradients = {}
+        
+        # Sunset Sky - Orange → Pink → Purple
+        sunset_colors = ['#FF8C00', '#FF69B4', '#8B008B']
+        gradients['sunset_sky'] = LinearSegmentedColormap.from_list('sunset_sky', sunset_colors)
+        
+        # Deep Ocean - Deep Blue → Teal → Light Blue
+        ocean_colors = ['#000080', '#008B8B', '#87CEEB']
+        gradients['deep_ocean'] = LinearSegmentedColormap.from_list('deep_ocean', ocean_colors)
+        
+        # Forest - Dark Green → Green → Light Green
+        forest_colors = ['#006400', '#228B22', '#90EE90']
+        gradients['forest'] = LinearSegmentedColormap.from_list('forest', forest_colors)
+        
+        # Fire - Red → Orange → Yellow
+        fire_colors = ['#DC143C', '#FF8C00', '#FFD700']
+        gradients['fire'] = LinearSegmentedColormap.from_list('fire', fire_colors)
+        
+        # Cotton Candy - Pink → Light Blue → Lavender
+        cotton_colors = ['#FFB6C1', '#87CEFA', '#E6E6FA']
+        gradients['cotton_candy'] = LinearSegmentedColormap.from_list('cotton_candy', cotton_colors)
+        
+        # Fall Leaves - Brown → Orange → Gold
+        fall_colors = ['#8B4513', '#FF8C00', '#FFD700']
+        gradients['fall_leaves'] = LinearSegmentedColormap.from_list('fall_leaves', fall_colors)
+        
+        # Berry - Deep Purple → Magenta → Pink
+        berry_colors = ['#4B0082', '#FF00FF', '#FFC0CB']
+        gradients['berry'] = LinearSegmentedColormap.from_list('berry', berry_colors)
+        
+        # Mint - Dark Teal → Mint → White
+        mint_colors = ['#008080', '#98FB98', '#FFFFFF']
+        gradients['mint'] = LinearSegmentedColormap.from_list('mint', mint_colors)
+        
+        # Volcano - Black → Red → Orange → Yellow
+        volcano_colors = ['#000000', '#8B0000', '#FF4500', '#FFFF00']
+        gradients['volcano'] = LinearSegmentedColormap.from_list('volcano', volcano_colors)
+        
+        # Aurora (Northern Lights) - Dark Blue → Green → Purple → Pink
+        aurora_colors = ['#191970', '#00FF00', '#9370DB', '#FF1493']
+        gradients['aurora'] = LinearSegmentedColormap.from_list('aurora', aurora_colors)
+        
+        # Register all custom colormaps with matplotlib
+        for name, cmap in gradients.items():
+            matplotlib.colormaps.register(cmap, name=name)
+        
+        return gradients
+    
     def __init__(self, root):
         self.root = root
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
@@ -191,6 +242,8 @@ class ModernWordCloudApp:
         self.max_word_length = tk.IntVar(value=20)
         self.forbidden_words = set(STOPWORDS)
         self.selected_colormap = "viridis"
+        self.single_color_enabled = tk.BooleanVar(value=False)
+        self.single_color = tk.StringVar(value="#0078D4")
         self.toast = ToastNotification(
             title="WordCloud Magic",
             message="",
@@ -248,6 +301,9 @@ class ModernWordCloudApp:
         self.max_words = tk.IntVar(value=200)
         self.scale = tk.IntVar(value=1)
         
+        # Create custom gradients
+        self.custom_gradients = self.create_custom_gradients()
+        
         # Color schemes with descriptions
         self.color_schemes = {
             "Viridis": "viridis",
@@ -265,7 +321,18 @@ class ModernWordCloudApp:
             "Sunset": "RdYlBu",
             "Pastel": "Pastel1",
             "Dark": "Dark2",
-            "Paired": "Paired"
+            "Paired": "Paired",
+            # New custom gradients
+            "Sunset Sky": "sunset_sky",
+            "Deep Ocean": "deep_ocean",
+            "Forest": "forest",
+            "Fire": "fire",
+            "Cotton Candy": "cotton_candy",
+            "Fall Leaves": "fall_leaves",
+            "Berry": "berry",
+            "Mint": "mint",
+            "Volcano": "volcano",
+            "Aurora": "aurora"
         }
         
         self.create_ui()
@@ -526,6 +593,35 @@ class ModernWordCloudApp:
         
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
+        
+        # Single color option
+        single_color_frame = ttk.Frame(color_frame)
+        single_color_frame.pack(fill=X, pady=(0, 10))
+        
+        self.single_color_check = ttk.Checkbutton(single_color_frame,
+                                                 text="Use Single Color",
+                                                 variable=self.single_color_enabled,
+                                                 command=self.on_single_color_toggle,
+                                                 bootstyle="primary")
+        self.single_color_check.pack(side=LEFT)
+        
+        self.single_color_preview = ttk.Frame(single_color_frame, width=30, height=30)
+        self.single_color_preview.pack(side=RIGHT, padx=(10, 0))
+        
+        # Set initial color preview
+        style = ttk.Style()
+        style_name = "SingleColorPreview.TFrame"
+        style.configure(style_name, background=self.single_color.get())
+        self.single_color_preview.configure(style=style_name)
+        
+        self.single_color_btn = ttk.Button(single_color_frame,
+                                         text="Choose Color",
+                                         command=self.choose_single_color,
+                                         bootstyle="primary-outline",
+                                         state=DISABLED)
+        self.single_color_btn.pack(side=RIGHT)
+        
+        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create scrollable frame for color buttons
         color_scroll = ttk.Frame(color_frame)
@@ -1471,6 +1567,38 @@ class ModernWordCloudApp:
         color_name = self.color_var.get()
         self.selected_colormap = self.color_schemes[color_name]
         self.update_color_preview()
+        
+    def on_single_color_toggle(self):
+        """Handle single color checkbox toggle"""
+        if self.single_color_enabled.get():
+            self.single_color_btn.config(state=NORMAL)
+            # Disable color scheme buttons
+            for widget in self.color_preview_frame.winfo_children():
+                widget.destroy()
+            ttk.Label(self.color_preview_frame, 
+                     text="Using single color",
+                     font=('Segoe UI', 10),
+                     bootstyle="secondary").pack(expand=TRUE)
+        else:
+            self.single_color_btn.config(state=DISABLED)
+            self.update_color_preview()
+            
+    def choose_single_color(self):
+        """Open color picker for single color"""
+        dialog = ColorChooserDialog(title="Choose Single Color", 
+                                   initialcolor=self.single_color.get())
+        dialog.show()
+        
+        if dialog.result:
+            color = dialog.result
+            hex_color = color.hex
+            self.single_color.set(hex_color)
+            
+            # Update preview
+            style = ttk.Style()
+            style_name = "SingleColorPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.single_color_preview.configure(style=style_name)
     
     def update_color_preview(self):
         """Update color scheme preview"""
@@ -1855,13 +1983,21 @@ class ModernWordCloudApp:
             wc_params = {
                 'width': self.canvas_width.get(),
                 'height': self.canvas_height.get(),
-                'colormap': self.selected_colormap,
                 'max_words': int(self.max_words.get()),
                 'scale': self.scale.get(),
                 'relative_scaling': 0.5,
                 'min_font_size': 10,
                 'prefer_horizontal': self.prefer_horizontal.get()
             }
+            
+            # Set color mode
+            if self.single_color_enabled.get():
+                # Use single color function
+                color_value = self.single_color.get()
+                wc_params['color_func'] = lambda *args, **kwargs: color_value
+            else:
+                # Use colormap
+                wc_params['colormap'] = self.selected_colormap
             
             # Set background and mode
             if self.rgba_mode.get():
