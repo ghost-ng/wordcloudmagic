@@ -684,20 +684,22 @@ class ModernWordCloudApp:
         single_color_frame = ttk.Frame(single_tab, padding=20)
         single_color_frame.pack(fill=X)
         
-        ttk.Label(single_color_frame, text="Choose a single color for your word cloud:", 
-                 font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 10))
+        ttk.Label(single_color_frame, text="Color:", font=('Segoe UI', 10)).pack(side=LEFT)
+        
+        self.single_color_preview = ttk.Frame(single_color_frame, width=30, height=30)
+        self.single_color_preview.pack(side=LEFT, padx=(10, 10))
+        
+        # Set initial color preview
+        style = ttk.Style()
+        style_name = "SingleColorPreview.TFrame"
+        style.configure(style_name, background=self.single_color.get())
+        self.single_color_preview.configure(style=style_name)
         
         self.single_color_btn = ttk.Button(single_color_frame,
                                          text="Choose Color",
                                          command=self.choose_single_color,
-                                         bootstyle="primary",
-                                         width=20)
-        self.single_color_btn.pack(anchor=W)
-        
-        ttk.Label(single_color_frame, 
-                 text=f"Current: {self.single_color.get()}", 
-                 font=('Segoe UI', 9, 'italic'),
-                 bootstyle="secondary").pack(anchor=W, pady=(5, 0))
+                                         bootstyle="primary-outline")
+        self.single_color_btn.pack(side=LEFT)
         
         # Preset gradients tab
         preset_tab = ttk.Frame(self.color_notebook)
@@ -718,19 +720,6 @@ class ModernWordCloudApp:
         
         preset_canvas.pack(side="left", fill="both", expand=True)
         preset_scrollbar.pack(side="right", fill="y")
-        
-        # Bind mousewheel to preset canvas
-        def _on_preset_mousewheel(event):
-            preset_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        
-        def _bind_preset_wheel(event):
-            preset_canvas.bind_all("<MouseWheel>", _on_preset_mousewheel)
-        
-        def _unbind_preset_wheel(event):
-            preset_canvas.unbind_all("<MouseWheel>")
-        
-        preset_canvas.bind('<Enter>', _bind_preset_wheel)
-        preset_canvas.bind('<Leave>', _unbind_preset_wheel)
         
         # Custom gradient tab
         custom_tab = ttk.Frame(self.color_notebook)
@@ -763,7 +752,8 @@ class ModernWordCloudApp:
             
             self.custom_color_frames.append(color_row)
         
-        # Update custom color previews will be called after preview frame is created
+        # Update custom color previews
+        self.update_custom_gradient_preview()
         
         # Add/Remove color buttons
         btn_frame = ttk.Frame(custom_frame)
@@ -775,10 +765,14 @@ class ModernWordCloudApp:
         ttk.Button(btn_frame, text="Remove Color", command=self.remove_gradient_color,
                   bootstyle="danger-outline").pack(side=LEFT)
         
+        # Gradient preview
+        ttk.Label(custom_frame, text="Preview:", font=('Segoe UI', 10)).pack(anchor=W, pady=(15, 5))
+        
+        self.custom_gradient_preview = ttk.Frame(custom_frame, height=40)
+        self.custom_gradient_preview.pack(fill=X)
+        
         # Set initial tab based on color mode
         self.color_notebook.select(1)  # Select preset tab by default
-        self.color_notebook.tab(0, state="disabled")
-        self.color_notebook.tab(2, state="disabled")
         
         # Create scrollable frame for color buttons
         color_scroll = preset_scrollable
@@ -812,11 +806,6 @@ class ModernWordCloudApp:
         self.color_preview_frame = ttk.Frame(color_frame, height=40, bootstyle="secondary")
         self.color_preview_frame.pack(fill=X)
         self.color_preview_frame.pack_propagate(False)
-        
-        # Update initial custom gradient preview
-        self.update_custom_gradient_preview()
-        
-        # Update main color preview
         self.update_color_preview()
         
         # Mask and Shape Options
@@ -1734,23 +1723,11 @@ class ModernWordCloudApp:
         mode = self.color_mode.get()
         if mode == "single":
             self.color_notebook.select(0)
-            # Disable other tabs
-            self.color_notebook.tab(1, state="disabled")
-            self.color_notebook.tab(2, state="disabled")
         elif mode == "preset":
             self.color_notebook.select(1)
-            # Disable other tabs
-            self.color_notebook.tab(0, state="disabled")
-            self.color_notebook.tab(2, state="disabled")
         elif mode == "custom":
             self.color_notebook.select(2)
-            # Disable other tabs
-            self.color_notebook.tab(0, state="disabled")
-            self.color_notebook.tab(1, state="disabled")
             self.update_custom_gradient_preview()
-        
-        # Update the main color preview
-        self.update_color_preview()
     
     def choose_custom_color(self, index):
         """Choose a color for custom gradient"""
@@ -1818,8 +1795,37 @@ class ModernWordCloudApp:
             style.configure(style_name, background=color)
             preview.configure(style=style_name)
         
-        # Update the main color preview
-        self.update_color_preview()
+        # Update gradient preview if it exists
+        if hasattr(self, 'custom_gradient_preview'):
+            # Clear previous preview
+            for widget in self.custom_gradient_preview.winfo_children():
+                widget.destroy()
+            
+            # Create gradient preview using matplotlib
+            try:
+                import matplotlib.pyplot as plt
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                
+                fig = plt.Figure(figsize=(4, 0.4), facecolor='white')
+                ax = fig.add_subplot(111)
+                
+                # Create custom colormap
+                cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
+                
+                # Create gradient
+                gradient = np.linspace(0, 1, 256).reshape(1, -1)
+                gradient = np.vstack((gradient, gradient))
+                
+                ax.imshow(gradient, aspect='auto', cmap=cmap)
+                ax.set_axis_off()
+                
+                canvas = FigureCanvasTkAgg(fig, master=self.custom_gradient_preview)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=BOTH, expand=TRUE)
+            except Exception as e:
+                ttk.Label(self.custom_gradient_preview, 
+                         text="Preview unavailable",
+                         bootstyle="secondary").pack()
             
     def choose_single_color(self):
         """Open color picker for single color"""
@@ -1832,8 +1838,11 @@ class ModernWordCloudApp:
             hex_color = color.hex
             self.single_color.set(hex_color)
             
-            # Update the main color preview
-            self.update_color_preview()
+            # Update preview
+            style = ttk.Style()
+            style_name = "SingleColorPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.single_color_preview.configure(style=style_name)
     
     def update_color_preview(self):
         """Update color scheme preview"""
@@ -1841,76 +1850,34 @@ class ModernWordCloudApp:
         for widget in self.color_preview_frame.winfo_children():
             widget.destroy()
         
-        mode = self.color_mode.get()
-        
+        # Create color gradient preview
         try:
-            if mode == "single":
-                # Single color preview
-                canvas = tk.Canvas(self.color_preview_frame, bg=self.single_color.get(), 
-                                 highlightthickness=0, height=40)
-                canvas.pack(fill=BOTH, expand=TRUE)
-                
-            elif mode == "preset":
-                # Preset gradient preview
-                cmap = matplotlib.colormaps[self.selected_colormap]
-                
-                # Create a gradient image
-                gradient = np.linspace(0, 1, 256).reshape(1, -1)
-                gradient = np.vstack((gradient, gradient))
-                
-                fig, ax = plt.subplots(figsize=(6, 0.5), facecolor='white')
-                fig.subplots_adjust(top=1, bottom=0, left=0, right=1)
-                ax.imshow(gradient, aspect='auto', cmap=cmap)
-                ax.set_axis_off()
-                
-                # Convert to PhotoImage
-                buf = BytesIO()
-                fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
-                buf.seek(0)
-                img = Image.open(buf)
-                photo = ImageTk.PhotoImage(img)
-                
-                # Display in label
-                preview_label = ttk.Label(self.color_preview_frame, image=photo)
-                preview_label.image = photo  # Keep reference
-                preview_label.pack(fill=BOTH, expand=TRUE)
-                
-                plt.close(fig)
-                
-            elif mode == "custom":
-                # Custom gradient preview
-                if len(self.custom_gradient_colors) >= 2:
-                    cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
-                    
-                    # Create a gradient image
-                    gradient = np.linspace(0, 1, 256).reshape(1, -1)
-                    gradient = np.vstack((gradient, gradient))
-                    
-                    fig, ax = plt.subplots(figsize=(6, 0.5), facecolor='white')
-                    fig.subplots_adjust(top=1, bottom=0, left=0, right=1)
-                    ax.imshow(gradient, aspect='auto', cmap=cmap)
-                    ax.set_axis_off()
-                    
-                    # Convert to PhotoImage
-                    buf = BytesIO()
-                    fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
-                    buf.seek(0)
-                    img = Image.open(buf)
-                    photo = ImageTk.PhotoImage(img)
-                    
-                    # Display in label
-                    preview_label = ttk.Label(self.color_preview_frame, image=photo)
-                    preview_label.image = photo  # Keep reference
-                    preview_label.pack(fill=BOTH, expand=TRUE)
-                    
-                    plt.close(fig)
-                    
-        except Exception as e:
-            # Fallback text if preview fails
-            ttk.Label(self.color_preview_frame, 
-                     text=f"Preview unavailable",
-                     font=('Segoe UI', 10),
-                     bootstyle="secondary").pack(expand=TRUE)
+            cmap = matplotlib.colormaps[self.selected_colormap]
+            
+            # Create a gradient image
+            gradient = np.linspace(0, 1, 256).reshape(1, -1)
+            gradient = np.vstack((gradient, gradient))
+            
+            fig, ax = plt.subplots(figsize=(6, 0.5), facecolor='white')
+            fig.subplots_adjust(top=1, bottom=0, left=0, right=1)
+            ax.imshow(gradient, aspect='auto', cmap=cmap)
+            ax.set_axis_off()
+            
+            # Convert to PhotoImage
+            buf = BytesIO()
+            fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
+            buf.seek(0)
+            img = Image.open(buf)
+            photo = ImageTk.PhotoImage(img)
+            
+            # Display in label
+            preview_label = ttk.Label(self.color_preview_frame, image=photo)
+            preview_label.image = photo  # Keep reference
+            preview_label.pack(fill=BOTH, expand=TRUE)
+            
+            plt.close(fig)
+        except:
+            pass
     
     def select_mask(self):
         """Select mask image file"""
