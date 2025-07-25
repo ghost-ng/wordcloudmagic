@@ -781,7 +781,7 @@ class ModernWordCloudApp:
         self.color_var = tk.StringVar(value="Viridis")
         
         colors_grid = ttk.Frame(color_scroll)
-        colors_grid.pack(fill=X)
+        colors_grid.pack(fill=X, padx=10, pady=(10, 0))
         
         row = 0
         col = 0
@@ -799,11 +799,14 @@ class ModernWordCloudApp:
                 col = 0
                 row += 1
         
-        # Color preview
-        preview_label = ttk.Label(color_frame, text="Preview:", font=('Segoe UI', 10, 'bold'))
-        preview_label.pack(anchor=W, pady=(15, 5))
+        # Color preview for presets
+        preview_container = ttk.Frame(color_scroll)
+        preview_container.pack(fill=X, padx=10, pady=(20, 10))
         
-        self.color_preview_frame = ttk.Frame(color_frame, height=40, bootstyle="secondary")
+        preview_label = ttk.Label(preview_container, text="Preview:", font=('Segoe UI', 10, 'bold'))
+        preview_label.pack(anchor=W, pady=(0, 5))
+        
+        self.color_preview_frame = ttk.Frame(preview_container, height=40, bootstyle="secondary")
         self.color_preview_frame.pack(fill=X)
         self.color_preview_frame.pack_propagate(False)
         self.update_color_preview()
