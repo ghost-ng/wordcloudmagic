@@ -12,6 +12,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 import numpy as np
 import platform
 import subprocess
+import json
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -400,9 +401,30 @@ class ModernWordCloudApp:
         
         # Validate available fonts after UI creation (in a thread to avoid blocking)
         threading.Thread(target=self.validate_fonts, daemon=True).start()
+    
+    def create_menu(self):
+        """Create the menu bar"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # File menu
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        
+        file_menu.add_command(label="Import Config", command=self.import_config)
+        file_menu.add_command(label="Export Config", command=self.export_config)
+        file_menu.add_separator()
+        file_menu.add_command(label="Reset", command=self.reset_app)
+        file_menu.add_separator()
+        file_menu.add_command(label="Help", command=self.show_help)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.root.quit)
         
     def create_ui(self):
         """Create the main UI"""
+        # Create menu bar
+        self.create_menu()
+        
         # Top bar for theme selection and messages
         top_bar = ttk.Frame(self.root)
         top_bar.pack(fill=X, padx=10, pady=(10, 5))
@@ -2660,6 +2682,197 @@ class ModernWordCloudApp:
             # Light themes
             self.figure.patch.set_facecolor('white')
         self.canvas.draw()
+    
+    def import_config(self):
+        """Import configuration from JSON file"""
+        file_path = filedialog.askopenfilename(
+            title="Import Configuration",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Apply configuration
+                if 'min_length' in config:
+                    self.min_length_var.set(config['min_length'])
+                if 'max_length' in config:
+                    self.max_length_var.set(config['max_length'])
+                if 'forbidden_words' in config:
+                    self.forbidden_text.delete(1.0, tk.END)
+                    self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
+                if 'color_mode' in config:
+                    self.color_mode.set(config['color_mode'])
+                if 'color_scheme' in config:
+                    self.color_var.set(config['color_scheme'])
+                if 'single_color' in config:
+                    self.single_color.set(config['single_color'])
+                if 'custom_colors' in config:
+                    self.custom_gradient_colors = config['custom_colors']
+                    self.update_custom_gradient_preview()
+                if 'prefer_horizontal' in config:
+                    self.horizontal_scale.set(config['prefer_horizontal'])
+                if 'canvas_width' in config:
+                    self.width_var.set(config['canvas_width'])
+                if 'canvas_height' in config:
+                    self.height_var.set(config['canvas_height'])
+                if 'background_color' in config:
+                    self.bg_color = config['background_color']
+                if 'color_mode_setting' in config:
+                    self.color_mode_var.set(config['color_mode_setting'])
+                if 'max_words' in config:
+                    self.max_words_var.set(config['max_words'])
+                if 'scale' in config:
+                    self.scale_var.set(config['scale'])
+                
+                self.show_message("Configuration imported successfully", "good")
+                
+            except Exception as e:
+                self.show_message(f"Failed to import config: {str(e)}", "fail")
+    
+    def export_config(self):
+        """Export current configuration to JSON file"""
+        config = {
+            'min_length': self.min_length_var.get(),
+            'max_length': self.max_length_var.get(),
+            'forbidden_words': self.forbidden_text.get(1.0, tk.END).strip().split('\n'),
+            'color_mode': self.color_mode.get(),
+            'color_scheme': self.color_var.get(),
+            'single_color': self.single_color.get(),
+            'custom_colors': self.custom_gradient_colors,
+            'prefer_horizontal': self.horizontal_scale.get(),
+            'canvas_width': self.width_var.get(),
+            'canvas_height': self.height_var.get(),
+            'background_color': self.bg_color,
+            'color_mode_setting': self.color_mode_var.get(),
+            'max_words': self.max_words_var.get(),
+            'scale': self.scale_var.get()
+        }
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Export Configuration",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+                
+                self.show_message("Configuration exported successfully", "good")
+                
+            except Exception as e:
+                self.show_message(f"Failed to export config: {str(e)}", "fail")
+    
+    def reset_app(self):
+        """Reset application to default settings"""
+        from tkinter import messagebox
+        
+        # Confirm reset
+        if messagebox.askyesno("Reset Application", "Are you sure you want to reset all settings to defaults?"):
+            # Reset all values to defaults
+            self.min_length_var.set(3)
+            self.max_length_var.set(30)
+            self.forbidden_text.delete(1.0, tk.END)
+            self.forbidden_text.insert(1.0, self.default_forbidden)
+            self.update_forbidden_words()
+            
+            self.color_mode.set("preset")
+            self.color_var.set("Viridis")
+            self.single_color.set("#0078D4")
+            self.custom_gradient_colors = ["#FF0000", "#00FF00", "#0000FF"]
+            self.update_custom_gradient_preview()
+            
+            self.horizontal_scale.set(0.9)
+            self.width_var.set(800)
+            self.height_var.set(600)
+            self.bg_color = "white"
+            self.color_mode_var.set("RGB")
+            self.max_words_var.set(200)
+            self.scale_var.set(1.0)
+            
+            # Clear canvas
+            self.clear_canvas()
+            
+            # Clear loaded text
+            self.loaded_text = ""
+            self.loaded_files_label.config(text="No files loaded")
+            
+            self.show_message("Application reset to defaults", "good")
+    
+    def show_help(self):
+        """Show help dialog"""
+        help_text = """WordCloud Magic - Help
+
+GETTING STARTED:
+1. Input Tab: Load text from files or paste directly
+2. Filters Tab: Set word length limits and forbidden words
+3. Style Tab: Choose colors, shapes, and appearance
+4. Click "Generate Word Cloud" to create
+5. Save your creation in PNG, JPEG, or SVG format
+
+INPUT OPTIONS:
+• Select folder and choose files to load
+• Support for PDF, DOCX, PPTX, and TXT files
+• Or paste text directly into the text area
+
+FILTER OPTIONS:
+• Min/Max word length: Control which words appear
+• Forbidden words: Exclude specific words
+• Pre-populated with common stop words
+
+STYLE OPTIONS:
+• Color Schemes:
+  - Single Color: Choose one solid color
+  - Preset Gradients: 30+ built-in color schemes
+  - Custom Gradient: Create your own gradient
+• Shape & Appearance:
+  - No Mask: Standard rectangular cloud
+  - Image Mask: Use an image to shape the cloud
+  - Text Mask: Create a mask from text
+• Word Orientation: Control horizontal vs vertical
+• Canvas Settings: Size and background options
+
+KEYBOARD SHORTCUTS:
+• Ctrl+O: Open file dialog
+• Ctrl+S: Save current word cloud
+• Ctrl+R: Reset application
+• F1: Show this help
+
+TIPS:
+• Use high-contrast masks for best results
+• White areas in masks will be filled with words
+• Increase canvas size for higher resolution
+• Use RGBA mode for transparent backgrounds
+• Scale setting trades quality for performance
+
+Created by @ghost-ng
+"""
+        
+        # Create help window
+        help_window = tk.Toplevel(self.root)
+        help_window.title("WordCloud Magic - Help")
+        help_window.geometry("700x600")
+        
+        # Create scrolled text widget
+        from tkinter import scrolledtext
+        help_display = scrolledtext.ScrolledText(help_window, wrap=tk.WORD, width=80, height=30)
+        help_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Insert help text
+        help_display.insert(1.0, help_text)
+        help_display.config(state=tk.DISABLED)  # Make read-only
+        
+        # Close button
+        close_btn = ttk.Button(help_window, text="Close", command=help_window.destroy)
+        close_btn.pack(pady=(0, 10))
+        
+        # Center the window
+        help_window.transient(self.root)
+        help_window.grab_set()
 
 def main():
     # Create the app with a modern theme
