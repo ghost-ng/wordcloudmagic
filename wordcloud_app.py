@@ -639,18 +639,25 @@ class ModernWordCloudApp:
         style_frame.pack(fill="both", expand=True)
         
         # Bind mouse wheel to this specific canvas
-        def _on_mousewheel(event):
+        def _on_style_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
-        def _bind_mousewheel(event):
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        # Store the current binding
+        self._style_wheel_bound = False
         
-        def _unbind_mousewheel(event):
-            canvas.unbind_all("<MouseWheel>")
+        def _bind_style_mousewheel(event):
+            if not self._style_wheel_bound:
+                canvas.bind("<MouseWheel>", _on_style_mousewheel)
+                self._style_wheel_bound = True
+        
+        def _unbind_style_mousewheel(event):
+            if self._style_wheel_bound:
+                canvas.unbind("<MouseWheel>")
+                self._style_wheel_bound = False
         
         # Bind/unbind mousewheel when entering/leaving the canvas
-        canvas.bind('<Enter>', _bind_mousewheel)
-        canvas.bind('<Leave>', _unbind_mousewheel)
+        canvas.bind('<Enter>', _bind_style_mousewheel)
+        canvas.bind('<Leave>', _unbind_style_mousewheel)
         
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
@@ -721,6 +728,18 @@ class ModernWordCloudApp:
         preset_canvas.pack(side="left", fill="both", expand=True)
         preset_scrollbar.pack(side="right", fill="y")
         
+        # Bind mouse wheel to preset canvas only
+        def _on_preset_mousewheel(event):
+            preset_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            # Stop propagation
+            return "break"
+        
+        # Direct binding to the preset canvas
+        preset_canvas.bind("<MouseWheel>", _on_preset_mousewheel)
+        
+        # Also bind to the scrollable frame inside
+        preset_scrollable.bind("<MouseWheel>", _on_preset_mousewheel)
+        
         # Custom gradient tab
         custom_tab = ttk.Frame(self.color_notebook)
         self.color_notebook.add(custom_tab, text="Custom Gradient")
@@ -783,6 +802,9 @@ class ModernWordCloudApp:
         colors_grid = ttk.Frame(color_scroll)
         colors_grid.pack(fill=X, padx=10, pady=(10, 0))
         
+        # Bind mouse wheel to grid
+        colors_grid.bind("<MouseWheel>", _on_preset_mousewheel)
+        
         row = 0
         col = 0
         for name, cmap in self.color_schemes.items():
@@ -794,6 +816,8 @@ class ModernWordCloudApp:
                                  bootstyle="primary-outline-toolbutton",
                                  width=12)
             btn.grid(row=row, column=col, padx=5, pady=5, sticky=W)
+            # Bind mouse wheel to button
+            btn.bind("<MouseWheel>", _on_preset_mousewheel)
             col += 1
             if col > 3:  # Changed from 1 to 3 for 4 columns
                 col = 0
@@ -802,6 +826,9 @@ class ModernWordCloudApp:
         # Color preview for presets
         preview_container = ttk.Frame(color_scroll)
         preview_container.pack(fill=X, padx=10, pady=(20, 10))
+        
+        # Bind mouse wheel to preview container
+        preview_container.bind("<MouseWheel>", _on_preset_mousewheel)
         
         preview_label = ttk.Label(preview_container, text="Preview:", font=('Segoe UI', 10, 'bold'))
         preview_label.pack(anchor=W, pady=(0, 5))
