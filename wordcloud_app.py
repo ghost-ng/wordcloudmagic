@@ -273,6 +273,9 @@ class ModernWordCloudApp:
         self.root.geometry("1300x850")
         self.root.state('zoomed')  # Start maximized
         
+        # Flag to track UI readiness
+        self.ui_ready = False
+        
         # Available themes
         self.themes = [
             "cosmo", "flatly", "litera", "minty", "lumen", 
@@ -398,6 +401,9 @@ class ModernWordCloudApp:
         }
         
         self.create_ui()
+        
+        # Mark UI as ready
+        self.ui_ready = True
         
         # Bind window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -2950,8 +2956,8 @@ class ModernWordCloudApp:
     
     def auto_save_config(self):
         """Auto-save configuration to local file"""
-        # Only save if UI has been created
-        if hasattr(self, 'min_length_var'):
+        # Only save if UI has been created and is ready
+        if hasattr(self, 'ui_ready') and self.ui_ready:
             config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
             self.save_config_to_file(config_file)
     
@@ -2965,7 +2971,10 @@ class ModernWordCloudApp:
     
     def on_closing(self):
         """Handle application closing - save config and exit"""
-        self.auto_save_config()
+        try:
+            self.auto_save_config()
+        except Exception as e:
+            print(f"Could not save config on exit: {e}")
         self.root.quit()
     
     def reset_app(self):
