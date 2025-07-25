@@ -212,6 +212,54 @@ class ModernWordCloudApp:
         aurora_colors = ['#191970', '#00FF00', '#9370DB', '#FF1493']
         gradients['aurora'] = LinearSegmentedColormap.from_list('aurora', aurora_colors)
         
+        # Hacker - Lime Green → Black
+        hacker_colors = ['#00FF00', '#00AA00', '#005500', '#000000']
+        gradients['hacker'] = LinearSegmentedColormap.from_list('hacker', hacker_colors)
+        
+        # Solarized Dark
+        solarized_dark_colors = ['#002b36', '#073642', '#586e75', '#657b83', '#839496', '#93a1a1']
+        gradients['solarized_dark'] = LinearSegmentedColormap.from_list('solarized_dark', solarized_dark_colors)
+        
+        # Solarized Light
+        solarized_light_colors = ['#fdf6e3', '#eee8d5', '#93a1a1', '#839496', '#657b83', '#586e75']
+        gradients['solarized_light'] = LinearSegmentedColormap.from_list('solarized_light', solarized_light_colors)
+        
+        # Rose Pine
+        rose_pine_colors = ['#191724', '#1f1d2e', '#403d52', '#e0def4', '#eb6f92', '#f6c177']
+        gradients['rose_pine'] = LinearSegmentedColormap.from_list('rose_pine', rose_pine_colors)
+        
+        # Grape - Deep Purple → Light Purple
+        grape_colors = ['#2D1B69', '#512DA8', '#7E57C2', '#AB47BC', '#CE93D8']
+        gradients['grape'] = LinearSegmentedColormap.from_list('grape', grape_colors)
+        
+        # Dracula
+        dracula_colors = ['#282a36', '#44475a', '#6272a4', '#bd93f9', '#ff79c6', '#f8f8f2']
+        gradients['dracula'] = LinearSegmentedColormap.from_list('dracula', dracula_colors)
+        
+        # Gruvbox
+        gruvbox_colors = ['#282828', '#3c3836', '#504945', '#928374', '#d5c4a1', '#fbf1c7']
+        gradients['gruvbox'] = LinearSegmentedColormap.from_list('gruvbox', gruvbox_colors)
+        
+        # Monokai
+        monokai_colors = ['#272822', '#49483e', '#75715e', '#a6e22e', '#f92672', '#66d9ef']
+        gradients['monokai'] = LinearSegmentedColormap.from_list('monokai', monokai_colors)
+        
+        # Army - Military Greens
+        army_colors = ['#4B5320', '#556B2F', '#6B8E23', '#8FBC8F', '#90EE90']
+        gradients['army'] = LinearSegmentedColormap.from_list('army', army_colors)
+        
+        # Air Force - Sky Blues
+        airforce_colors = ['#00308F', '#0047AB', '#4169E1', '#6495ED', '#87CEEB']
+        gradients['airforce'] = LinearSegmentedColormap.from_list('airforce', airforce_colors)
+        
+        # Cyber - Neon Cyan → Dark
+        cyber_colors = ['#000000', '#0D0D0D', '#00FFFF', '#00CED1', '#1E90FF']
+        gradients['cyber'] = LinearSegmentedColormap.from_list('cyber', cyber_colors)
+        
+        # Navy - Deep Ocean Blues
+        navy_colors = ['#000080', '#002FA7', '#003F87', '#1560BD', '#4682B4']
+        gradients['navy'] = LinearSegmentedColormap.from_list('navy', navy_colors)
+        
         # Register all custom colormaps with matplotlib
         for name, cmap in gradients.items():
             matplotlib.colormaps.register(cmap, name=name)
@@ -332,7 +380,19 @@ class ModernWordCloudApp:
             "Berry": "berry",
             "Mint": "mint",
             "Volcano": "volcano",
-            "Aurora": "aurora"
+            "Aurora": "aurora",
+            "Hacker": "hacker",
+            "Solarized Dark": "solarized_dark",
+            "Solarized Light": "solarized_light",
+            "Rose Pine": "rose_pine",
+            "Grape": "grape",
+            "Dracula": "dracula",
+            "Gruvbox": "gruvbox",
+            "Monokai": "monokai",
+            "Army": "army",
+            "Air Force": "airforce",
+            "Cyber": "cyber",
+            "Navy": "navy"
         }
         
         self.create_ui()
