@@ -423,9 +423,9 @@ class ModernWordCloudApp:
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
         
-        file_menu.add_command(label="Import Config", command=self.import_config)
-        file_menu.add_command(label="Export Config", command=self.export_config)
-        file_menu.add_command(label="Save Config Locally", command=self.save_config_locally)
+        file_menu.add_command(label="Load Config", command=self.import_config)
+        file_menu.add_command(label="Save Config As...", command=self.export_config)
+        file_menu.add_command(label="Save Config", command=self.save_config_locally)
         file_menu.add_separator()
         file_menu.add_command(label="Reset", command=self.reset_app)
         file_menu.add_separator()
@@ -2376,7 +2376,8 @@ class ModernWordCloudApp:
             self.root.after(0, self._update_preview)
             
         except Exception as e:
-            self.root.after(0, lambda: self.show_toast(f"Error generating word cloud: {str(e)}", "danger"))
+            error_msg = str(e)
+            self.root.after(0, lambda: self.show_toast(f"Error generating word cloud: {error_msg}", "danger"))
         finally:
             self.root.after(0, self._generation_complete)
     
@@ -2736,10 +2737,10 @@ class ModernWordCloudApp:
                 self.height_var.set(config['canvas_height'])
             if 'background_color' in config:
                 self.bg_color = config['background_color']
-                self.update_bg_preview()
+                # TODO: update_bg_preview() method needs to be implemented
             if 'color_mode_setting' in config:
                 self.color_mode_var.set(config['color_mode_setting'])
-                self.on_color_mode_change_canvas()
+                # TODO: on_color_mode_change_canvas() method needs to be implemented
             if 'max_words' in config:
                 self.max_words_var.set(config['max_words'])
             if 'scale' in config:
@@ -2764,7 +2765,7 @@ class ModernWordCloudApp:
                     self.contour_width_var.set(config['contour_width'])
                 if 'contour_color' in config:
                     self.contour_color = config['contour_color']
-                    self.update_contour_color_preview()
+                    # TODO: update_contour_color_preview() method needs to be implemented
             
             # Apply text mask settings
             if hasattr(self, 'mask_text_var'):
@@ -2837,9 +2838,16 @@ class ModernWordCloudApp:
         if os.path.exists(config_file):
             try:
                 with open(config_file, 'r') as f:
-                    config = json.load(f)
-                self.apply_config(config, show_message=False)
-                print(f"Auto-loaded configuration from {config_file}")
+                    content = f.read().strip()
+                    if content:  # Only parse if file has content
+                        config = json.loads(content)
+                        self.apply_config(config, show_message=False)
+                        print(f"Auto-loaded configuration from {config_file}")
+                    else:
+                        print("Config file is empty, skipping auto-load")
+            except json.JSONDecodeError as e:
+                print(f"Invalid JSON in config file: {e}")
+                print("Consider deleting wordcloud_config.json or fixing the JSON syntax")
             except Exception as e:
                 print(f"Failed to auto-load config: {e}")
     
@@ -2997,33 +3005,82 @@ class ModernWordCloudApp:
         
         # Confirm reset
         if messagebox.askyesno("Reset Application", "Are you sure you want to reset all settings to defaults?"):
-            # Reset all values to defaults
+            # Reset filter settings
             self.min_length_var.set(3)
             self.max_length_var.set(30)
             self.forbidden_text.delete(1.0, tk.END)
             self.forbidden_text.insert(1.0, self.default_forbidden)
             self.update_forbidden_words()
             
+            # Reset color settings
             self.color_mode.set("preset")
             self.color_var.set("Viridis")
             self.single_color.set("#0078D4")
             self.custom_gradient_colors = ["#FF0000", "#00FF00", "#0000FF"]
             self.update_custom_gradient_preview()
+            self.on_color_mode_change()  # Update UI to reflect preset mode
             
+            # Reset canvas settings
             self.horizontal_scale.set(0.9)
             self.width_var.set(800)
             self.height_var.set(600)
             self.bg_color = "white"
             self.color_mode_var.set("RGB")
+            
+            # Reset other settings
             self.max_words_var.set(200)
             self.scale_var.set(1.0)
+            
+            # Reset mask settings
+            self.mask_notebook.select(0)  # Select "No Mask" tab
+            self.mask_path = "No mask selected"
+            self.mask = None
+            if hasattr(self, 'mask_label'):
+                self.mask_label.config(text="No mask selected")
+            
+            # Reset contour settings
+            if hasattr(self, 'contour_var'):
+                self.contour_var.set(False)
+                self.contour_width_var.set(3)
+                self.contour_color = 'black'
+            
+            # Reset text mask settings
+            if hasattr(self, 'mask_text_var'):
+                self.mask_text_var.set("")
+                self.selected_font.set("Arial")
+                self.text_size_var.set(100)
+                self.bold_var.set(False)
+                self.text_width_var.set(800)
+                self.text_height_var.set(600)
+                if hasattr(self, 'lock_aspect_var'):
+                    self.lock_aspect_var.set(False)
+                # Clear text mask preview
+                if hasattr(self, 'text_mask_preview_label'):
+                    self.text_mask_preview_label.config(image='', text="Preview will appear here")
+            
+            # Reset working directory
+            self.working_folder.set("No folder selected")
+            if hasattr(self, 'file_listbox'):
+                self.file_listbox.delete(0, tk.END)
+            
+            # Clear loaded text
+            self.loaded_text = ""
+            if hasattr(self, 'loaded_files_label'):
+                self.loaded_files_label.config(text="No files loaded")
+            
+            # Clear text input area
+            if hasattr(self, 'text_area'):
+                self.text_area.delete(1.0, tk.END)
             
             # Clear canvas
             self.clear_canvas()
             
-            # Clear loaded text
-            self.loaded_text = ""
-            self.loaded_files_label.config(text="No files loaded")
+            # Reset theme to default
+            self.current_theme.set("cosmo")
+            self.root.style.theme_use("cosmo")
+            
+            # Save the reset state
+            self.auto_save_config()
             
             self.show_message("Application reset to defaults", "good")
     
@@ -3154,11 +3211,12 @@ PREVIEW AREA:
 ═══════════════════════════════════════════════════════════════════════════════
 
 FILE MENU OPTIONS:
-• Import Config: Load saved settings from JSON file
-• Export Config: Save all current settings to JSON
+• Load Config: Load saved settings from JSON file
+• Save Config As...: Save current settings to a new file
+• Save Config: Quick save to wordcloud_config.json
 • Reset: Restore all settings to defaults (with confirmation)
 • Help: Show this comprehensive guide
-• Exit: Close the application
+• Exit: Close the application (auto-saves config)
 
 Configuration includes:
 - All filter settings
