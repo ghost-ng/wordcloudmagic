@@ -627,12 +627,25 @@ class ModernWordCloudApp:
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        # Create the window and store its ID
+        self.style_window_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Function to update canvas window width
+        def update_style_canvas_width(event=None):
+            canvas_width = canvas.winfo_width()
+            if canvas_width > 1:  # Ensure canvas has been drawn
+                canvas.itemconfig(self.style_window_id, width=canvas_width)
+        
+        # Bind canvas resize to update window width
+        canvas.bind("<Configure>", update_style_canvas_width)
         
         # Pack scrollbar and canvas
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
+        
+        # Update width after canvas is displayed
+        canvas.after(100, update_style_canvas_width)
         
         # Add padding to scrollable frame
         style_frame = ttk.Frame(scrollable_frame, padding="20")
@@ -722,11 +735,24 @@ class ModernWordCloudApp:
             lambda e: preset_canvas.configure(scrollregion=preset_canvas.bbox("all"))
         )
         
-        preset_canvas.create_window((0, 0), window=preset_scrollable, anchor="nw")
+        # Create the window and store its ID
+        self.preset_window_id = preset_canvas.create_window((0, 0), window=preset_scrollable, anchor="nw")
         preset_canvas.configure(yscrollcommand=preset_scrollbar.set)
+        
+        # Function to update canvas window width
+        def update_preset_canvas_width(event=None):
+            canvas_width = preset_canvas.winfo_width()
+            if canvas_width > 1:  # Ensure canvas has been drawn
+                preset_canvas.itemconfig(self.preset_window_id, width=canvas_width)
+        
+        # Bind canvas resize to update window width
+        preset_canvas.bind("<Configure>", update_preset_canvas_width)
         
         preset_canvas.pack(side="left", fill="both", expand=True)
         preset_scrollbar.pack(side="right", fill="y")
+        
+        # Update width after canvas is displayed
+        preset_canvas.after(100, update_preset_canvas_width)
         
         # Bind mouse wheel to preset canvas only
         def _on_preset_mousewheel(event):
