@@ -2801,8 +2801,8 @@ class ModernWordCloudApp:
                         pass
             
             # Apply input settings
-            if 'working_directory' in config and hasattr(self, 'working_dir'):
-                self.working_dir.set(config['working_directory'])
+            if 'working_directory' in config and hasattr(self, 'working_folder'):
+                self.working_folder.set(config['working_directory'])
                 if os.path.exists(config['working_directory']):
                     self.load_directory_files()
             
@@ -2916,8 +2916,12 @@ class ModernWordCloudApp:
             config['text_mask_lock_aspect'] = self.lock_aspect_var.get()
         
         # Input settings
-        if hasattr(self, 'working_dir'):
-            config['working_directory'] = self.working_dir.get()
+        if hasattr(self, 'working_folder'):
+            config['working_directory'] = self.working_folder.get()
+        
+        # Default forbidden words
+        if hasattr(self, 'default_forbidden'):
+            config['default_forbidden'] = self.default_forbidden
         
         return config
     
@@ -2933,11 +2937,21 @@ class ModernWordCloudApp:
         """Save configuration to specified file"""
         try:
             config = self.get_current_config()
+            # Ensure all values are JSON serializable
+            serializable_config = {}
+            for key, value in config.items():
+                if hasattr(value, 'get'):  # If it's a Tkinter variable
+                    serializable_config[key] = value.get()
+                else:
+                    serializable_config[key] = value
+            
             with open(file_path, 'w') as f:
-                json.dump(config, f, indent=2)
+                json.dump(serializable_config, f, indent=2)
             return True
         except Exception as e:
             print(f"Error saving config: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def export_config(self):
