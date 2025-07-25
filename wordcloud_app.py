@@ -681,7 +681,7 @@ class ModernWordCloudApp:
         ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create notebook for different color modes
-        self.color_notebook = ttk.Notebook(color_frame)
+        self.color_notebook = ttk.Notebook(color_frame, height=400)
         self.color_notebook.pack(fill=BOTH, expand=TRUE)
         
         # Single color tab
@@ -842,7 +842,7 @@ class ModernWordCloudApp:
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
         # Create notebook for mask options
-        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
+        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary", height=300)
         self.mask_notebook.pack(fill=BOTH, expand=TRUE)
         
         # Create tabs
