@@ -5,6 +5,7 @@ from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 from tkinter import filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
+import tkinter.font as tkFont
 import os
 import threading
 from PIL import Image, ImageTk, ImageDraw, ImageFont
@@ -15,6 +16,7 @@ from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
+from matplotlib.colors import LinearSegmentedColormap
 matplotlib.use('TkAgg')
 
 # File handling imports
@@ -24,40 +26,251 @@ from pptx import Presentation
 import re
 from io import BytesIO
 
-class FontCombobox(ttk.Combobox):
-    """Custom combobox that displays fonts in their own style"""
-    def __init__(self, master, font_dict, **kwargs):
-        self.font_dict = font_dict
+class FontListbox(ttk.Frame):
+    """Custom font selector that displays fonts in their actual style"""
+    def __init__(self, master, font_dict, textvariable=None, width=35, height=6, **kwargs):
         super().__init__(master, **kwargs)
-        self.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
+        self.font_dict = font_dict
+        self.textvariable = textvariable
+        self.fonts_loaded = {}
+        self.selected_index = -1
+        self.items = []
         
-        # Try to configure the dropdown to show fonts in their style
-        self.bind('<<ComboboxSelected>>', self._on_select)
-        self.bind('<Configure>', self._update_font)
+        # Create frame for the selector
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
         
-    def _on_select(self, event=None):
-        """Update the entry font when selection changes"""
-        self._update_font()
+        # Create scrollbar
+        scrollbar = ttk.Scrollbar(self, orient="vertical")
+        scrollbar.grid(row=0, column=1, sticky=(N, S))
         
-    def _update_font(self, event=None):
-        """Update the displayed font"""
-        try:
-            selected = self.get()
-            if selected in self.font_dict:
-                font_name = self.font_dict[selected]
-                # Try to set the font for the entry part
-                try:
-                    self.configure(font=(font_name, 11))
-                except:
-                    self.configure(font=('Segoe UI', 11))
-        except:
-            pass
+        # Create Canvas
+        self.canvas = tk.Canvas(self, 
+                               width=width * 8,  # Approximate width in pixels
+                               height=height * 22,  # Approximate height in pixels
+                               bg='white',
+                               highlightthickness=1)
+        self.canvas.grid(row=0, column=0, sticky=(N, S, E, W))
+        scrollbar.config(command=self.canvas.yview)
+        self.canvas.config(yscrollcommand=scrollbar.set)
+        
+        # Bind events
+        self.canvas.bind('<Button-1>', self._on_click)
+        self.canvas.bind('<Configure>', self._on_canvas_configure)
+        
+        # Populate fonts
+        self._populate_fonts()
+        
+    def _populate_fonts(self):
+        """Populate the canvas with fonts in their actual styles"""
+        # Clear existing items
+        self.canvas.delete("all")
+        self.items = []
+        self.fonts_loaded = {}
+        
+        y_position = 5
+        item_height = 25
+        
+        for i, font_name in enumerate(sorted(self.font_dict.keys())):
+            # Try to create font
+            try:
+                font_face = self.font_dict[font_name]
+                item_font = tkFont.Font(family=font_face, size=12)
+                self.fonts_loaded[font_name] = item_font
+            except:
+                # If font fails to load, use default
+                item_font = tkFont.Font(family='Segoe UI', size=12)
+            
+            # Create text item
+            text_id = self.canvas.create_text(10, y_position + item_height//2,
+                                             text=font_name,
+                                             font=item_font,
+                                             anchor='w',
+                                             fill='black',
+                                             tags=f"font_{i}")
+            
+            # Create selection rectangle (initially hidden)
+            rect_id = self.canvas.create_rectangle(2, y_position, 
+                                                  self.canvas.winfo_width() - 2, 
+                                                  y_position + item_height,
+                                                  fill='#0078d4',
+                                                  outline='',
+                                                  state='hidden',
+                                                  tags=f"select_{i}")
+            
+            self.items.append({
+                'name': font_name,
+                'text_id': text_id,
+                'rect_id': rect_id,
+                'y_start': y_position,
+                'y_end': y_position + item_height
+            })
+            
+            y_position += item_height
+        
+        # Update scroll region
+        self.canvas.config(scrollregion=self.canvas.bbox("all"))
+        
+        # Set initial selection
+        if self.textvariable:
+            current_value = self.textvariable.get()
+            if current_value in self.font_dict:
+                index = sorted(self.font_dict.keys()).index(current_value)
+                self._select_item(index)
+    
+    def _on_click(self, event):
+        """Handle click events"""
+        # Convert canvas coordinates
+        canvas_y = self.canvas.canvasy(event.y)
+        
+        # Find clicked item
+        for i, item in enumerate(self.items):
+            if item['y_start'] <= canvas_y <= item['y_end']:
+                self._select_item(i)
+                break
+    
+    def _select_item(self, index):
+        """Select an item by index"""
+        # Deselect previous
+        if 0 <= self.selected_index < len(self.items):
+            prev_item = self.items[self.selected_index]
+            self.canvas.itemconfig(prev_item['rect_id'], state='hidden')
+            self.canvas.itemconfig(prev_item['text_id'], fill='black')
+        
+        # Select new item
+        if 0 <= index < len(self.items):
+            self.selected_index = index
+            item = self.items[index]
+            self.canvas.itemconfig(item['rect_id'], state='normal')
+            self.canvas.itemconfig(item['text_id'], fill='white')
+            
+            # Update variable
+            if self.textvariable:
+                self.textvariable.set(item['name'])
+                self.event_generate('<<FontSelected>>', when='tail')
+            
+            # Ensure item is visible
+            bbox = self.canvas.bbox(item['text_id'])
+            if bbox:
+                self.canvas.yview_moveto(bbox[1] / self.canvas.winfo_height())
+    
+    def _on_canvas_configure(self, event):
+        """Update rectangles when canvas is resized"""
+        canvas_width = event.width
+        for item in self.items:
+            self.canvas.coords(item['rect_id'], 
+                             2, item['y_start'], 
+                             canvas_width - 2, item['y_end'])
+    
+    def set_fonts(self, font_dict):
+        """Update the available fonts"""
+        self.font_dict = font_dict
+        self._populate_fonts()
 
 class ModernWordCloudApp:
+    def create_custom_gradients(self):
+        """Create and register custom color gradients"""
+        gradients = {}
+        
+        # Sunset Sky - Orange → Pink → Purple
+        sunset_colors = ['#FF8C00', '#FF69B4', '#8B008B']
+        gradients['sunset_sky'] = LinearSegmentedColormap.from_list('sunset_sky', sunset_colors)
+        
+        # Deep Ocean - Deep Blue → Teal → Light Blue
+        ocean_colors = ['#000080', '#008B8B', '#87CEEB']
+        gradients['deep_ocean'] = LinearSegmentedColormap.from_list('deep_ocean', ocean_colors)
+        
+        # Forest - Dark Green → Green → Light Green
+        forest_colors = ['#006400', '#228B22', '#90EE90']
+        gradients['forest'] = LinearSegmentedColormap.from_list('forest', forest_colors)
+        
+        # Fire - Red → Orange → Yellow
+        fire_colors = ['#DC143C', '#FF8C00', '#FFD700']
+        gradients['fire'] = LinearSegmentedColormap.from_list('fire', fire_colors)
+        
+        # Cotton Candy - Pink → Light Blue → Lavender
+        cotton_colors = ['#FFB6C1', '#87CEFA', '#E6E6FA']
+        gradients['cotton_candy'] = LinearSegmentedColormap.from_list('cotton_candy', cotton_colors)
+        
+        # Fall Leaves - Brown → Orange → Gold
+        fall_colors = ['#8B4513', '#FF8C00', '#FFD700']
+        gradients['fall_leaves'] = LinearSegmentedColormap.from_list('fall_leaves', fall_colors)
+        
+        # Berry - Deep Purple → Magenta → Pink
+        berry_colors = ['#4B0082', '#FF00FF', '#FFC0CB']
+        gradients['berry'] = LinearSegmentedColormap.from_list('berry', berry_colors)
+        
+        # Mint - Dark Teal → Mint → White
+        mint_colors = ['#008080', '#98FB98', '#FFFFFF']
+        gradients['mint'] = LinearSegmentedColormap.from_list('mint', mint_colors)
+        
+        # Volcano - Black → Red → Orange → Yellow
+        volcano_colors = ['#000000', '#8B0000', '#FF4500', '#FFFF00']
+        gradients['volcano'] = LinearSegmentedColormap.from_list('volcano', volcano_colors)
+        
+        # Aurora (Northern Lights) - Dark Blue → Green → Purple → Pink
+        aurora_colors = ['#191970', '#00FF00', '#9370DB', '#FF1493']
+        gradients['aurora'] = LinearSegmentedColormap.from_list('aurora', aurora_colors)
+        
+        # Hacker - Lime Green → Black
+        hacker_colors = ['#00FF00', '#00AA00', '#005500', '#000000']
+        gradients['hacker'] = LinearSegmentedColormap.from_list('hacker', hacker_colors)
+        
+        # Solarized Dark
+        solarized_dark_colors = ['#002b36', '#073642', '#586e75', '#657b83', '#839496', '#93a1a1']
+        gradients['solarized_dark'] = LinearSegmentedColormap.from_list('solarized_dark', solarized_dark_colors)
+        
+        # Solarized Light
+        solarized_light_colors = ['#fdf6e3', '#eee8d5', '#93a1a1', '#839496', '#657b83', '#586e75']
+        gradients['solarized_light'] = LinearSegmentedColormap.from_list('solarized_light', solarized_light_colors)
+        
+        # Rose Pine
+        rose_pine_colors = ['#191724', '#1f1d2e', '#403d52', '#e0def4', '#eb6f92', '#f6c177']
+        gradients['rose_pine'] = LinearSegmentedColormap.from_list('rose_pine', rose_pine_colors)
+        
+        # Grape - Deep Purple → Light Purple
+        grape_colors = ['#2D1B69', '#512DA8', '#7E57C2', '#AB47BC', '#CE93D8']
+        gradients['grape'] = LinearSegmentedColormap.from_list('grape', grape_colors)
+        
+        # Dracula
+        dracula_colors = ['#282a36', '#44475a', '#6272a4', '#bd93f9', '#ff79c6', '#f8f8f2']
+        gradients['dracula'] = LinearSegmentedColormap.from_list('dracula', dracula_colors)
+        
+        # Gruvbox
+        gruvbox_colors = ['#282828', '#3c3836', '#504945', '#928374', '#d5c4a1', '#fbf1c7']
+        gradients['gruvbox'] = LinearSegmentedColormap.from_list('gruvbox', gruvbox_colors)
+        
+        # Monokai
+        monokai_colors = ['#272822', '#49483e', '#75715e', '#a6e22e', '#f92672', '#66d9ef']
+        gradients['monokai'] = LinearSegmentedColormap.from_list('monokai', monokai_colors)
+        
+        # Army - Military Greens
+        army_colors = ['#4B5320', '#556B2F', '#6B8E23', '#8FBC8F', '#90EE90']
+        gradients['army'] = LinearSegmentedColormap.from_list('army', army_colors)
+        
+        # Air Force - Sky Blues
+        airforce_colors = ['#00308F', '#0047AB', '#4169E1', '#6495ED', '#87CEEB']
+        gradients['airforce'] = LinearSegmentedColormap.from_list('airforce', airforce_colors)
+        
+        # Cyber - Neon Cyan → Dark
+        cyber_colors = ['#000000', '#0D0D0D', "#A6FF00", "#00D10A", '#1E90FF']
+        gradients['cyber'] = LinearSegmentedColormap.from_list('cyber', cyber_colors)
+        
+        # Navy - Deep Ocean Blues
+        navy_colors = ['#000080', '#002FA7', '#003F87', '#1560BD', '#4682B4']
+        gradients['navy'] = LinearSegmentedColormap.from_list('navy', navy_colors)
+        
+        # Register all custom colormaps with matplotlib
+        for name, cmap in gradients.items():
+            matplotlib.colormaps.register(cmap, name=name)
+        
+        return gradients
+    
     def __init__(self, root):
         self.root = root
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
+        self.root.state('zoomed')  # Start maximized
         
         # Available themes
         self.themes = [
@@ -77,6 +290,9 @@ class ModernWordCloudApp:
         self.max_word_length = tk.IntVar(value=20)
         self.forbidden_words = set(STOPWORDS)
         self.selected_colormap = "viridis"
+        self.color_mode = tk.StringVar(value="preset")  # "single", "preset", or "custom"
+        self.single_color = tk.StringVar(value="#0078D4")
+        self.custom_gradient_colors = ["#FF0000", "#00FF00", "#0000FF"]  # Default RGB
         self.toast = ToastNotification(
             title="WordCloud Magic",
             message="",
@@ -85,7 +301,7 @@ class ModernWordCloudApp:
         )
         
         # Text mask variables
-        self.mask_type = tk.StringVar(value="image")  # "image" or "text"
+        self.mask_type = tk.StringVar(value="none")  # "none", "image" or "text"
         self.text_mask_input = tk.StringVar(value="")
         self.text_mask_font_size = tk.IntVar(value=200)
         self.text_mask_bold = tk.BooleanVar(value=True)
@@ -131,6 +347,11 @@ class ModernWordCloudApp:
         # Word orientation and mode
         self.prefer_horizontal = tk.DoubleVar(value=0.9)
         self.rgba_mode = tk.BooleanVar(value=False)
+        self.max_words = tk.IntVar(value=200)
+        self.scale = tk.IntVar(value=1)
+        
+        # Create custom gradients
+        self.custom_gradients = self.create_custom_gradients()
         
         # Color schemes with descriptions
         self.color_schemes = {
@@ -149,7 +370,30 @@ class ModernWordCloudApp:
             "Sunset": "RdYlBu",
             "Pastel": "Pastel1",
             "Dark": "Dark2",
-            "Paired": "Paired"
+            "Paired": "Paired",
+            # New custom gradients
+            "Sunset Sky": "sunset_sky",
+            "Deep Ocean": "deep_ocean",
+            "Forest": "forest",
+            "Fire": "fire",
+            "Cotton Candy": "cotton_candy",
+            "Fall Leaves": "fall_leaves",
+            "Berry": "berry",
+            "Mint": "mint",
+            "Volcano": "volcano",
+            "Aurora": "aurora",
+            "Hacker": "hacker",
+            "SolarizedDk": "solarized_dark",
+            "SolarizedLt": "solarized_light",
+            "Rose Pine": "rose_pine",
+            "Grape": "grape",
+            "Dracula": "dracula",
+            "Gruvbox": "gruvbox",
+            "Monokai": "monokai",
+            "Army": "army",
+            "Air Force": "airforce",
+            "Cyber": "cyber",
+            "Navy": "navy"
         }
         
         self.create_ui()
@@ -383,43 +627,209 @@ class ModernWordCloudApp:
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        # Create the window and store its ID
+        self.style_window_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Function to update canvas window width
+        def update_style_canvas_width(event=None):
+            canvas_width = canvas.winfo_width()
+            if canvas_width > 1:  # Ensure canvas has been drawn
+                canvas.itemconfig(self.style_window_id, width=canvas_width)
+        
+        # Bind canvas resize to update window width
+        canvas.bind("<Configure>", update_style_canvas_width)
         
         # Pack scrollbar and canvas
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
+        
+        # Update width after canvas is displayed
+        canvas.after(100, update_style_canvas_width)
         
         # Add padding to scrollable frame
         style_frame = ttk.Frame(scrollable_frame, padding="20")
         style_frame.pack(fill="both", expand=True)
         
         # Bind mouse wheel to this specific canvas
-        def _on_mousewheel(event):
+        def _on_style_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
-        def _bind_mousewheel(event):
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        # Store the current binding
+        self._style_wheel_bound = False
         
-        def _unbind_mousewheel(event):
-            canvas.unbind_all("<MouseWheel>")
+        def _bind_style_mousewheel(event):
+            if not self._style_wheel_bound:
+                canvas.bind("<MouseWheel>", _on_style_mousewheel)
+                self._style_wheel_bound = True
+        
+        def _unbind_style_mousewheel(event):
+            if self._style_wheel_bound:
+                canvas.unbind("<MouseWheel>")
+                self._style_wheel_bound = False
         
         # Bind/unbind mousewheel when entering/leaving the canvas
-        canvas.bind('<Enter>', _bind_mousewheel)
-        canvas.bind('<Leave>', _unbind_mousewheel)
+        canvas.bind('<Enter>', _bind_style_mousewheel)
+        canvas.bind('<Leave>', _unbind_style_mousewheel)
         
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
         
+        # Color mode selection
+        mode_frame = ttk.Frame(color_frame)
+        mode_frame.pack(fill=X, pady=(0, 10))
+        
+        ttk.Radiobutton(mode_frame, text="Single Color", variable=self.color_mode, 
+                       value="single", command=self.on_color_mode_change,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Radiobutton(mode_frame, text="Preset Gradients", variable=self.color_mode,
+                       value="preset", command=self.on_color_mode_change,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Radiobutton(mode_frame, text="Custom Gradient", variable=self.color_mode,
+                       value="custom", command=self.on_color_mode_change,
+                       bootstyle="primary").pack(side=LEFT)
+        
+        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
+        
+        # Create notebook for different color modes
+        self.color_notebook = ttk.Notebook(color_frame)
+        self.color_notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Single color tab
+        single_tab = ttk.Frame(self.color_notebook)
+        self.color_notebook.add(single_tab, text="Single Color")
+        
+        single_color_frame = ttk.Frame(single_tab, padding=20)
+        single_color_frame.pack(fill=X)
+        
+        ttk.Label(single_color_frame, text="Color:", font=('Segoe UI', 10)).pack(side=LEFT)
+        
+        self.single_color_preview = ttk.Frame(single_color_frame, width=30, height=30)
+        self.single_color_preview.pack(side=LEFT, padx=(10, 10))
+        
+        # Set initial color preview
+        style = ttk.Style()
+        style_name = "SingleColorPreview.TFrame"
+        style.configure(style_name, background=self.single_color.get())
+        self.single_color_preview.configure(style=style_name)
+        
+        self.single_color_btn = ttk.Button(single_color_frame,
+                                         text="Choose Color",
+                                         command=self.choose_single_color,
+                                         bootstyle="primary-outline")
+        self.single_color_btn.pack(side=LEFT)
+        
+        # Preset gradients tab
+        preset_tab = ttk.Frame(self.color_notebook)
+        self.color_notebook.add(preset_tab, text="Preset Gradients")
+        
+        # Create scrollable frame for preset color buttons
+        preset_canvas = tk.Canvas(preset_tab, height=300)
+        preset_scrollbar = ttk.Scrollbar(preset_tab, orient="vertical", command=preset_canvas.yview)
+        preset_scrollable = ttk.Frame(preset_canvas)
+        
+        preset_scrollable.bind(
+            "<Configure>",
+            lambda e: preset_canvas.configure(scrollregion=preset_canvas.bbox("all"))
+        )
+        
+        # Create the window and store its ID
+        self.preset_window_id = preset_canvas.create_window((0, 0), window=preset_scrollable, anchor="nw")
+        preset_canvas.configure(yscrollcommand=preset_scrollbar.set)
+        
+        # Function to update canvas window width
+        def update_preset_canvas_width(event=None):
+            canvas_width = preset_canvas.winfo_width()
+            if canvas_width > 1:  # Ensure canvas has been drawn
+                preset_canvas.itemconfig(self.preset_window_id, width=canvas_width)
+        
+        # Bind canvas resize to update window width
+        preset_canvas.bind("<Configure>", update_preset_canvas_width)
+        
+        preset_canvas.pack(side="left", fill="both", expand=True)
+        preset_scrollbar.pack(side="right", fill="y")
+        
+        # Update width after canvas is displayed
+        preset_canvas.after(100, update_preset_canvas_width)
+        
+        # Bind mouse wheel to preset canvas only
+        def _on_preset_mousewheel(event):
+            preset_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            # Stop propagation
+            return "break"
+        
+        # Direct binding to the preset canvas
+        preset_canvas.bind("<MouseWheel>", _on_preset_mousewheel)
+        
+        # Also bind to the scrollable frame inside
+        preset_scrollable.bind("<MouseWheel>", _on_preset_mousewheel)
+        
+        # Custom gradient tab
+        custom_tab = ttk.Frame(self.color_notebook)
+        self.color_notebook.add(custom_tab, text="Custom Gradient")
+        
+        custom_frame = ttk.Frame(custom_tab, padding=20)
+        custom_frame.pack(fill=BOTH, expand=TRUE)
+        
+        ttk.Label(custom_frame, text="Create your own gradient:", 
+                 font=('Segoe UI', 10, 'bold')).pack(anchor=W, pady=(0, 10))
+        
+        # Custom gradient colors
+        self.custom_color_frames = []
+        self.custom_color_previews = []
+        
+        for i in range(3):
+            color_row = ttk.Frame(custom_frame)
+            color_row.pack(fill=X, pady=5)
+            
+            ttk.Label(color_row, text=f"Color {i+1}:", width=10).pack(side=LEFT)
+            
+            preview = ttk.Frame(color_row, width=30, height=30)
+            preview.pack(side=LEFT, padx=(5, 10))
+            self.custom_color_previews.append(preview)
+            
+            btn = ttk.Button(color_row, text="Choose", 
+                           command=lambda idx=i: self.choose_custom_color(idx),
+                           bootstyle="secondary-outline")
+            btn.pack(side=LEFT)
+            
+            self.custom_color_frames.append(color_row)
+        
+        # Update custom color previews
+        self.update_custom_gradient_preview()
+        
+        # Add/Remove color buttons
+        btn_frame = ttk.Frame(custom_frame)
+        btn_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Button(btn_frame, text="Add Color", command=self.add_gradient_color,
+                  bootstyle="success-outline").pack(side=LEFT, padx=(0, 10))
+        
+        ttk.Button(btn_frame, text="Remove Color", command=self.remove_gradient_color,
+                  bootstyle="danger-outline").pack(side=LEFT)
+        
+        # Gradient preview
+        ttk.Label(custom_frame, text="Preview:", font=('Segoe UI', 10)).pack(anchor=W, pady=(15, 5))
+        
+        self.custom_gradient_preview = ttk.Frame(custom_frame, height=40)
+        self.custom_gradient_preview.pack(fill=X)
+        
+        # Set initial tab based on color mode
+        self.color_notebook.select(1)  # Select preset tab by default
+        self.update_custom_gradient_preview()
         # Create scrollable frame for color buttons
-        color_scroll = ttk.Frame(color_frame)
-        color_scroll.pack(fill=BOTH, expand=TRUE)
+        color_scroll = preset_scrollable
         
         # Create color scheme buttons in a grid
         self.color_var = tk.StringVar(value="Viridis")
         
         colors_grid = ttk.Frame(color_scroll)
-        colors_grid.pack(fill=X)
+        colors_grid.pack(fill=X, padx=10, pady=(10, 0))
+        
+        # Bind mouse wheel to grid
+        colors_grid.bind("<MouseWheel>", _on_preset_mousewheel)
         
         row = 0
         col = 0
@@ -432,16 +842,24 @@ class ModernWordCloudApp:
                                  bootstyle="primary-outline-toolbutton",
                                  width=12)
             btn.grid(row=row, column=col, padx=5, pady=5, sticky=W)
+            # Bind mouse wheel to button
+            btn.bind("<MouseWheel>", _on_preset_mousewheel)
             col += 1
-            if col > 1:
+            if col > 3:  # Changed from 1 to 3 for 4 columns
                 col = 0
                 row += 1
         
-        # Color preview
-        preview_label = ttk.Label(color_frame, text="Preview:", font=('Segoe UI', 10, 'bold'))
-        preview_label.pack(anchor=W, pady=(15, 5))
+        # Color preview for presets
+        preview_container = ttk.Frame(color_scroll)
+        preview_container.pack(fill=X, padx=10, pady=(20, 10))
         
-        self.color_preview_frame = ttk.Frame(color_frame, height=40, bootstyle="secondary")
+        # Bind mouse wheel to preview container
+        preview_container.bind("<MouseWheel>", _on_preset_mousewheel)
+        
+        preview_label = ttk.Label(preview_container, text="Preview:", font=('Segoe UI', 10, 'bold'))
+        preview_label.pack(anchor=W, pady=(0, 5))
+        
+        self.color_preview_frame = ttk.Frame(preview_container, height=40, bootstyle="secondary")
         self.color_preview_frame.pack(fill=X)
         self.color_preview_frame.pack_propagate(False)
         self.update_color_preview()
@@ -449,84 +867,17 @@ class ModernWordCloudApp:
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
-        # Mask type selection
-        mask_type_frame = ttk.Frame(mask_frame)
-        mask_type_frame.pack(fill=X, pady=(0, 15))
+        # Create notebook for mask options
+        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
+        self.mask_notebook.pack(fill=BOTH, expand=TRUE)
         
-        ttk.Label(mask_type_frame, text="Mask Type:", font=('Segoe UI', 10, 'bold')).pack(side=LEFT, padx=(0, 20))
+        # Create tabs
+        self.create_no_mask_tab()
+        self.create_image_mask_tab()
+        self.create_text_mask_tab()
         
-        ttk.Radiobutton(mask_type_frame,
-                       text="Image Mask",
-                       variable=self.mask_type,
-                       value="image",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 20))
-        
-        ttk.Radiobutton(mask_type_frame,
-                       text="Text Mask",
-                       variable=self.mask_type,
-                       value="text",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT)
-        
-        # Container for mask options (will switch between image and text)
-        self.mask_options_container = ttk.Frame(mask_frame)
-        self.mask_options_container.pack(fill=X, pady=(0, 10))
-        
-        # Create both frames but only show one
-        self.create_image_mask_frame()
-        self.create_text_mask_frame()
-        
-        # Show the default (image mask)
-        self.on_mask_type_change()
-        
-        # Contour options
-        self.contour_frame = ttk.LabelFrame(mask_frame, text="Contour Options (requires mask)", padding=10)
-        self.contour_frame.pack(fill=X, pady=(0, 10))
-        
-        # Contour width
-        width_container = ttk.Frame(self.contour_frame)
-        width_container.pack(fill=X, pady=(0, 10))
-        
-        width_label_frame = ttk.Frame(width_container)
-        width_label_frame.pack(fill=X)
-        self.contour_width_lbl = ttk.Label(width_label_frame, text="Contour Width:", font=('Segoe UI', 10))
-        self.contour_width_lbl.pack(side=LEFT)
-        self.contour_width_label = ttk.Label(width_label_frame, text="2 pixels",
-                                           bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.contour_width_label.pack(side=RIGHT)
-        
-        self.contour_width_scale = ttk.Scale(width_container,
-                                           from_=0,
-                                           to=10,
-                                           value=2,
-                                           command=self.update_contour_width,
-                                           bootstyle="primary")
-        self.contour_width_scale.pack(fill=X, pady=(5, 0))
-        
-        # Contour color
-        color_container = ttk.Frame(self.contour_frame)
-        color_container.pack(fill=X)
-        
-        self.contour_color_lbl = ttk.Label(color_container, text="Contour Color:", font=('Segoe UI', 10))
-        self.contour_color_lbl.pack(side=LEFT)
-        
-        self.contour_color_preview = ttk.Frame(color_container, width=30, height=30, bootstyle="dark")
-        self.contour_color_preview.pack(side=RIGHT, padx=(10, 0))
-        
-        self.contour_color_btn = ttk.Button(color_container,
-                                          text="Choose Color",
-                                          command=self.choose_contour_color,
-                                          bootstyle="primary-outline",
-                                          width=15)
-        self.contour_color_btn.pack(side=RIGHT)
-        
-        # Store contour widgets for enabling/disabling
-        self.contour_widgets = [self.contour_width_scale, self.contour_color_btn,
-                               self.contour_width_lbl, self.contour_color_lbl]
-        
-        # Initially disable contour options
-        self.update_contour_state()
+        # Bind tab change event
+        self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
         # Word Orientation
         orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
@@ -553,6 +904,58 @@ class ModernWordCloudApp:
         
         ttk.Label(orientation_frame, 
                  text="0% = All vertical, 100% = All horizontal",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Other Settings
+        other_frame = ttk.LabelFrame(mask_frame, text="Other Settings", padding=10)
+        other_frame.pack(fill=X, pady=(0, 10))
+        
+        # Max words slider
+        max_words_container = ttk.Frame(other_frame)
+        max_words_container.pack(fill=X, pady=(0, 10))
+        
+        max_words_label_frame = ttk.Frame(max_words_container)
+        max_words_label_frame.pack(fill=X)
+        ttk.Label(max_words_label_frame, text="Maximum Words:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.max_words_label = ttk.Label(max_words_label_frame, text="200",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.max_words_label.pack(side=RIGHT)
+        
+        self.max_words_scale = ttk.Scale(max_words_container,
+                                        from_=10,
+                                        to=500,
+                                        value=200,
+                                        command=self.update_max_words,
+                                        bootstyle="primary")
+        self.max_words_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(max_words_container, 
+                 text="More words = denser cloud, fewer words = cleaner look",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Scale slider
+        scale_container = ttk.Frame(other_frame)
+        scale_container.pack(fill=X)
+        
+        scale_label_frame = ttk.Frame(scale_container)
+        scale_label_frame.pack(fill=X)
+        ttk.Label(scale_label_frame, text="Computation Scale:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.scale_label = ttk.Label(scale_label_frame, text="1",
+                                    bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.scale_label.pack(side=RIGHT)
+        
+        self.scale_scale = ttk.Scale(scale_container,
+                                    from_=1,
+                                    to=10,
+                                    value=1,
+                                    command=self.update_scale,
+                                    bootstyle="primary")
+        self.scale_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(scale_container, 
+                 text="Higher = faster generation but coarser word placement",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
@@ -676,21 +1079,125 @@ class ModernWordCloudApp:
                                       width=15)
         self.bg_color_btn.pack(side=RIGHT)
         
-        # Mask preview (smaller now)
-        preview_container = ttk.LabelFrame(mask_frame, text="Mask Preview", padding=10)
-        preview_container.pack(fill=BOTH, expand=TRUE)
+    def create_no_mask_tab(self):
+        """Create the no mask tab"""
+        no_mask_frame = ttk.Frame(self.mask_notebook)
+        self.mask_notebook.add(no_mask_frame, text="No Mask")
         
-        self.mask_preview_label = ttk.Label(preview_container,
-                                           text="No mask selected",
-                                           anchor=CENTER,
-                                           font=('Segoe UI', 10))
-        self.mask_preview_label.pack(fill=BOTH, expand=TRUE)
+        # Info frame with border
+        info_frame = ttk.LabelFrame(no_mask_frame, text="Information", padding=15)
+        info_frame.pack(fill=X, padx=20, pady=20)
+        
+        # Info label
+        info_label = ttk.Label(info_frame, 
+                              text="Word cloud will be generated in a rectangular shape.\nNo special shape or contours will be applied.",
+                              font=('Segoe UI', 10),
+                              bootstyle="secondary")
+        info_label.pack()
+        
+        # Add a note about using other tabs
+        ttk.Label(info_frame,
+                 text="\nTo use a custom shape, select the Image Mask or Text Mask tab.",
+                 font=('Segoe UI', 9, 'italic'),
+                 bootstyle="info").pack()
     
-    def create_image_mask_frame(self):
-        """Create the image mask options frame"""
-        self.image_mask_frame = ttk.Frame(self.mask_options_container)
+    def create_image_mask_tab(self):
+        """Create the image mask tab"""
+        image_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(image_mask_frame, text="Image Mask")
         
-        mask_file_frame = ttk.LabelFrame(self.image_mask_frame, text="Image File", padding=10)
+        # Create the image mask frame content
+        self.create_image_mask_frame(image_mask_frame)
+        
+        # Add contour options to this tab
+        self.create_contour_options(image_mask_frame)
+        
+        # Add mask preview to this tab
+        self.create_mask_preview(image_mask_frame)
+    
+    def create_text_mask_tab(self):
+        """Create the text mask tab"""
+        text_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(text_mask_frame, text="Text Mask")
+        
+        # Create the text mask frame content
+        self.create_text_mask_frame(text_mask_frame)
+        
+        # Add contour options to this tab
+        self.create_contour_options(text_mask_frame)
+        
+        # Add mask preview to this tab
+        self.create_mask_preview(text_mask_frame)
+    
+    def create_contour_options(self, parent):
+        """Create contour options frame"""
+        contour_frame = ttk.LabelFrame(parent, text="Contour Options", padding=10)
+        contour_frame.pack(fill=X, pady=(10, 10))
+        
+        # Contour width
+        width_container = ttk.Frame(contour_frame)
+        width_container.pack(fill=X, pady=(0, 10))
+        
+        width_label_frame = ttk.Frame(width_container)
+        width_label_frame.pack(fill=X)
+        contour_width_lbl = ttk.Label(width_label_frame, text="Contour Width:", font=('Segoe UI', 10))
+        contour_width_lbl.pack(side=LEFT)
+        contour_width_label = ttk.Label(width_label_frame, text="2 pixels",
+                                       bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        contour_width_label.pack(side=RIGHT)
+        
+        contour_width_scale = ttk.Scale(width_container,
+                                       from_=0,
+                                       to=10,
+                                       value=2,
+                                       command=lambda v: self.update_contour_width(v, contour_width_label),
+                                       bootstyle="primary")
+        contour_width_scale.pack(fill=X, pady=(5, 0))
+        
+        # Contour color
+        color_container = ttk.Frame(contour_frame)
+        color_container.pack(fill=X)
+        
+        contour_color_lbl = ttk.Label(color_container, text="Contour Color:", font=('Segoe UI', 10))
+        contour_color_lbl.pack(side=LEFT)
+        
+        contour_color_preview = ttk.Frame(color_container, width=30, height=30, bootstyle="dark")
+        contour_color_preview.pack(side=RIGHT, padx=(10, 0))
+        
+        contour_color_btn = ttk.Button(color_container,
+                                      text="Choose Color",
+                                      command=lambda: self.choose_contour_color(contour_color_preview),
+                                      bootstyle="primary-outline",
+                                      width=15)
+        contour_color_btn.pack(side=RIGHT)
+        
+        # Store references if this is the first creation
+        if not hasattr(self, 'contour_width_label'):
+            self.contour_width_label = contour_width_label
+            self.contour_width_scale = contour_width_scale
+            self.contour_color_preview = contour_color_preview
+    
+    def create_mask_preview(self, parent):
+        """Create mask preview frame"""
+        preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
+        preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
+        
+        # Create a label for this specific tab
+        preview_label = ttk.Label(preview_container,
+                                 text="No mask selected",
+                                 anchor=CENTER,
+                                 font=('Segoe UI', 10))
+        preview_label.pack(fill=BOTH, expand=TRUE)
+        
+        # Store reference based on parent tab
+        if "image" in str(parent):
+            self.image_mask_preview_label = preview_label
+        else:
+            self.text_mask_preview_label = preview_label
+    
+    def create_image_mask_frame(self, parent):
+        """Create the image mask options frame"""
+        mask_file_frame = ttk.LabelFrame(parent, text="Image File", padding=10)
         mask_file_frame.pack(fill=X)
         
         mask_info = ttk.Frame(mask_file_frame)
@@ -717,12 +1224,10 @@ class ModernWordCloudApp:
                   bootstyle="secondary",
                   width=15).pack(side=LEFT)
     
-    def create_text_mask_frame(self):
+    def create_text_mask_frame(self, parent):
         """Create the text mask options frame"""
-        self.text_mask_frame = ttk.Frame(self.mask_options_container)
-        
-        text_input_frame = ttk.LabelFrame(self.text_mask_frame, text="Text Input", padding=10)
-        text_input_frame.pack(fill=X, pady=(0, 10))
+        text_input_frame = ttk.LabelFrame(parent, text="Text Input", padding=10)
+        text_input_frame.pack(fill=X)
         
         # Text input
         ttk.Label(text_input_frame, text="Enter text for mask:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
@@ -738,16 +1243,15 @@ class ModernWordCloudApp:
         font_frame = ttk.Frame(text_input_frame)
         font_frame.pack(fill=X, pady=(0, 10))
         
-        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
         
-        self.font_combobox = FontCombobox(font_frame,
-                                         self.available_fonts,
-                                         textvariable=self.text_mask_font,
-                                         values=list(self.available_fonts.keys()),
-                                         state="readonly",
-                                         width=25)
-        self.font_combobox.pack(side=LEFT, fill=X, expand=True)
-        self.font_combobox.bind('<<ComboboxSelected>>', lambda e: self.update_text_mask())
+        self.font_listbox = FontListbox(font_frame,
+                                       self.available_fonts,
+                                       textvariable=self.text_mask_font,
+                                       width=35,
+                                       height=5)
+        self.font_listbox.pack(fill=X)
+        self.font_listbox.bind('<<FontSelected>>', lambda e: self.update_text_mask())
         
         # Font size
         font_size_container = ttk.Frame(text_input_frame)
@@ -810,30 +1314,22 @@ class ModernWordCloudApp:
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
     
-    def on_mask_type_change(self):
-        """Handle mask type change"""
-        # Clear the container
-        for widget in self.mask_options_container.winfo_children():
-            widget.pack_forget()
-        
-        # Show the appropriate frame
-        if self.mask_type.get() == "image":
-            self.image_mask_frame.pack(fill=X)
-            # Update label with current mask path
-            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
-                self.image_mask_label.config(text=self.mask_path.get())
-            else:
-                self.image_mask_label.config(text="No image selected")
-                if self.mask_path.get().startswith("Text:"):
-                    self.clear_mask()
-        else:
-            self.text_mask_frame.pack(fill=X)
-            # Clear image mask if switching to text
-            if self.mask_path.get() and not self.mask_path.get().startswith("Text:"):
-                self.clear_mask()
-            # Update text mask if there's text
+    def on_mask_tab_changed(self, event):
+        """Handle mask tab change"""
+        selected_tab = self.mask_notebook.index(self.mask_notebook.select())
+        if selected_tab == 0:  # No Mask
+            self.mask_type.set("none")
+            self.mask_image = None
+            self.mask_path.set("No mask")
+        elif selected_tab == 1:  # Image Mask
+            self.mask_type.set("image")
+            # Keep existing image mask if any
+        elif selected_tab == 2:  # Text Mask
+            self.mask_type.set("text")
+            # Update text mask if text exists
             if self.text_mask_input.get():
                 self.update_text_mask()
+    
     
     def update_font_size(self, value):
         """Update font size label and regenerate text mask"""
@@ -903,31 +1399,51 @@ class ModernWordCloudApp:
     
     def update_width(self, value):
         """Update width and maintain aspect ratio if locked"""
+        if hasattr(self, '_updating'):  # Prevent recursion
+            return
+            
         val = int(float(value))
         self.canvas_width.set(val)
         self.width_label.config(text=f"{val} px")
         
-        if self.lock_aspect_ratio.get():
-            # Update height to maintain aspect ratio
-            new_height = int(val / self.aspect_ratio)
-            new_height = max(300, min(4000, new_height))  # Clamp to valid range
-            self.canvas_height.set(new_height)
-            self.height_label.config(text=f"{new_height} px")
-            self.height_scale.set(new_height)
+        if self.lock_aspect_ratio.get() and self.aspect_ratio > 0:
+            self._updating = True
+            try:
+                # Update height to maintain aspect ratio
+                new_height = int(val / self.aspect_ratio)
+                new_height = max(300, min(4000, new_height))  # Clamp to valid range
+                self.canvas_height.set(new_height)
+                self.height_label.config(text=f"{new_height} px")
+                self.height_scale.set(new_height)
+            finally:
+                delattr(self, '_updating')
+        
+        # Clear canvas when dimensions change
+        self.clear_canvas()
     
     def update_height(self, value):
         """Update height and maintain aspect ratio if locked"""
+        if hasattr(self, '_updating'):  # Prevent recursion
+            return
+            
         val = int(float(value))
         self.canvas_height.set(val)
         self.height_label.config(text=f"{val} px")
         
-        if self.lock_aspect_ratio.get():
-            # Update width to maintain aspect ratio
-            new_width = int(val * self.aspect_ratio)
-            new_width = max(400, min(4000, new_width))  # Clamp to valid range
-            self.canvas_width.set(new_width)
-            self.width_label.config(text=f"{new_width} px")
-            self.width_scale.set(new_width)
+        if self.lock_aspect_ratio.get() and self.aspect_ratio > 0:
+            self._updating = True
+            try:
+                # Update width to maintain aspect ratio
+                new_width = int(val * self.aspect_ratio)
+                new_width = max(400, min(4000, new_width))  # Clamp to valid range
+                self.canvas_width.set(new_width)
+                self.width_label.config(text=f"{new_width} px")
+                self.width_scale.set(new_width)
+            finally:
+                delattr(self, '_updating')
+        
+        # Clear canvas when dimensions change
+        self.clear_canvas()
     
     def set_canvas_size(self, width, height):
         """Set canvas size from preset"""
@@ -950,15 +1466,22 @@ class ModernWordCloudApp:
         ratio_text = self.get_ratio_text(width, height)
         self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
         
+        # Clear canvas when preset is selected
+        self.clear_canvas()
+        
+        # Clear canvas when preset is selected
+        self.clear_canvas()
+        
     def calculate_preview_size(self):
-        """Calculate preview display size maintaining aspect ratio within max bounds"""
+        """Calculate preview display size maintaining aspect ratio with max width constraint"""
         actual_width = self.canvas_width.get()
         actual_height = self.canvas_height.get()
         
-        # Calculate scale factor to fit within preview bounds
-        scale_x = self.preview_max_width / actual_width
-        scale_y = self.preview_max_height / actual_height
-        scale = min(scale_x, scale_y, 1.0)  # Don't upscale, only downscale
+        # Calculate scale factor based on max width only
+        if actual_width > self.preview_max_width:
+            scale = self.preview_max_width / actual_width
+        else:
+            scale = 1.0  # Don't upscale
         
         display_width = int(actual_width * scale)
         display_height = int(actual_height * scale)
@@ -988,9 +1511,8 @@ class ModernWordCloudApp:
         canvas_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
         canvas_frame.pack(pady=(0, 15))
         
-        # Fixed preview size (max 600x500 for display to leave room for UI)
+        # Fixed preview max width (will scale height proportionally)
         self.preview_max_width = 600
-        self.preview_max_height = 500
         
         # Calculate initial display size
         display_width, display_height = self.calculate_preview_size()
@@ -1039,6 +1561,14 @@ class ModernWordCloudApp:
                                   width=20,
                                   state=DISABLED)
         self.save_btn.pack(side=LEFT)
+        
+        # Clear button
+        self.clear_btn = ttk.Button(btn_container,
+                                  text="🗑️ Clear",
+                                  command=self.clear_canvas,
+                                  bootstyle="secondary",
+                                  width=15)
+        self.clear_btn.pack(side=LEFT, padx=(10, 0))
     
     def create_message_bar(self):
         """Create the message bar at the top of the interface"""
@@ -1243,6 +1773,132 @@ class ModernWordCloudApp:
         color_name = self.color_var.get()
         self.selected_colormap = self.color_schemes[color_name]
         self.update_color_preview()
+        
+    def on_color_mode_change(self):
+        """Handle color mode radio button change"""
+        mode = self.color_mode.get()
+        if mode == "single":
+            self.color_notebook.select(0)
+        elif mode == "preset":
+            self.color_notebook.select(1)
+        elif mode == "custom":
+            self.color_notebook.select(2)
+            self.update_custom_gradient_preview()
+    
+    def choose_custom_color(self, index):
+        """Choose a color for custom gradient"""
+        current_color = self.custom_gradient_colors[index]
+        dialog = ColorChooserDialog(title=f"Choose Color {index+1}", 
+                                   initialcolor=current_color)
+        dialog.show()
+        
+        if dialog.result:
+            color = dialog.result
+            hex_color = color.hex
+            self.custom_gradient_colors[index] = hex_color
+            self.update_custom_gradient_preview()
+    
+    def add_gradient_color(self):
+        """Add a new color to the gradient"""
+        if len(self.custom_gradient_colors) < 10:  # Limit to 10 colors
+            self.custom_gradient_colors.append("#FFFFFF")
+            self.recreate_custom_gradient_ui()
+    
+    def remove_gradient_color(self):
+        """Remove the last color from gradient"""
+        if len(self.custom_gradient_colors) > 2:  # Minimum 2 colors
+            self.custom_gradient_colors.pop()
+            self.recreate_custom_gradient_ui()
+    
+    def recreate_custom_gradient_ui(self):
+        """Recreate the custom gradient UI after adding/removing colors"""
+        # Find the custom frame
+        custom_tab = self.color_notebook.winfo_children()[2]
+        custom_frame = custom_tab.winfo_children()[0]
+        
+        # Clear existing color frames
+        for frame in self.custom_color_frames:
+            frame.destroy()
+        self.custom_color_frames.clear()
+        self.custom_color_previews.clear()
+        
+        # Recreate color rows
+        for i in range(len(self.custom_gradient_colors)):
+            color_row = ttk.Frame(custom_frame)
+            color_row.pack(fill=X, pady=5, before=custom_frame.winfo_children()[1])
+            
+            ttk.Label(color_row, text=f"Color {i+1}:", width=10).pack(side=LEFT)
+            
+            preview = ttk.Frame(color_row, width=30, height=30)
+            preview.pack(side=LEFT, padx=(5, 10))
+            self.custom_color_previews.append(preview)
+            
+            btn = ttk.Button(color_row, text="Choose", 
+                           command=lambda idx=i: self.choose_custom_color(idx),
+                           bootstyle="secondary-outline")
+            btn.pack(side=LEFT)
+            
+            self.custom_color_frames.append(color_row)
+        
+        self.update_custom_gradient_preview()
+    
+    def update_custom_gradient_preview(self):
+        """Update the custom gradient preview"""
+        # Update individual color previews
+        for i, (preview, color) in enumerate(zip(self.custom_color_previews, self.custom_gradient_colors)):
+            style = ttk.Style()
+            style_name = f"CustomColor{i}.TFrame"
+            style.configure(style_name, background=color)
+            preview.configure(style=style_name)
+        
+        # Update gradient preview if it exists
+        if hasattr(self, 'custom_gradient_preview'):
+            # Clear previous preview
+            for widget in self.custom_gradient_preview.winfo_children():
+                widget.destroy()
+            
+            # Create gradient preview using matplotlib
+            try:
+                import matplotlib.pyplot as plt
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                
+                fig = plt.Figure(figsize=(4, 0.4), facecolor='white')
+                ax = fig.add_subplot(111)
+                
+                # Create custom colormap
+                cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
+                
+                # Create gradient
+                gradient = np.linspace(0, 1, 256).reshape(1, -1)
+                gradient = np.vstack((gradient, gradient))
+                
+                ax.imshow(gradient, aspect='auto', cmap=cmap)
+                ax.set_axis_off()
+                
+                canvas = FigureCanvasTkAgg(fig, master=self.custom_gradient_preview)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=BOTH, expand=TRUE)
+            except Exception as e:
+                ttk.Label(self.custom_gradient_preview, 
+                         text="Preview unavailable",
+                         bootstyle="secondary").pack()
+            
+    def choose_single_color(self):
+        """Open color picker for single color"""
+        dialog = ColorChooserDialog(title="Choose Single Color", 
+                                   initialcolor=self.single_color.get())
+        dialog.show()
+        
+        if dialog.result:
+            color = dialog.result
+            hex_color = color.hex
+            self.single_color.set(hex_color)
+            
+            # Update preview
+            style = ttk.Style()
+            style_name = "SingleColorPreview.TFrame"
+            style.configure(style_name, background=hex_color)
+            self.single_color_preview.configure(style=style_name)
     
     def update_color_preview(self):
         """Update color scheme preview"""
@@ -1296,8 +1952,9 @@ class ModernWordCloudApp:
                 img = Image.open(file_path)
                 img.thumbnail((200, 200), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
-                self.mask_preview_label.config(image=photo, text="")
-                self.mask_preview_label.image = photo  # Keep a reference
+                if hasattr(self, 'image_mask_preview_label'):
+                    self.image_mask_preview_label.config(image=photo, text="")
+                    self.image_mask_preview_label.image = photo  # Keep a reference
                 
                 # Enable contour options when mask is selected
                 self.update_contour_state(True)
@@ -1308,12 +1965,13 @@ class ModernWordCloudApp:
         """Clear selected mask"""
         self.mask_image = None
         self.mask_path.set("No mask selected")
-        self.mask_preview_label.config(image="", text="No mask selected")
         
-        # Clear UI elements based on mask type
-        if self.mask_type.get() == "image":
+        # Clear appropriate preview label
+        if self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+            self.image_mask_preview_label.config(image="", text="No mask selected")
             self.image_mask_label.config(text="No image selected")
-        else:
+        elif self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+            self.text_mask_preview_label.config(image="", text="No mask selected")
             self.text_mask_input.set("")
         
         # Disable contour options when mask is cleared
@@ -1435,16 +2093,25 @@ class ModernWordCloudApp:
             # Thumbnail for preview
             preview_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(preview_img)
-            self.mask_preview_label.config(image=photo, text="")
-            self.mask_preview_label.image = photo
+            
+            # Update appropriate preview label
+            if self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+                self.text_mask_preview_label.config(image=photo, text="")
+                self.text_mask_preview_label.image = photo
+            elif self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+                self.image_mask_preview_label.config(image=photo, text="")
+                self.image_mask_preview_label.image = photo
     
-    def update_contour_width(self, value):
+    def update_contour_width(self, value, label=None):
         """Update contour width label"""
         val = int(float(value))
         self.contour_width.set(val)
-        self.contour_width_label.config(text=f"{val} pixels")
+        if label:
+            label.config(text=f"{val} pixels")
+        elif hasattr(self, 'contour_width_label'):
+            self.contour_width_label.config(text=f"{val} pixels")
     
-    def choose_contour_color(self):
+    def choose_contour_color(self, preview_frame=None):
         """Open color chooser for contour color"""
         dialog = ColorChooserDialog()
         dialog.show()
@@ -1456,7 +2123,10 @@ class ModernWordCloudApp:
             style = ttk.Style()
             style_name = f"ContourPreview.TFrame"
             style.configure(style_name, background=hex_color)
-            self.contour_color_preview.configure(style=style_name)
+            if preview_frame:
+                preview_frame.configure(style=style_name)
+            elif hasattr(self, 'contour_color_preview'):
+                self.contour_color_preview.configure(style=style_name)
     
     def choose_bg_color(self):
         """Open color chooser for background color"""
@@ -1471,6 +2141,23 @@ class ModernWordCloudApp:
             style_name = f"BgPreview.TFrame"
             style.configure(style_name, background=hex_color)
             self.bg_color_preview.configure(style=style_name)
+    
+    def clear_canvas(self):
+        """Clear the canvas completely"""
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.set_facecolor('white')
+        ax.axis('off')
+        self.figure.patch.set_facecolor('white')
+        self.canvas.draw()
+        
+        # Disable save button since there's nothing to save
+        if hasattr(self, 'save_btn'):
+            self.save_btn.config(state=DISABLED)
+        
+        # Clear any stored wordcloud
+        if hasattr(self, 'current_wordcloud'):
+            self.current_wordcloud = None
     
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
@@ -1490,8 +2177,8 @@ class ModernWordCloudApp:
             else:
                 self.scale_indicator.config(text="")
             
-            # Redraw canvas
-            self.canvas.draw()
+            # Clear canvas when size changes
+            self.clear_canvas()
         except:
             pass  # Ignore errors during initialization
     
@@ -1519,6 +2206,20 @@ class ModernWordCloudApp:
         val = float(value)
         self.prefer_horizontal.set(val)
         self.horizontal_label.config(text=f"{int(val * 100)}%")
+    
+    def update_max_words(self, value):
+        """Update max words label and clear canvas"""
+        val = int(float(value))
+        self.max_words.set(val)
+        self.max_words_label.config(text=str(val))
+        self.clear_canvas()
+    
+    def update_scale(self, value):
+        """Update scale label and clear canvas"""
+        val = int(float(value))
+        self.scale.set(val)
+        self.scale_label.config(text=str(val))
+        self.clear_canvas()
     
     def update_mode(self):
         """Update mode between RGB and RGBA"""
@@ -1582,12 +2283,25 @@ class ModernWordCloudApp:
             wc_params = {
                 'width': self.canvas_width.get(),
                 'height': self.canvas_height.get(),
-                'colormap': self.selected_colormap,
-                'max_words': 200,
+                'max_words': int(self.max_words.get()),
+                'scale': self.scale.get(),
                 'relative_scaling': 0.5,
                 'min_font_size': 10,
                 'prefer_horizontal': self.prefer_horizontal.get()
             }
+            
+            # Set color mode
+            if self.color_mode.get() == "single":
+                # Use single color function
+                color_value = self.single_color.get()
+                wc_params['color_func'] = lambda *args, **kwargs: color_value
+            elif self.color_mode.get() == "custom":
+                # Use custom gradient
+                custom_cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
+                wc_params['colormap'] = custom_cmap
+            else:
+                # Use preset colormap
+                wc_params['colormap'] = self.selected_colormap
             
             # Set background and mode
             if self.rgba_mode.get():
@@ -1894,11 +2608,10 @@ class ModernWordCloudApp:
             sorted_fonts = sorted(list(available.keys()))
             self.text_mask_font.set(sorted_fonts[0])
             
-            # Update combobox if it exists (in main thread)
+            # Update font listbox if it exists (in main thread)
             def update_ui():
-                if hasattr(self, 'font_combobox'):
-                    self.font_combobox['values'] = sorted_fonts
-                    self.font_combobox._update_font()
+                if hasattr(self, 'font_listbox'):
+                    self.font_listbox.set_fonts(available)
                 self.show_message(f"Found {len(available)} fonts available on your system", "good")
             
             self.root.after(0, update_ui)
