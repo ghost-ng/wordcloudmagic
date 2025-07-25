@@ -403,14 +403,14 @@ class ModernWordCloudApp:
         
     def create_ui(self):
         """Create the main UI"""
-        # Create message bar at the very top
-        self.create_message_bar()
-        
-        # Top bar for theme selection
+        # Top bar for theme selection and messages
         top_bar = ttk.Frame(self.root)
-        top_bar.pack(fill=X, padx=10, pady=(5, 0))
+        top_bar.pack(fill=X, padx=10, pady=(10, 5))
         
-        # Theme selector
+        # Create message bar on the left side of top bar
+        self.create_message_bar(top_bar)
+        
+        # Theme selector on the right
         theme_frame = ttk.Frame(top_bar)
         theme_frame.pack(side=RIGHT)
         
@@ -810,15 +810,22 @@ class ModernWordCloudApp:
         ttk.Button(btn_frame, text="Remove Color", command=self.remove_gradient_color,
                   bootstyle="danger-outline").pack(side=LEFT)
         
-        # Gradient preview
-        ttk.Label(custom_frame, text="Preview:", font=('Segoe UI', 10)).pack(anchor=W, pady=(15, 5))
-        
-        self.custom_gradient_preview = ttk.Frame(custom_frame, height=40)
-        self.custom_gradient_preview.pack(fill=X)
-        
         # Set initial tab based on color mode
         self.color_notebook.select(1)  # Select preset tab by default
         self.update_custom_gradient_preview()
+        
+        # Combined color preview frame (after the notebook)
+        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(10, 5))
+        
+        combined_preview_frame = ttk.Frame(color_frame)
+        combined_preview_frame.pack(fill=X, pady=(5, 10))
+        
+        ttk.Label(combined_preview_frame, text="Selected Color Scheme Preview:", 
+                 font=('Segoe UI', 10, 'bold')).pack(anchor=W, pady=(0, 5))
+        
+        self.combined_color_preview = ttk.Frame(combined_preview_frame, height=50)
+        self.combined_color_preview.pack(fill=X)
+        self.combined_color_preview.pack_propagate(False)
         # Create scrollable frame for color buttons
         color_scroll = preset_scrollable
         
@@ -849,20 +856,8 @@ class ModernWordCloudApp:
                 col = 0
                 row += 1
         
-        # Color preview for presets
-        preview_container = ttk.Frame(color_scroll)
-        preview_container.pack(fill=X, padx=10, pady=(20, 10))
-        
-        # Bind mouse wheel to preview container
-        preview_container.bind("<MouseWheel>", _on_preset_mousewheel)
-        
-        preview_label = ttk.Label(preview_container, text="Preview:", font=('Segoe UI', 10, 'bold'))
-        preview_label.pack(anchor=W, pady=(0, 5))
-        
-        self.color_preview_frame = ttk.Frame(preview_container, height=40, bootstyle="secondary")
-        self.color_preview_frame.pack(fill=X)
-        self.color_preview_frame.pack_propagate(False)
-        self.update_color_preview()
+        # Update combined preview after all color vars are initialized
+        self.update_combined_color_preview()
         
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
@@ -1570,11 +1565,11 @@ class ModernWordCloudApp:
                                   width=15)
         self.clear_btn.pack(side=LEFT, padx=(10, 0))
     
-    def create_message_bar(self):
-        """Create the message bar at the top of the interface"""
+    def create_message_bar(self, parent):
+        """Create the message bar in the specified parent"""
         # Message bar frame
-        self.message_frame = ttk.Frame(self.root)
-        self.message_frame.pack(fill=X, padx=10, pady=(10, 5))
+        self.message_frame = ttk.Frame(parent)
+        self.message_frame.pack(side=LEFT, fill=X, expand=TRUE)
         
         # Message styles
         self.message_styles = {
@@ -1772,7 +1767,9 @@ class ModernWordCloudApp:
         """Handle color scheme selection"""
         color_name = self.color_var.get()
         self.selected_colormap = self.color_schemes[color_name]
-        self.update_color_preview()
+        # Update combined preview if in preset mode
+        if self.color_mode.get() == "preset":
+            self.update_combined_color_preview()
         
     def on_color_mode_change(self):
         """Handle color mode radio button change"""
@@ -1784,6 +1781,9 @@ class ModernWordCloudApp:
         elif mode == "custom":
             self.color_notebook.select(2)
             self.update_custom_gradient_preview()
+        
+        # Update the combined preview
+        self.update_combined_color_preview()
     
     def choose_custom_color(self, index):
         """Choose a color for custom gradient"""
@@ -1851,37 +1851,9 @@ class ModernWordCloudApp:
             style.configure(style_name, background=color)
             preview.configure(style=style_name)
         
-        # Update gradient preview if it exists
-        if hasattr(self, 'custom_gradient_preview'):
-            # Clear previous preview
-            for widget in self.custom_gradient_preview.winfo_children():
-                widget.destroy()
-            
-            # Create gradient preview using matplotlib
-            try:
-                import matplotlib.pyplot as plt
-                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-                
-                fig = plt.Figure(figsize=(4, 0.4), facecolor='white')
-                ax = fig.add_subplot(111)
-                
-                # Create custom colormap
-                cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
-                
-                # Create gradient
-                gradient = np.linspace(0, 1, 256).reshape(1, -1)
-                gradient = np.vstack((gradient, gradient))
-                
-                ax.imshow(gradient, aspect='auto', cmap=cmap)
-                ax.set_axis_off()
-                
-                canvas = FigureCanvasTkAgg(fig, master=self.custom_gradient_preview)
-                canvas.draw()
-                canvas.get_tk_widget().pack(fill=BOTH, expand=TRUE)
-            except Exception as e:
-                ttk.Label(self.custom_gradient_preview, 
-                         text="Preview unavailable",
-                         bootstyle="secondary").pack()
+        # Update combined preview if in custom mode
+        if self.color_mode.get() == "custom":
+            self.update_combined_color_preview()
             
     def choose_single_color(self):
         """Open color picker for single color"""
@@ -1899,41 +1871,87 @@ class ModernWordCloudApp:
             style_name = "SingleColorPreview.TFrame"
             style.configure(style_name, background=hex_color)
             self.single_color_preview.configure(style=style_name)
+            
+            # Update combined preview if in single color mode
+            if self.color_mode.get() == "single":
+                self.update_combined_color_preview()
     
-    def update_color_preview(self):
-        """Update color scheme preview"""
-        # Clear previous preview
-        for widget in self.color_preview_frame.winfo_children():
+    
+    def update_combined_color_preview(self):
+        """Update the combined color preview based on selected mode"""
+        if not hasattr(self, 'combined_color_preview'):
+            return
+            
+        # Clear existing preview
+        for widget in self.combined_color_preview.winfo_children():
             widget.destroy()
+            
+        mode = self.color_mode.get()
         
-        # Create color gradient preview
-        try:
-            cmap = matplotlib.colormaps[self.selected_colormap]
+        if mode == "single":
+            # Show single color
+            preview_canvas = tk.Canvas(self.combined_color_preview, 
+                                     height=50, 
+                                     highlightthickness=0)
+            preview_canvas.pack(fill=X)
+            preview_canvas.configure(bg=self.single_color.get())
             
-            # Create a gradient image
-            gradient = np.linspace(0, 1, 256).reshape(1, -1)
-            gradient = np.vstack((gradient, gradient))
+        elif mode == "preset":
+            # Show selected preset gradient
+            color_name = self.color_var.get()
+            cmap_name = self.color_schemes.get(color_name)
             
-            fig, ax = plt.subplots(figsize=(6, 0.5), facecolor='white')
-            fig.subplots_adjust(top=1, bottom=0, left=0, right=1)
-            ax.imshow(gradient, aspect='auto', cmap=cmap)
-            ax.set_axis_off()
-            
-            # Convert to PhotoImage
-            buf = BytesIO()
-            fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
-            buf.seek(0)
-            img = Image.open(buf)
-            photo = ImageTk.PhotoImage(img)
-            
-            # Display in label
-            preview_label = ttk.Label(self.color_preview_frame, image=photo)
-            preview_label.image = photo  # Keep reference
-            preview_label.pack(fill=BOTH, expand=TRUE)
-            
-            plt.close(fig)
-        except:
-            pass
+            if cmap_name:
+                preview_canvas = tk.Canvas(self.combined_color_preview, 
+                                         height=50, 
+                                         highlightthickness=0)
+                preview_canvas.pack(fill=X)
+                
+                # Draw gradient when canvas is configured
+                def draw_gradient(event=None):
+                    width = preview_canvas.winfo_width()
+                    if width > 1:
+                        try:
+                            # Get the actual colormap
+                            cmap = matplotlib.colormaps[cmap_name]
+                            for i in range(width):
+                                color = cmap(i / width)
+                                rgb = tuple(int(c * 255) for c in color[:3])
+                                hex_color = '#%02x%02x%02x' % rgb
+                                preview_canvas.create_line(i, 0, i, 50, fill=hex_color)
+                        except:
+                            pass
+                
+                preview_canvas.bind('<Configure>', draw_gradient)
+                
+        elif mode == "custom":
+            # Show custom gradient
+            if len(self.custom_gradient_colors) >= 2:
+                preview_canvas = tk.Canvas(self.combined_color_preview, 
+                                         height=50, 
+                                         highlightthickness=0)
+                preview_canvas.pack(fill=X)
+                
+                # Draw custom gradient when canvas is configured
+                def draw_custom_gradient(event=None):
+                    width = preview_canvas.winfo_width()
+                    if width > 1:
+                        try:
+                            # Create custom colormap
+                            custom_cmap = LinearSegmentedColormap.from_list(
+                                'custom_gradient', 
+                                self.custom_gradient_colors
+                            )
+                            
+                            for i in range(width):
+                                color = custom_cmap(i / width)
+                                rgb = tuple(int(c * 255) for c in color[:3])
+                                hex_color = '#%02x%02x%02x' % rgb
+                                preview_canvas.create_line(i, 0, i, 50, fill=hex_color)
+                        except:
+                            pass
+                
+                preview_canvas.bind('<Configure>', draw_custom_gradient)
     
     def select_mask(self):
         """Select mask image file"""
