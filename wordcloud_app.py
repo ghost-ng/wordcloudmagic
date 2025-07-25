@@ -253,7 +253,7 @@ class ModernWordCloudApp:
         gradients['airforce'] = LinearSegmentedColormap.from_list('airforce', airforce_colors)
         
         # Cyber - Neon Cyan → Dark
-        cyber_colors = ['#000000', '#0D0D0D', '#00FFFF', '#00CED1', '#1E90FF']
+        cyber_colors = ['#000000', '#0D0D0D', "#A6FF00", "#00D10A", '#1E90FF']
         gradients['cyber'] = LinearSegmentedColormap.from_list('cyber', cyber_colors)
         
         # Navy - Deep Ocean Blues
@@ -290,8 +290,9 @@ class ModernWordCloudApp:
         self.max_word_length = tk.IntVar(value=20)
         self.forbidden_words = set(STOPWORDS)
         self.selected_colormap = "viridis"
-        self.single_color_enabled = tk.BooleanVar(value=False)
+        self.color_mode = tk.StringVar(value="preset")  # "single", "preset", or "custom"
         self.single_color = tk.StringVar(value="#0078D4")
+        self.custom_gradient_colors = ["#FF0000", "#00FF00", "#0000FF"]  # Default RGB
         self.toast = ToastNotification(
             title="WordCloud Magic",
             message="",
@@ -382,8 +383,8 @@ class ModernWordCloudApp:
             "Volcano": "volcano",
             "Aurora": "aurora",
             "Hacker": "hacker",
-            "Solarized Dark": "solarized_dark",
-            "Solarized Light": "solarized_light",
+            "SolarizedDk": "solarized_dark",
+            "SolarizedLt": "solarized_light",
             "Rose Pine": "rose_pine",
             "Grape": "grape",
             "Dracula": "dracula",
@@ -654,19 +655,39 @@ class ModernWordCloudApp:
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
         
-        # Single color option
-        single_color_frame = ttk.Frame(color_frame)
-        single_color_frame.pack(fill=X, pady=(0, 10))
+        # Color mode selection
+        mode_frame = ttk.Frame(color_frame)
+        mode_frame.pack(fill=X, pady=(0, 10))
         
-        self.single_color_check = ttk.Checkbutton(single_color_frame,
-                                                 text="Use Single Color",
-                                                 variable=self.single_color_enabled,
-                                                 command=self.on_single_color_toggle,
-                                                 bootstyle="primary")
-        self.single_color_check.pack(side=LEFT)
+        ttk.Radiobutton(mode_frame, text="Single Color", variable=self.color_mode, 
+                       value="single", command=self.on_color_mode_change,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Radiobutton(mode_frame, text="Preset Gradients", variable=self.color_mode,
+                       value="preset", command=self.on_color_mode_change,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Radiobutton(mode_frame, text="Custom Gradient", variable=self.color_mode,
+                       value="custom", command=self.on_color_mode_change,
+                       bootstyle="primary").pack(side=LEFT)
+        
+        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
+        
+        # Create notebook for different color modes
+        self.color_notebook = ttk.Notebook(color_frame)
+        self.color_notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Single color tab
+        single_tab = ttk.Frame(self.color_notebook)
+        self.color_notebook.add(single_tab, text="Single Color")
+        
+        single_color_frame = ttk.Frame(single_tab, padding=20)
+        single_color_frame.pack(fill=X)
+        
+        ttk.Label(single_color_frame, text="Color:", font=('Segoe UI', 10)).pack(side=LEFT)
         
         self.single_color_preview = ttk.Frame(single_color_frame, width=30, height=30)
-        self.single_color_preview.pack(side=RIGHT, padx=(10, 0))
+        self.single_color_preview.pack(side=LEFT, padx=(10, 10))
         
         # Set initial color preview
         style = ttk.Style()
@@ -677,15 +698,84 @@ class ModernWordCloudApp:
         self.single_color_btn = ttk.Button(single_color_frame,
                                          text="Choose Color",
                                          command=self.choose_single_color,
-                                         bootstyle="primary-outline",
-                                         state=DISABLED)
-        self.single_color_btn.pack(side=RIGHT)
+                                         bootstyle="primary-outline")
+        self.single_color_btn.pack(side=LEFT)
         
-        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
+        # Preset gradients tab
+        preset_tab = ttk.Frame(self.color_notebook)
+        self.color_notebook.add(preset_tab, text="Preset Gradients")
+        
+        # Create scrollable frame for preset color buttons
+        preset_canvas = tk.Canvas(preset_tab, height=300)
+        preset_scrollbar = ttk.Scrollbar(preset_tab, orient="vertical", command=preset_canvas.yview)
+        preset_scrollable = ttk.Frame(preset_canvas)
+        
+        preset_scrollable.bind(
+            "<Configure>",
+            lambda e: preset_canvas.configure(scrollregion=preset_canvas.bbox("all"))
+        )
+        
+        preset_canvas.create_window((0, 0), window=preset_scrollable, anchor="nw")
+        preset_canvas.configure(yscrollcommand=preset_scrollbar.set)
+        
+        preset_canvas.pack(side="left", fill="both", expand=True)
+        preset_scrollbar.pack(side="right", fill="y")
+        
+        # Custom gradient tab
+        custom_tab = ttk.Frame(self.color_notebook)
+        self.color_notebook.add(custom_tab, text="Custom Gradient")
+        
+        custom_frame = ttk.Frame(custom_tab, padding=20)
+        custom_frame.pack(fill=BOTH, expand=TRUE)
+        
+        ttk.Label(custom_frame, text="Create your own gradient:", 
+                 font=('Segoe UI', 10, 'bold')).pack(anchor=W, pady=(0, 10))
+        
+        # Custom gradient colors
+        self.custom_color_frames = []
+        self.custom_color_previews = []
+        
+        for i in range(3):
+            color_row = ttk.Frame(custom_frame)
+            color_row.pack(fill=X, pady=5)
+            
+            ttk.Label(color_row, text=f"Color {i+1}:", width=10).pack(side=LEFT)
+            
+            preview = ttk.Frame(color_row, width=30, height=30)
+            preview.pack(side=LEFT, padx=(5, 10))
+            self.custom_color_previews.append(preview)
+            
+            btn = ttk.Button(color_row, text="Choose", 
+                           command=lambda idx=i: self.choose_custom_color(idx),
+                           bootstyle="secondary-outline")
+            btn.pack(side=LEFT)
+            
+            self.custom_color_frames.append(color_row)
+        
+        # Update custom color previews
+        self.update_custom_gradient_preview()
+        
+        # Add/Remove color buttons
+        btn_frame = ttk.Frame(custom_frame)
+        btn_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Button(btn_frame, text="Add Color", command=self.add_gradient_color,
+                  bootstyle="success-outline").pack(side=LEFT, padx=(0, 10))
+        
+        ttk.Button(btn_frame, text="Remove Color", command=self.remove_gradient_color,
+                  bootstyle="danger-outline").pack(side=LEFT)
+        
+        # Gradient preview
+        ttk.Label(custom_frame, text="Preview:", font=('Segoe UI', 10)).pack(anchor=W, pady=(15, 5))
+        
+        self.custom_gradient_preview = ttk.Frame(custom_frame, height=40)
+        self.custom_gradient_preview.pack(fill=X)
+        
+        # Set initial tab based on color mode
+        self.color_notebook.select(1)  # Select preset tab by default
         
         # Create scrollable frame for color buttons
-        color_scroll = ttk.Frame(color_frame)
-        color_scroll.pack(fill=BOTH, expand=TRUE)
+        color_scroll = preset_scrollable
         
         # Create color scheme buttons in a grid
         self.color_var = tk.StringVar(value="Viridis")
@@ -1628,20 +1718,114 @@ class ModernWordCloudApp:
         self.selected_colormap = self.color_schemes[color_name]
         self.update_color_preview()
         
-    def on_single_color_toggle(self):
-        """Handle single color checkbox toggle"""
-        if self.single_color_enabled.get():
-            self.single_color_btn.config(state=NORMAL)
-            # Disable color scheme buttons
-            for widget in self.color_preview_frame.winfo_children():
+    def on_color_mode_change(self):
+        """Handle color mode radio button change"""
+        mode = self.color_mode.get()
+        if mode == "single":
+            self.color_notebook.select(0)
+        elif mode == "preset":
+            self.color_notebook.select(1)
+        elif mode == "custom":
+            self.color_notebook.select(2)
+            self.update_custom_gradient_preview()
+    
+    def choose_custom_color(self, index):
+        """Choose a color for custom gradient"""
+        current_color = self.custom_gradient_colors[index]
+        dialog = ColorChooserDialog(title=f"Choose Color {index+1}", 
+                                   initialcolor=current_color)
+        dialog.show()
+        
+        if dialog.result:
+            color = dialog.result
+            hex_color = color.hex
+            self.custom_gradient_colors[index] = hex_color
+            self.update_custom_gradient_preview()
+    
+    def add_gradient_color(self):
+        """Add a new color to the gradient"""
+        if len(self.custom_gradient_colors) < 10:  # Limit to 10 colors
+            self.custom_gradient_colors.append("#FFFFFF")
+            self.recreate_custom_gradient_ui()
+    
+    def remove_gradient_color(self):
+        """Remove the last color from gradient"""
+        if len(self.custom_gradient_colors) > 2:  # Minimum 2 colors
+            self.custom_gradient_colors.pop()
+            self.recreate_custom_gradient_ui()
+    
+    def recreate_custom_gradient_ui(self):
+        """Recreate the custom gradient UI after adding/removing colors"""
+        # Find the custom frame
+        custom_tab = self.color_notebook.winfo_children()[2]
+        custom_frame = custom_tab.winfo_children()[0]
+        
+        # Clear existing color frames
+        for frame in self.custom_color_frames:
+            frame.destroy()
+        self.custom_color_frames.clear()
+        self.custom_color_previews.clear()
+        
+        # Recreate color rows
+        for i in range(len(self.custom_gradient_colors)):
+            color_row = ttk.Frame(custom_frame)
+            color_row.pack(fill=X, pady=5, before=custom_frame.winfo_children()[1])
+            
+            ttk.Label(color_row, text=f"Color {i+1}:", width=10).pack(side=LEFT)
+            
+            preview = ttk.Frame(color_row, width=30, height=30)
+            preview.pack(side=LEFT, padx=(5, 10))
+            self.custom_color_previews.append(preview)
+            
+            btn = ttk.Button(color_row, text="Choose", 
+                           command=lambda idx=i: self.choose_custom_color(idx),
+                           bootstyle="secondary-outline")
+            btn.pack(side=LEFT)
+            
+            self.custom_color_frames.append(color_row)
+        
+        self.update_custom_gradient_preview()
+    
+    def update_custom_gradient_preview(self):
+        """Update the custom gradient preview"""
+        # Update individual color previews
+        for i, (preview, color) in enumerate(zip(self.custom_color_previews, self.custom_gradient_colors)):
+            style = ttk.Style()
+            style_name = f"CustomColor{i}.TFrame"
+            style.configure(style_name, background=color)
+            preview.configure(style=style_name)
+        
+        # Update gradient preview if it exists
+        if hasattr(self, 'custom_gradient_preview'):
+            # Clear previous preview
+            for widget in self.custom_gradient_preview.winfo_children():
                 widget.destroy()
-            ttk.Label(self.color_preview_frame, 
-                     text="Using single color",
-                     font=('Segoe UI', 10),
-                     bootstyle="secondary").pack(expand=TRUE)
-        else:
-            self.single_color_btn.config(state=DISABLED)
-            self.update_color_preview()
+            
+            # Create gradient preview using matplotlib
+            try:
+                import matplotlib.pyplot as plt
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                
+                fig = plt.Figure(figsize=(4, 0.4), facecolor='white')
+                ax = fig.add_subplot(111)
+                
+                # Create custom colormap
+                cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
+                
+                # Create gradient
+                gradient = np.linspace(0, 1, 256).reshape(1, -1)
+                gradient = np.vstack((gradient, gradient))
+                
+                ax.imshow(gradient, aspect='auto', cmap=cmap)
+                ax.set_axis_off()
+                
+                canvas = FigureCanvasTkAgg(fig, master=self.custom_gradient_preview)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=BOTH, expand=TRUE)
+            except Exception as e:
+                ttk.Label(self.custom_gradient_preview, 
+                         text="Preview unavailable",
+                         bootstyle="secondary").pack()
             
     def choose_single_color(self):
         """Open color picker for single color"""
@@ -2051,12 +2235,16 @@ class ModernWordCloudApp:
             }
             
             # Set color mode
-            if self.single_color_enabled.get():
+            if self.color_mode.get() == "single":
                 # Use single color function
                 color_value = self.single_color.get()
                 wc_params['color_func'] = lambda *args, **kwargs: color_value
+            elif self.color_mode.get() == "custom":
+                # Use custom gradient
+                custom_cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
+                wc_params['colormap'] = custom_cmap
             else:
-                # Use colormap
+                # Use preset colormap
                 wc_params['colormap'] = self.selected_colormap
             
             # Set background and mode
