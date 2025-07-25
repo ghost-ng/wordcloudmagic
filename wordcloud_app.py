@@ -634,8 +634,8 @@ class ModernWordCloudApp:
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
         
-        # Add scrollable frame without padding for full width
-        style_frame = ttk.Frame(scrollable_frame)
+        # Add padding to scrollable frame
+        style_frame = ttk.Frame(scrollable_frame, padding="20")
         style_frame.pack(fill="both", expand=True)
         
         # Bind mouse wheel to this specific canvas
