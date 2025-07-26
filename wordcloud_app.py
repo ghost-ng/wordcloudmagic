@@ -2,6 +2,7 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.toast import ToastNotification
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
+from ttkbootstrap.widgets import Meter, Floodgauge
 from tkinter import filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
@@ -90,12 +91,13 @@ class FontListbox(ttk.Frame):
                                              fill='black',
                                              tags=f"font_{i}")
             
-            # Create selection rectangle (initially hidden)
+            # Create selection rectangle (initially hidden) with outline instead of fill
             rect_id = self.canvas.create_rectangle(2, y_position, 
                                                   self.canvas.winfo_width() - 2, 
                                                   y_position + item_height,
-                                                  fill='#0078d4',
-                                                  outline='',
+                                                  fill='#e1f0ff',
+                                                  outline='#0078d4',
+                                                  width=2,
                                                   state='hidden',
                                                   tags=f"select_{i}")
             
@@ -137,13 +139,24 @@ class FontListbox(ttk.Frame):
             prev_item = self.items[self.selected_index]
             self.canvas.itemconfig(prev_item['rect_id'], state='hidden')
             self.canvas.itemconfig(prev_item['text_id'], fill='black')
+            # Restore normal font
+            if prev_item['name'] in self.fonts_loaded:
+                font = self.fonts_loaded[prev_item['name']]
+                font.configure(weight='normal')
         
         # Select new item
         if 0 <= index < len(self.items):
             self.selected_index = index
             item = self.items[index]
+            # Show selection rectangle behind text
+            self.canvas.tag_lower(item['rect_id'])  # Put rectangle behind text
             self.canvas.itemconfig(item['rect_id'], state='normal')
-            self.canvas.itemconfig(item['text_id'], fill='white')
+            self.canvas.itemconfig(item['text_id'], fill='#0078d4')  # Blue text
+            
+            # Make font bold for selected item
+            if item['name'] in self.fonts_loaded:
+                font = self.fonts_loaded[item['name']]
+                font.configure(weight='bold')
             
             # Update variable
             if self.textvariable:
@@ -580,43 +593,71 @@ class ModernWordCloudApp:
         # Word length filters
         length_frame = self.create_section(filter_frame, "Word Length")
         
-        # Min length with meter
+        # Min length with styled scale
         min_container = ttk.Frame(length_frame)
         min_container.pack(fill=X, pady=(0, 20))
         
         min_label_frame = ttk.Frame(min_container)
         min_label_frame.pack(fill=X)
-        ttk.Label(min_label_frame, text="Minimum Length:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.min_length_label = ttk.Label(min_label_frame, text="3 characters", 
-                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        ttk.Label(min_label_frame, text="Minimum Length:", 
+                 font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
+        self.min_length_label = ttk.Label(min_label_frame, text="3",
+                                         bootstyle="primary", 
+                                         font=('Segoe UI', 14, 'bold'))
         self.min_length_label.pack(side=RIGHT)
         
-        self.min_length_scale = ttk.Scale(min_container,
+        # Scale frame with labels
+        scale_frame = ttk.Frame(min_container)
+        scale_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Label(scale_frame, text="1", font=('Segoe UI', 9)).pack(side=LEFT)
+        
+        self.min_length_scale = ttk.Scale(scale_frame,
                                          from_=1,
-                                         to=10,
+                                         to=50,
                                          value=3,
                                          command=self.update_min_label,
-                                         bootstyle="primary")
-        self.min_length_scale.pack(fill=X, pady=(5, 0))
+                                         bootstyle="primary",
+                                         length=300)
+        self.min_length_scale.pack(side=LEFT, fill=X, expand=True, padx=10)
         
-        # Max length with meter
+        ttk.Label(scale_frame, text="50", font=('Segoe UI', 9)).pack(side=LEFT)
+        
+        ttk.Label(min_container, text="characters", 
+                 font=('Segoe UI', 9), bootstyle="secondary").pack()
+        
+        # Max length with styled scale
         max_container = ttk.Frame(length_frame)
         max_container.pack(fill=X)
         
         max_label_frame = ttk.Frame(max_container)
         max_label_frame.pack(fill=X)
-        ttk.Label(max_label_frame, text="Maximum Length:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.max_length_label = ttk.Label(max_label_frame, text="20 characters",
-                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        ttk.Label(max_label_frame, text="Maximum Length:", 
+                 font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
+        self.max_length_label = ttk.Label(max_label_frame, text="30",
+                                         bootstyle="info", 
+                                         font=('Segoe UI', 14, 'bold'))
         self.max_length_label.pack(side=RIGHT)
         
-        self.max_length_scale = ttk.Scale(max_container,
-                                         from_=10,
+        # Scale frame with labels
+        scale_frame = ttk.Frame(max_container)
+        scale_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Label(scale_frame, text="3", font=('Segoe UI', 9)).pack(side=LEFT)
+        
+        self.max_length_scale = ttk.Scale(scale_frame,
+                                         from_=3,
                                          to=50,
-                                         value=20,
+                                         value=30,
                                          command=self.update_max_label,
-                                         bootstyle="primary")
-        self.max_length_scale.pack(fill=X, pady=(5, 0))
+                                         bootstyle="info",
+                                         length=300)
+        self.max_length_scale.pack(side=LEFT, fill=X, expand=True, padx=10)
+        
+        ttk.Label(scale_frame, text="50", font=('Segoe UI', 9)).pack(side=LEFT)
+        
+        ttk.Label(max_container, text="characters", 
+                 font=('Segoe UI', 9), bootstyle="secondary").pack()
         
         # Forbidden words
         forbidden_frame = self.create_section(filter_frame, "Forbidden Words")
@@ -913,33 +954,79 @@ class ModernWordCloudApp:
         orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
         orientation_frame.pack(fill=X, pady=(0, 10))
         
-        # Prefer horizontal slider
+        # Prefer horizontal with Floodgauge
         horizontal_container = ttk.Frame(orientation_frame)
         horizontal_container.pack(fill=X)
         
-        horizontal_label_frame = ttk.Frame(horizontal_container)
-        horizontal_label_frame.pack(fill=X)
-        ttk.Label(horizontal_label_frame, text="Prefer Horizontal:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.horizontal_label = ttk.Label(horizontal_label_frame, text="90%",
-                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.horizontal_label.pack(side=RIGHT)
+        ttk.Label(horizontal_container, text="Word Orientation", 
+                 font=('Segoe UI', 11, 'bold')).pack()
         
-        self.horizontal_scale = ttk.Scale(horizontal_container,
-                                        from_=0.0,
-                                        to=1.0,
-                                        value=0.9,
-                                        command=self.update_horizontal_label,
+        # Create a frame to hold the gauge and labels
+        gauge_frame = ttk.Frame(horizontal_container)
+        gauge_frame.pack(fill=X, pady=10)
+        
+        # Left label
+        ttk.Label(gauge_frame, text="Vertical", 
+                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(20, 10))
+        
+        # Create Floodgauge for orientation
+        self.horizontal_gauge = Floodgauge(
+            gauge_frame,
+            length=200,
+            maximum=100,
+            value=90,
+            mask="{}%",
+            font=('Segoe UI', 10, 'bold'),
+            bootstyle="primary",
+            mode='determinate',
+            orient='horizontal'
+        )
+        self.horizontal_gauge.pack(side=LEFT, expand=True, fill=X)
+        
+        # Right label
+        ttk.Label(gauge_frame, text="Horizontal", 
+                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(10, 20))
+        
+        # Add interactive control
+        control_frame = ttk.Frame(horizontal_container)
+        control_frame.pack(fill=X)
+        
+        self.horizontal_scale = ttk.Scale(control_frame,
+                                        from_=0,
+                                        to=100,
+                                        value=90,
+                                        command=self.update_horizontal_gauge,
                                         bootstyle="primary")
         self.horizontal_scale.pack(fill=X, pady=(5, 0))
-        
-        ttk.Label(orientation_frame, 
-                 text="0% = All vertical, 100% = All horizontal",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(5, 0))
         
         # Other Settings
         other_frame = ttk.LabelFrame(mask_frame, text="Other Settings", padding=10)
         other_frame.pack(fill=X, pady=(0, 10))
+        
+        # Letter thickness slider
+        self.letter_thickness = tk.DoubleVar(value=1.0)
+        thickness_container = ttk.Frame(other_frame)
+        thickness_container.pack(fill=X, pady=(0, 10))
+        
+        thickness_label_frame = ttk.Frame(thickness_container)
+        thickness_label_frame.pack(fill=X)
+        ttk.Label(thickness_label_frame, text="Letter Thickness:", font=('Segoe UI', 10)).pack(side=LEFT)
+        self.thickness_label = ttk.Label(thickness_label_frame, text="Normal",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+        self.thickness_label.pack(side=RIGHT)
+        
+        self.thickness_scale = ttk.Scale(thickness_container,
+                                        from_=0.1,
+                                        to=3.0,
+                                        value=1.0,
+                                        command=self.update_thickness_label,
+                                        bootstyle="primary")
+        self.thickness_scale.pack(fill=X, pady=(5, 0))
+        
+        ttk.Label(thickness_container, 
+                 text="Thin ← → Thick",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(2, 0))
         
         # Max words slider
         max_words_container = ttk.Frame(other_frame)
@@ -1780,14 +1867,21 @@ class ModernWordCloudApp:
     def update_min_label(self, value):
         """Update minimum length label"""
         val = int(float(value))
-        self.min_word_length.set(val)
-        self.min_length_label.config(text=f"{val} characters")
+        self.min_length.set(val)
+        self.min_length_label.config(text=str(val))
+        # Ensure max is not less than min
+        if self.max_length_scale.get() < val:
+            self.max_length_scale.set(val)
     
     def update_max_label(self, value):
         """Update maximum length label"""
         val = int(float(value))
-        self.max_word_length.set(val)
-        self.max_length_label.config(text=f"{val} characters")
+        self.max_length.set(val)
+        self.max_length_label.config(text=str(val))
+        # Ensure min is not greater than max
+        if self.min_length_scale.get() > val:
+            self.min_length_scale.set(val)
+    
     
     def update_forbidden_words(self):
         """Update forbidden words set"""
@@ -2136,6 +2230,16 @@ class ModernWordCloudApp:
     
     def update_mask_preview(self):
         """Update the mask preview display"""
+        # First clear any existing preview
+        if self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+            self.text_mask_preview_label.config(image="", text="")
+            if hasattr(self.text_mask_preview_label, 'image'):
+                self.text_mask_preview_label.image = None
+        elif self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+            self.image_mask_preview_label.config(image="", text="")
+            if hasattr(self.image_mask_preview_label, 'image'):
+                self.image_mask_preview_label.image = None
+                
         if self.mask_image is not None:
             # Convert numpy array to PIL Image for preview
             if len(self.mask_image.shape) == 3:
@@ -2143,8 +2247,14 @@ class ModernWordCloudApp:
             else:
                 preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'L')
             
-            # Thumbnail for preview
-            preview_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+            # Calculate preview size based on canvas dimensions
+            canvas_width = self.canvas_width.get()
+            canvas_height = self.canvas_height.get()
+            preview_width = int(canvas_width * 0.25)  # 25% of canvas width
+            preview_height = int(canvas_height * 0.25)  # 25% of canvas height
+            
+            # Resize for preview maintaining aspect ratio
+            preview_img.thumbnail((preview_width, preview_height), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(preview_img)
             
             # Update appropriate preview label
@@ -2197,12 +2307,28 @@ class ModernWordCloudApp:
     
     def clear_canvas(self):
         """Clear the canvas completely"""
+        # Clear all axes and artists
         self.figure.clear()
+        
+        # Force garbage collection of matplotlib objects
+        import gc
+        gc.collect()
+        
+        # Create fresh subplot
         ax = self.figure.add_subplot(111)
+        ax.clear()
         ax.set_facecolor('white')
         ax.axis('off')
+        
+        # Reset figure properties
         self.figure.patch.set_facecolor('white')
+        
+        # Force complete redraw
+        self.figure.canvas.draw_idle()
         self.canvas.draw()
+        
+        # Flush any pending events
+        self.figure.canvas.flush_events()
         
         # Disable save button since there's nothing to save
         if hasattr(self, 'save_btn'):
@@ -2260,6 +2386,28 @@ class ModernWordCloudApp:
         self.prefer_horizontal.set(val)
         self.horizontal_label.config(text=f"{int(val * 100)}%")
     
+    def update_horizontal_gauge(self, value):
+        """Update horizontal gauge and prefer_horizontal value"""
+        val = float(value)
+        self.horizontal_gauge.configure(value=val)
+        self.prefer_horizontal.set(val / 100.0)  # Convert percentage to 0-1 range
+    
+    def update_thickness_label(self, value):
+        """Update letter thickness label"""
+        val = float(value)
+        self.letter_thickness.set(val)
+        if val < 0.5:
+            text = "Very Thin"
+        elif val < 0.8:
+            text = "Thin"
+        elif val < 1.2:
+            text = "Normal"
+        elif val < 2.0:
+            text = "Thick"
+        else:
+            text = "Very Thick"
+        self.thickness_label.config(text=text)
+    
     def update_max_words(self, value):
         """Update max words label and clear canvas"""
         val = int(float(value))
@@ -2306,12 +2454,66 @@ class ModernWordCloudApp:
         
         return ' '.join(filtered_words)
     
+    def validate_configuration(self):
+        """Validate configuration and return list of warnings/errors"""
+        issues = []
+        
+        # Check if min length > max length
+        if self.min_length.get() > self.max_length.get():
+            issues.append(("error", "Minimum word length cannot be greater than maximum word length"))
+        
+        # Check canvas size
+        width = self.canvas_width.get()
+        height = self.canvas_height.get()
+        if width < 100 or height < 100:
+            issues.append(("error", "Canvas size too small. Minimum size is 100x100"))
+        if width > 4000 or height > 4000:
+            issues.append(("warning", "Large canvas size may cause slow generation"))
+        
+        # Check if using text mask with no text
+        if self.mask_type.get() == "text" and not self.text_mask_input.get():
+            issues.append(("error", "Text mask selected but no text provided"))
+        
+        # Check max words
+        if self.max_words.get() < 5:
+            issues.append(("warning", "Very few words selected. Word cloud may look sparse"))
+        
+        # Check scale value
+        if self.scale.get() > 5:
+            issues.append(("warning", "High scale value may cause very slow generation"))
+        
+        # Check if all words might be filtered
+        text_preview = self.text_content[:1000] if self.text_content else ""
+        if text_preview:
+            words = text_preview.split()
+            avg_word_length = sum(len(w) for w in words) / len(words) if words else 0
+            if avg_word_length < self.min_length.get():
+                issues.append(("warning", f"Average word length ({avg_word_length:.1f}) is less than minimum filter ({self.min_length.get()}). Most words may be filtered out"))
+        
+        return issues
+    
     def generate_wordcloud(self):
         """Generate word cloud in a separate thread"""
         if not self.text_content:
             self.show_message("No text content available. Please load files or paste text first.", "warning")
             self.show_toast("Please load text from files or paste text first", "warning")
             return
+        
+        # Validate configuration
+        issues = self.validate_configuration()
+        if issues:
+            # Show errors first
+            errors = [msg for level, msg in issues if level == "error"]
+            warnings = [msg for level, msg in issues if level == "warning"]
+            
+            if errors:
+                error_msg = "Cannot generate word cloud:\n\n" + "\n".join(f"• {msg}" for msg in errors)
+                self.show_message(error_msg, "error")
+                return
+            
+            if warnings:
+                warning_msg = "Warnings:\n" + "\n".join(f"• {msg}" for msg in warnings)
+                self.show_toast(warning_msg, "warning")
         
         # Show progress and disable button
         self.generate_btn.config(state=DISABLED)
@@ -2340,7 +2542,8 @@ class ModernWordCloudApp:
                 'scale': self.scale.get(),
                 'relative_scaling': 0.5,
                 'min_font_size': 10,
-                'prefer_horizontal': self.prefer_horizontal.get()
+                'prefer_horizontal': self.prefer_horizontal.get(),
+                'margin': int(5 * self.letter_thickness.get())  # Margin affects letter thickness
             }
             
             # Set color mode
@@ -2702,9 +2905,13 @@ class ModernWordCloudApp:
         try:
             # Apply basic settings
             if 'min_length' in config:
-                self.min_length_var.set(config['min_length'])
+                self.min_length.set(config['min_length'])
+                self.min_length_scale.set(config['min_length'])
+                self.min_length_label.config(text=str(config['min_length']))
             if 'max_length' in config:
-                self.max_length_var.set(config['max_length'])
+                self.max_length.set(config['max_length'])
+                self.max_length_scale.set(config['max_length'])
+                self.max_length_label.config(text=str(config['max_length']))
             if 'forbidden_words' in config:
                 self.forbidden_text.delete(1.0, tk.END)
                 self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
@@ -2730,7 +2937,11 @@ class ModernWordCloudApp:
             
             # Apply other settings
             if 'prefer_horizontal' in config:
-                self.horizontal_scale.set(config['prefer_horizontal'])
+                pref_val = config['prefer_horizontal'] * 100  # Convert to percentage
+                self.horizontal_scale.set(pref_val)
+                self.horizontal_gauge.configure(value=pref_val)
+            if 'letter_thickness' in config:
+                self.thickness_scale.set(config.get('letter_thickness', 1.0))
             if 'canvas_width' in config:
                 self.width_var.set(config['canvas_width'])
             if 'canvas_height' in config:
@@ -2875,7 +3086,9 @@ class ModernWordCloudApp:
         
         # Canvas settings
         if hasattr(self, 'horizontal_scale'):
-            config['prefer_horizontal'] = self.horizontal_scale.get()
+            config['prefer_horizontal'] = self.horizontal_scale.get() / 100.0  # Convert percentage to 0-1
+        if hasattr(self, 'thickness_scale'):
+            config['letter_thickness'] = self.thickness_scale.get()
         if hasattr(self, 'width_var'):
             config['canvas_width'] = self.width_var.get()
         if hasattr(self, 'height_var'):
