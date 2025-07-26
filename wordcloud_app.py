@@ -19,6 +19,11 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
 from matplotlib.colors import LinearSegmentedColormap
 matplotlib.use('TkAgg')
+import sys
+import argparse
+import traceback
+import logging
+from datetime import datetime
 
 # File handling imports
 import PyPDF2
@@ -26,6 +31,62 @@ from docx import Document
 from pptx import Presentation
 import re
 from io import BytesIO
+import webbrowser
+import tempfile
+
+# Import tutorial wizard
+from tutorial_wizard import TutorialWizard
+
+# Global debug flag and logger
+DEBUG = False
+debug_logger = None
+
+def setup_debug_logging():
+    """Setup debug logging to both console and file"""
+    global debug_logger
+    
+    # Create logger
+    debug_logger = logging.getLogger('wordcloud_debug')
+    debug_logger.setLevel(logging.DEBUG)
+    
+    # Clear any existing handlers
+    debug_logger.handlers.clear()
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+    
+    # Create logs directory if it doesn't exist
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    logs_dir = os.path.join(script_dir, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # File handler - create debug log in logs directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = os.path.join(logs_dir, f"wordcloud_debug_{timestamp}.log")
+    file_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', 
+                                datefmt='%Y-%m-%d %H:%M:%S')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    
+    # Add handlers to logger
+    debug_logger.addHandler(console_handler)
+    debug_logger.addHandler(file_handler)
+    
+    # Log initial info
+    debug_logger.info(f"Debug logging started - Log file: {log_filename}")
+    
+    return log_filename
+
+def debug_print(*args, **kwargs):
+    """Print debug messages when DEBUG mode is enabled"""
+    if DEBUG and debug_logger:
+        message = " ".join(str(arg) for arg in args)
+        debug_logger.debug(message)
 
 class FontListbox(ttk.Frame):
     """Custom font selector that displays fonts in their actual style"""
@@ -94,8 +155,9 @@ class FontListbox(ttk.Frame):
             rect_id = self.canvas.create_rectangle(2, y_position, 
                                                   self.canvas.winfo_width() - 2, 
                                                   y_position + item_height,
-                                                  fill='#0078d4',
-                                                  outline='',
+                                                  fill='#e1f0ff',
+                                                  outline='#0078d4',
+                                                  width=2,
                                                   state='hidden',
                                                   tags=f"select_{i}")
             
@@ -143,7 +205,7 @@ class FontListbox(ttk.Frame):
             self.selected_index = index
             item = self.items[index]
             self.canvas.itemconfig(item['rect_id'], state='normal')
-            self.canvas.itemconfig(item['text_id'], fill='white')
+            self.canvas.itemconfig(item['text_id'], fill='#0078d4', font=tkFont.Font(family=self.fonts_loaded.get(item['name'], 'Segoe UI'), size=12, weight='bold'))
             
             # Update variable
             if self.textvariable:
@@ -268,6 +330,7 @@ class ModernWordCloudApp:
         return gradients
     
     def __init__(self, root):
+        debug_print("Initializing ModernWordCloudApp")
         self.root = root
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
@@ -290,6 +353,7 @@ class ModernWordCloudApp:
         self.text_content = ""
         self.mask_image = None
         self.mask_path = tk.StringVar(value="No mask selected")
+        self.image_mask_file_path = None  # Store full path of image mask
         self.min_word_length = tk.IntVar(value=3)
         self.max_word_length = tk.IntVar(value=20)
         self.forbidden_words = set(STOPWORDS)
@@ -345,6 +409,9 @@ class ModernWordCloudApp:
         
         # Contour settings
         self.contour_width = tk.IntVar(value=2)
+        debug_print(f"Initialized contour_width with default value: 2")
+        # Add trace to monitor changes
+        self.contour_width.trace('w', lambda *args: debug_print(f"contour_width changed to: {self.contour_width.get()}"))
         self.contour_color = tk.StringVar(value="#000000")
         self.contour_widgets = []  # Keep track of contour widgets
         
@@ -405,6 +472,9 @@ class ModernWordCloudApp:
         # Mark UI as ready
         self.ui_ready = True
         
+        # Initialize tutorial wizard after UI is ready
+        self.tutorial_wizard = TutorialWizard(self, self.root)
+        
         # Bind window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
@@ -429,6 +499,7 @@ class ModernWordCloudApp:
         file_menu.add_separator()
         file_menu.add_command(label="Reset", command=self.reset_app)
         file_menu.add_separator()
+        file_menu.add_command(label="Start Tutorial", command=self.start_tutorial_wizard)
         file_menu.add_command(label="Help", command=self.show_help)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.on_closing)
@@ -514,6 +585,7 @@ class ModernWordCloudApp:
         
         # File selection
         file_frame = self.create_section(input_frame, "Select Files")
+        self.file_list_frame = file_frame  # Store reference for tutorial
         
         # Create frame for listbox with border
         listbox_frame = ttk.Frame(file_frame, bootstyle="secondary", padding=1)
@@ -579,6 +651,7 @@ class ModernWordCloudApp:
         
         # Word length filters
         length_frame = self.create_section(filter_frame, "Word Length")
+        self.length_frame = length_frame  # Store reference for tutorial
         
         # Min length with meter
         min_container = ttk.Frame(length_frame)
@@ -587,14 +660,14 @@ class ModernWordCloudApp:
         min_label_frame = ttk.Frame(min_container)
         min_label_frame.pack(fill=X)
         ttk.Label(min_label_frame, text="Minimum Length:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.min_length_label = ttk.Label(min_label_frame, text="3 characters", 
+        self.min_length_label = ttk.Label(min_label_frame, text=f"{self.min_word_length.get()} characters", 
                                          bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.min_length_label.pack(side=RIGHT)
         
         self.min_length_scale = ttk.Scale(min_container,
                                          from_=1,
                                          to=10,
-                                         value=3,
+                                         variable=self.min_word_length,
                                          command=self.update_min_label,
                                          bootstyle="primary")
         self.min_length_scale.pack(fill=X, pady=(5, 0))
@@ -606,14 +679,14 @@ class ModernWordCloudApp:
         max_label_frame = ttk.Frame(max_container)
         max_label_frame.pack(fill=X)
         ttk.Label(max_label_frame, text="Maximum Length:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.max_length_label = ttk.Label(max_label_frame, text="20 characters",
+        self.max_length_label = ttk.Label(max_label_frame, text=f"{self.max_word_length.get()} characters",
                                          bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.max_length_label.pack(side=RIGHT)
         
         self.max_length_scale = ttk.Scale(max_container,
                                          from_=10,
                                          to=50,
-                                         value=20,
+                                         variable=self.max_word_length,
                                          command=self.update_max_label,
                                          bootstyle="primary")
         self.max_length_scale.pack(fill=X, pady=(5, 0))
@@ -637,15 +710,167 @@ class ModernWordCloudApp:
                                           wrap=tk.WORD)
         self.forbidden_text.pack(fill=BOTH, expand=TRUE, padx=1, pady=1)
         
-        # Pre-populate with common stop words
-        default_forbidden = "the\nand\nor\nbut\nin\non\nat\nto\nfor\nof\nwith\nby\nfrom\nas\nis\nwas\nare\nbeen"
-        self.forbidden_text.insert('1.0', default_forbidden)
+        # Pre-populate with common stop words - expanded list
+        self.default_forbidden = """the
+and
+or
+but
+in
+on
+at
+to
+for
+of
+with
+by
+from
+as
+is
+was
+are
+been
+be
+have
+has
+had
+do
+does
+did
+will
+would
+should
+could
+may
+might
+must
+can
+shall
+a
+an
+these
+those
+this
+that
+their
+there
+they
+them
+he
+she
+it
+we
+you
+i
+me
+my
+our
+your
+his
+her
+its
+their
+what
+which
+who
+when
+where
+why
+how
+all
+each
+every
+some
+any
+few
+more
+most
+other
+such
+no
+not
+only
+own
+same
+so
+than
+too
+very
+just
+also
+now
+then
+here
+there
+up
+down
+out
+off
+over
+under
+about
+into
+through
+during
+before
+after
+above
+below
+between
+under
+since
+without
+within
+along
+among
+around
+however
+therefore
+moreover
+furthermore
+otherwise
+nevertheless
+nonetheless
+still
+yet
+already
+always
+never
+often
+sometimes
+usually
+generally
+specifically
+particularly
+especially
+mainly
+mostly
+simply
+actually
+really
+indeed
+certainly
+definitely
+probably
+possibly
+perhaps
+maybe"""
+        self.forbidden_text.insert('1.0', self.default_forbidden)
         
-        ttk.Button(forbidden_frame,
-                  text="Update Forbidden Words",
+        # Button frame
+        button_frame = ttk.Frame(forbidden_frame)
+        button_frame.pack(fill=X, pady=(10, 0))
+        
+        ttk.Button(button_frame,
+                  text="Update",
                   command=self.update_forbidden_words,
                   bootstyle="warning",
-                  width=25).pack()
+                  width=20).pack(side=LEFT, padx=(0, 5))
+        
+        ttk.Button(button_frame,
+                  text="Reset to Default",
+                  command=self.reset_forbidden_words,
+                  bootstyle="secondary",
+                  width=15).pack(side=LEFT)
         
     def create_style_tab(self):
         """Create style options tab"""
@@ -709,6 +934,7 @@ class ModernWordCloudApp:
         
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
+        self.color_scheme_frame = color_frame  # Store reference for tutorial
         
         # Color mode selection
         mode_frame = ttk.Frame(color_frame)
@@ -896,6 +1122,7 @@ class ModernWordCloudApp:
         
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
+        self.mask_frame = mask_frame  # Store reference for tutorial
         
         # Create notebook for mask options
         self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
@@ -920,14 +1147,14 @@ class ModernWordCloudApp:
         horizontal_label_frame = ttk.Frame(horizontal_container)
         horizontal_label_frame.pack(fill=X)
         ttk.Label(horizontal_label_frame, text="Prefer Horizontal:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.horizontal_label = ttk.Label(horizontal_label_frame, text="90%",
+        self.horizontal_label = ttk.Label(horizontal_label_frame, text=f"{int(self.prefer_horizontal.get() * 100)}%",
                                          bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.horizontal_label.pack(side=RIGHT)
         
         self.horizontal_scale = ttk.Scale(horizontal_container,
                                         from_=0.0,
                                         to=1.0,
-                                        value=0.9,
+                                        variable=self.prefer_horizontal,
                                         command=self.update_horizontal_label,
                                         bootstyle="primary")
         self.horizontal_scale.pack(fill=X, pady=(5, 0))
@@ -948,14 +1175,14 @@ class ModernWordCloudApp:
         max_words_label_frame = ttk.Frame(max_words_container)
         max_words_label_frame.pack(fill=X)
         ttk.Label(max_words_label_frame, text="Maximum Words:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.max_words_label = ttk.Label(max_words_label_frame, text="200",
+        self.max_words_label = ttk.Label(max_words_label_frame, text=str(self.max_words.get()),
                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.max_words_label.pack(side=RIGHT)
         
         self.max_words_scale = ttk.Scale(max_words_container,
                                         from_=10,
                                         to=500,
-                                        value=200,
+                                        variable=self.max_words,
                                         command=self.update_max_words,
                                         bootstyle="primary")
         self.max_words_scale.pack(fill=X, pady=(5, 0))
@@ -972,14 +1199,14 @@ class ModernWordCloudApp:
         scale_label_frame = ttk.Frame(scale_container)
         scale_label_frame.pack(fill=X)
         ttk.Label(scale_label_frame, text="Computation Scale:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.scale_label = ttk.Label(scale_label_frame, text="1",
+        self.scale_label = ttk.Label(scale_label_frame, text=str(self.scale.get()),
                                     bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.scale_label.pack(side=RIGHT)
         
         self.scale_scale = ttk.Scale(scale_container,
                                     from_=1,
                                     to=10,
-                                    value=1,
+                                    variable=self.scale,
                                     command=self.update_scale,
                                     bootstyle="primary")
         self.scale_scale.pack(fill=X, pady=(5, 0))
@@ -992,6 +1219,7 @@ class ModernWordCloudApp:
         # Canvas options
         canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
         canvas_frame.pack(fill=X, pady=(0, 10))
+        self.canvas_size_frame = canvas_frame  # Store reference for tutorial
         
         # Lock aspect ratio checkbox
         ratio_frame = ttk.Frame(canvas_frame)
@@ -1016,14 +1244,14 @@ class ModernWordCloudApp:
         width_label_frame = ttk.Frame(width_container)
         width_label_frame.pack(fill=X)
         ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.width_label = ttk.Label(width_label_frame, text="800 px",
+        self.width_label = ttk.Label(width_label_frame, text=f"{self.canvas_width.get()} px",
                                     bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.width_label.pack(side=RIGHT)
         
         self.width_scale = ttk.Scale(width_container,
                                     from_=400,
                                     to=4000,
-                                    value=800,
+                                    variable=self.canvas_width,
                                     command=self.update_width,
                                     bootstyle="primary")
         self.width_scale.pack(fill=X, pady=(5, 0))
@@ -1035,14 +1263,14 @@ class ModernWordCloudApp:
         height_label_frame = ttk.Frame(height_container)
         height_label_frame.pack(fill=X)
         ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.height_label = ttk.Label(height_label_frame, text="600 px",
+        self.height_label = ttk.Label(height_label_frame, text=f"{self.canvas_height.get()} px",
                                      bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.height_label.pack(side=RIGHT)
         
         self.height_scale = ttk.Scale(height_container,
                                      from_=300,
                                      to=4000,
-                                     value=600,
+                                     variable=self.canvas_height,
                                      command=self.update_height,
                                      bootstyle="primary")
         self.height_scale.pack(fill=X, pady=(5, 0))
@@ -1161,31 +1389,31 @@ class ModernWordCloudApp:
     
     def create_contour_options(self, parent):
         """Create contour options frame"""
-        contour_frame = ttk.LabelFrame(parent, text="Contour Options", padding=10)
-        contour_frame.pack(fill=X, pady=(10, 10))
+        self.contour_frame = ttk.LabelFrame(parent, text="Contour Options", padding=10)
+        self.contour_frame.pack(fill=X, pady=(10, 10))
         
         # Contour width
-        width_container = ttk.Frame(contour_frame)
+        width_container = ttk.Frame(self.contour_frame)
         width_container.pack(fill=X, pady=(0, 10))
         
         width_label_frame = ttk.Frame(width_container)
         width_label_frame.pack(fill=X)
         contour_width_lbl = ttk.Label(width_label_frame, text="Contour Width:", font=('Segoe UI', 10))
         contour_width_lbl.pack(side=LEFT)
-        contour_width_label = ttk.Label(width_label_frame, text="2 pixels",
+        contour_width_label = ttk.Label(width_label_frame, text=f"{self.contour_width.get()} pixels",
                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         contour_width_label.pack(side=RIGHT)
         
         contour_width_scale = ttk.Scale(width_container,
                                        from_=0,
                                        to=10,
-                                       value=2,
+                                       variable=self.contour_width,
                                        command=lambda v: self.update_contour_width(v, contour_width_label),
                                        bootstyle="primary")
         contour_width_scale.pack(fill=X, pady=(5, 0))
         
         # Contour color
-        color_container = ttk.Frame(contour_frame)
+        color_container = ttk.Frame(self.contour_frame)
         color_container.pack(fill=X)
         
         contour_color_lbl = ttk.Label(color_container, text="Contour Color:", font=('Segoe UI', 10))
@@ -1201,7 +1429,17 @@ class ModernWordCloudApp:
                                       width=15)
         contour_color_btn.pack(side=RIGHT)
         
-        # Store references if this is the first creation
+        # Store references - keep a list of all labels to update them all
+        if not hasattr(self, 'contour_width_labels'):
+            self.contour_width_labels = []
+            self.contour_width_scales = []
+            self.contour_color_previews = []
+        
+        self.contour_width_labels.append(contour_width_label)
+        self.contour_width_scales.append(contour_width_scale)
+        self.contour_color_previews.append(contour_color_preview)
+        
+        # Keep single reference for backward compatibility
         if not hasattr(self, 'contour_width_label'):
             self.contour_width_label = contour_width_label
             self.contour_width_scale = contour_width_scale
@@ -1282,6 +1520,8 @@ class ModernWordCloudApp:
                                        height=5)
         self.font_listbox.pack(fill=X)
         self.font_listbox.bind('<<FontSelected>>', lambda e: self.update_text_mask())
+
+        # bind a change color to font selection
         
         # Font size
         font_size_container = ttk.Frame(text_input_frame)
@@ -1290,14 +1530,14 @@ class ModernWordCloudApp:
         font_size_label_frame = ttk.Frame(font_size_container)
         font_size_label_frame.pack(fill=X)
         ttk.Label(font_size_label_frame, text="Font Size:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.font_size_label = ttk.Label(font_size_label_frame, text="200",
+        self.font_size_label = ttk.Label(font_size_label_frame, text=str(self.text_mask_font_size.get()),
                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
         self.font_size_label.pack(side=RIGHT)
         
         self.font_size_scale = ttk.Scale(font_size_container,
                                         from_=50,
                                         to=2000,
-                                        value=200,
+                                        variable=self.text_mask_font_size,
                                         command=self.update_font_size,
                                         bootstyle="primary")
         self.font_size_scale.pack(fill=X, pady=(5, 0))
@@ -1522,17 +1762,13 @@ class ModernWordCloudApp:
         """Create the word cloud preview area"""
         preview_container = ttk.LabelFrame(parent, text="Word Cloud Preview", padding=15)
         preview_container.pack(fill=BOTH, expand=TRUE)
+        self.preview_frame = preview_container  # Store reference for tutorial
         
         # Create a centered frame for the preview with margins
         preview_wrapper = ttk.Frame(preview_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
-        # Scale indicator label (initially hidden)
-        self.scale_indicator = ttk.Label(preview_wrapper, 
-                                        text="",
-                                        font=('Segoe UI', 9, 'italic'),
-                                        bootstyle="secondary")
-        self.scale_indicator.pack(pady=(0, 5))
+        # Removed scale indicator to clean up UI
         
         # Canvas for word cloud with max width constraint
         canvas_container = ttk.Frame(preview_wrapper)
@@ -1552,11 +1788,27 @@ class ModernWordCloudApp:
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack()  # Don't expand, keep fixed size
         
-        # Initial empty plot with message
+        # Initial empty plot with placeholder
         ax = self.figure.add_subplot(111)
         ax.text(0.5, 0.5, 'Generate a word cloud to see it here', 
                 horizontalalignment='center', verticalalignment='center',
                 transform=ax.transAxes, fontsize=14, color='gray')
+        
+        # Add a decorative border
+        rect = plt.Rectangle((0.1, 0.1), 0.8, 0.8, 
+                           fill=False, 
+                           edgecolor='lightgray', 
+                           linewidth=2, 
+                           linestyle='--',
+                           transform=ax.transAxes)
+        ax.add_patch(rect)
+        
+        # Add corner icons/text
+        ax.text(0.15, 0.85, '☁', fontsize=20, color='lightgray', transform=ax.transAxes)
+        ax.text(0.85, 0.85, '☁', fontsize=20, color='lightgray', transform=ax.transAxes)
+        ax.text(0.15, 0.15, '☁', fontsize=20, color='lightgray', transform=ax.transAxes)
+        ax.text(0.85, 0.15, '☁', fontsize=20, color='lightgray', transform=ax.transAxes)
+        
         ax.axis('off')
         self.canvas.draw()
         
@@ -1639,6 +1891,16 @@ class ModernWordCloudApp:
             status = "info"
         
         style = self.message_styles[status]
+        
+        # Log to console and file in debug mode
+        if DEBUG and debug_logger:
+            log_method = {
+                "good": debug_logger.info,
+                "info": debug_logger.info,
+                "warning": debug_logger.warning,
+                "fail": debug_logger.error
+            }.get(status, debug_logger.info)
+            log_method(message)
         
         # Update message content
         self.message_icon_label.config(text=style["icon"])
@@ -1797,6 +2059,13 @@ class ModernWordCloudApp:
             custom_forbidden = set(word.strip().lower() for word in text.split('\n') if word.strip())
             self.forbidden_words.update(custom_forbidden)
         self.show_toast(f"Updated forbidden words ({len(self.forbidden_words)} total)", "info")
+    
+    def reset_forbidden_words(self):
+        """Reset forbidden words to default list"""
+        self.forbidden_text.delete('1.0', tk.END)
+        self.forbidden_text.insert('1.0', self.default_forbidden)
+        self.update_forbidden_words()
+        self.show_toast("Reset to default forbidden words", "info")
     
     def on_color_select(self):
         """Handle color scheme selection"""
@@ -1997,13 +2266,38 @@ class ModernWordCloudApp:
             try:
                 self.mask_image = np.array(Image.open(file_path))
                 self.mask_path.set(os.path.basename(file_path))
+                self.image_mask_file_path = file_path  # Store full path
                 
                 # Update the image mask label
                 self.image_mask_label.config(text=os.path.basename(file_path))
                 
-                # Update mask preview
+                # Update mask preview with scaling
                 img = Image.open(file_path)
-                img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+                
+                # Scale preview relative to canvas dimensions (25% of canvas size)
+                canvas_w = self.canvas_width.get()
+                canvas_h = self.canvas_height.get()
+                preview_w = int(canvas_w * 0.25)
+                preview_h = int(canvas_h * 0.25)
+                
+                # Maintain aspect ratio
+                img_w, img_h = img.size
+                aspect = img_w / img_h
+                
+                if aspect > preview_w / preview_h:
+                    # Image is wider
+                    new_w = preview_w
+                    new_h = int(preview_w / aspect)
+                else:
+                    # Image is taller
+                    new_h = preview_h
+                    new_w = int(preview_h * aspect)
+                
+                # Ensure minimum size
+                new_w = max(new_w, 100)
+                new_h = max(new_h, 100)
+                
+                img.thumbnail((new_w, new_h), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 if hasattr(self, 'image_mask_preview_label'):
                     self.image_mask_preview_label.config(image=photo, text="")
@@ -2018,14 +2312,20 @@ class ModernWordCloudApp:
         """Clear selected mask"""
         self.mask_image = None
         self.mask_path.set("No mask selected")
+        self.image_mask_file_path = None
         
-        # Clear appropriate preview label
-        if self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
-            self.image_mask_preview_label.config(image="", text="No mask selected")
-            self.image_mask_label.config(text="No image selected")
-        elif self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
-            self.text_mask_preview_label.config(image="", text="No mask selected")
-            self.text_mask_input.set("")
+        # Clear appropriate preview label and update UI based on mask type
+        if self.mask_type.get() == "image":
+            if hasattr(self, 'image_mask_preview_label'):
+                self.image_mask_preview_label.config(image="", text="No mask selected")
+            if hasattr(self, 'image_mask_label'):
+                self.image_mask_label.config(text="No image selected")
+        elif self.mask_type.get() == "text":
+            if hasattr(self, 'text_mask_preview_label'):
+                self.text_mask_preview_label.config(image="", text="No mask selected")
+            if hasattr(self, 'text_mask_input'):
+                debug_print("Clearing text_mask_input in clear_mask()")
+                self.text_mask_input.set("")
         
         # Disable contour options when mask is cleared
         self.update_contour_state(False)
@@ -2133,7 +2433,10 @@ class ModernWordCloudApp:
             
             # Enable contour options
             self.update_contour_state(True)
-    
+
+            # change the font selection color
+            self.canvas.itemconfig(self.text_mask_preview_label, fill='white')
+
     def update_mask_preview(self):
         """Update the mask preview display"""
         if self.mask_image is not None:
@@ -2143,8 +2446,31 @@ class ModernWordCloudApp:
             else:
                 preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'L')
             
+            # Scale preview relative to canvas dimensions (25% of canvas size)
+            canvas_w = self.canvas_width.get()
+            canvas_h = self.canvas_height.get()
+            preview_w = int(canvas_w * 0.25)
+            preview_h = int(canvas_h * 0.25)
+            
+            # Maintain aspect ratio
+            img_w, img_h = preview_img.size
+            aspect = img_w / img_h
+            
+            if aspect > preview_w / preview_h:
+                # Image is wider
+                new_w = preview_w
+                new_h = int(preview_w / aspect)
+            else:
+                # Image is taller
+                new_h = preview_h
+                new_w = int(preview_h * aspect)
+            
+            # Ensure minimum size
+            new_w = max(new_w, 100)
+            new_h = max(new_h, 100)
+            
             # Thumbnail for preview
-            preview_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+            preview_img.thumbnail((new_w, new_h), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(preview_img)
             
             # Update appropriate preview label
@@ -2161,8 +2487,13 @@ class ModernWordCloudApp:
         self.contour_width.set(val)
         if label:
             label.config(text=f"{val} pixels")
-        elif hasattr(self, 'contour_width_label'):
-            self.contour_width_label.config(text=f"{val} pixels")
+        else:
+            # Update all contour width labels
+            if hasattr(self, 'contour_width_labels'):
+                for lbl in self.contour_width_labels:
+                    lbl.config(text=f"{val} pixels")
+            elif hasattr(self, 'contour_width_label'):
+                self.contour_width_label.config(text=f"{val} pixels")
     
     def choose_contour_color(self, preview_frame=None):
         """Open color chooser for contour color"""
@@ -2221,14 +2552,7 @@ class ModernWordCloudApp:
             # Update figure size for display
             self.figure.set_size_inches(display_width/100, display_height/100)
             
-            # Update scale indicator
-            actual_width = self.canvas_width.get()
-            actual_height = self.canvas_height.get()
-            if display_width < actual_width or display_height < actual_height:
-                reduction = 100 - int((display_width / actual_width) * 100)
-                self.scale_indicator.config(text=f"Preview reduced by {reduction}% to fit screen")
-            else:
-                self.scale_indicator.config(text="")
+            # Scale calculation removed - no longer showing indicator
             
             # Clear canvas when size changes
             self.clear_canvas()
@@ -2249,10 +2573,11 @@ class ModernWordCloudApp:
                 pass  # Some widgets might not support state
         
         # Update frame title
-        if has_mask:
-            self.contour_frame.configure(text="Contour Options")
-        else:
-            self.contour_frame.configure(text="Contour Options (requires mask)")
+        if hasattr(self, 'contour_frame'):
+            if has_mask:
+                self.contour_frame.configure(text="Contour Options")
+            else:
+                self.contour_frame.configure(text="Contour Options (requires mask)")
     
     def update_horizontal_label(self, value):
         """Update prefer horizontal label"""
@@ -2325,14 +2650,20 @@ class ModernWordCloudApp:
     def _generate_wordcloud_thread(self):
         """Generate word cloud (thread function)"""
         try:
+            debug_print("Starting word cloud generation thread")
+            
             # Filter words
+            debug_print(f"Text content type: {type(self.text_content)}, content length: {len(self.text_content) if self.text_content else 0}")
             filtered_text = self.filter_words(self.text_content)
             
             if not filtered_text:
                 self.root.after(0, lambda: self.show_toast("No words found after filtering", "warning"))
                 return
             
+            debug_print(f"Filtered text length: {len(filtered_text)}")
+            
             # Create word cloud
+            debug_print("Building word cloud parameters...")
             wc_params = {
                 'width': self.canvas_width.get(),
                 'height': self.canvas_height.get(),
@@ -2342,41 +2673,65 @@ class ModernWordCloudApp:
                 'min_font_size': 10,
                 'prefer_horizontal': self.prefer_horizontal.get()
             }
+            debug_print(f"Word cloud params: {wc_params}")
             
             # Set color mode
+            debug_print(f"Color mode: {self.color_mode.get()}")
             if self.color_mode.get() == "single":
                 # Use single color function
+                debug_print(f"Single color type: {type(self.single_color)}")
                 color_value = self.single_color.get()
+                debug_print(f"Single color value: {color_value}")
                 wc_params['color_func'] = lambda *args, **kwargs: color_value
             elif self.color_mode.get() == "custom":
                 # Use custom gradient
+                debug_print("Using custom gradient colors")
                 custom_cmap = LinearSegmentedColormap.from_list('custom', self.custom_gradient_colors)
                 wc_params['colormap'] = custom_cmap
             else:
                 # Use preset colormap
+                debug_print(f"Using preset colormap: {self.selected_colormap}")
                 wc_params['colormap'] = self.selected_colormap
             
             # Set background and mode
-            if self.rgba_mode.get():
-                wc_params['mode'] = 'RGBA'
-                wc_params['background_color'] = None
+            debug_print(f"RGBA mode type: {type(self.rgba_mode)}, value: {self.rgba_mode if hasattr(self, 'rgba_mode') else 'No rgba_mode attr'}")
+            if hasattr(self, 'rgba_mode') and callable(getattr(self.rgba_mode, 'get', None)):
+                if self.rgba_mode.get():
+                    wc_params['mode'] = 'RGBA'
+                    wc_params['background_color'] = None
+                else:
+                    wc_params['mode'] = 'RGB'
+                    wc_params['background_color'] = self.bg_color.get()
             else:
+                # Default to RGB mode if rgba_mode is not properly initialized
+                debug_print("Warning: rgba_mode not properly initialized, defaulting to RGB")
                 wc_params['mode'] = 'RGB'
-                wc_params['background_color'] = self.bg_color.get()
+                wc_params['background_color'] = self.bg_color.get() if hasattr(self, 'bg_color') else '#FFFFFF'
             
             if self.mask_image is not None:
+                debug_print("Using mask image")
                 wc_params['mask'] = self.mask_image
-                if self.contour_width.get() > 0:
-                    wc_params['contour_width'] = self.contour_width.get()
-                    wc_params['contour_color'] = self.contour_color.get()
+                if hasattr(self, 'contour_width') and callable(getattr(self.contour_width, 'get', None)):
+                    contour_width_value = self.contour_width.get()
+                    debug_print(f"Contour width value: {contour_width_value}")
+                    if contour_width_value > 0:
+                        wc_params['contour_width'] = contour_width_value
+                        wc_params['contour_color'] = self.contour_color.get()
+                        debug_print(f"Applied contour: width={contour_width_value}, color={self.contour_color.get()}")
             
+            debug_print("Creating WordCloud object...")
             self.wordcloud = WordCloud(**wc_params).generate(filtered_text)
+            debug_print("WordCloud generated successfully")
             
             # Update UI in main thread
             self.root.after(0, self._update_preview)
             
         except Exception as e:
             error_msg = str(e)
+            if DEBUG and debug_logger:
+                debug_logger.error(f"Error generating word cloud: {error_msg}")
+                debug_logger.error(f"Exception type: {type(e).__name__}")
+                debug_logger.error("Full traceback:", exc_info=True)
             self.root.after(0, lambda: self.show_toast(f"Error generating word cloud: {error_msg}", "danger"))
         finally:
             self.root.after(0, self._generation_complete)
@@ -2422,17 +2777,7 @@ class ModernWordCloudApp:
         
         ax.axis('off')
         
-        # Add size indicator if preview is scaled down
-        actual_width = self.canvas_width.get()
-        actual_height = self.canvas_height.get()
-        if display_width < actual_width or display_height < actual_height:
-            scale_percent = int((display_width / actual_width) * 100)
-            reduction = 100 - scale_percent
-            ax.text(0.02, 0.98, f"Preview reduced by {reduction}% to fit\nActual size: {actual_width}×{actual_height}px\nPreview size: {display_width}×{display_height}px", 
-                   transform=ax.transAxes, 
-                   fontsize=9, 
-                   verticalalignment='top',
-                   bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
+        # Size indicator removed for cleaner UI
         
         self.canvas.draw()
         
@@ -2672,6 +3017,16 @@ class ModernWordCloudApp:
     
     def show_toast(self, message, style="info"):
         """Show toast notification"""
+        # Log to console and file in debug mode
+        if DEBUG and debug_logger:
+            log_method = {
+                "success": debug_logger.info,
+                "info": debug_logger.info, 
+                "warning": debug_logger.warning,
+                "danger": debug_logger.error
+            }.get(style, debug_logger.info)
+            log_method(f"[TOAST] {message}")
+            
         toast = ToastNotification(
             title="WordCloud Magic",
             message=message,
@@ -2699,25 +3054,54 @@ class ModernWordCloudApp:
     
     def apply_config(self, config, show_message=True):
         """Apply configuration from dictionary"""
+        debug_print(f"=== APPLY CONFIG START ===")
+        debug_print(f"Applying config with {len(config)} settings")
+        debug_print(f"Config keys: {list(config.keys())}")
+        debug_print(f"show_message: {show_message}")
         try:
             # Apply basic settings
             if 'min_length' in config:
-                self.min_length_var.set(config['min_length'])
+                debug_print(f"Setting min_length to: {config['min_length']}")
+                if hasattr(self, 'min_word_length'):
+                    self.min_word_length.set(config['min_length'])
+                    # Update UI after delay
+                    min_value = config['min_length']
+                    def update_min_ui():
+                        if hasattr(self, 'min_length_label'):
+                            self.min_length_label.config(text=f"{min_value} characters")
+                            debug_print(f"Updated min_length_label to: {min_value}")
+                    self.root.after(100, update_min_ui)
             if 'max_length' in config:
-                self.max_length_var.set(config['max_length'])
+                debug_print(f"Setting max_length to: {config['max_length']}")
+                if hasattr(self, 'max_word_length'):
+                    self.max_word_length.set(config['max_length'])
+                    # Update UI after delay
+                    max_value = config['max_length']
+                    def update_max_ui():
+                        if hasattr(self, 'max_length_label'):
+                            self.max_length_label.config(text=f"{max_value} characters")
+                            debug_print(f"Updated max_length_label to: {max_value}")
+                    self.root.after(100, update_max_ui)
             if 'forbidden_words' in config:
+                # Filter out empty strings
+                forbidden_list = [word for word in config['forbidden_words'] if word.strip()]
+                debug_print(f"Setting forbidden_words, count: {len(forbidden_list)}")
                 self.forbidden_text.delete(1.0, tk.END)
-                self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
+                if forbidden_list:  # Only insert if there are words
+                    self.forbidden_text.insert(1.0, '\n'.join(forbidden_list))
                 self.update_forbidden_words()
             
             # Apply color settings
             if 'color_mode' in config:
+                debug_print(f"Setting color_mode to: {config['color_mode']}")
                 self.color_mode.set(config['color_mode'])
                 self.on_color_mode_change()
             if 'color_scheme' in config:
+                debug_print(f"Setting color_scheme to: {config['color_scheme']}")
                 self.color_var.set(config['color_scheme'])
                 self.on_color_select()
             if 'single_color' in config:
+                debug_print(f"Setting single_color to: {config['single_color']}")
                 self.single_color.set(config['single_color'])
                 # Update single color preview
                 style = ttk.Style()
@@ -2725,26 +3109,99 @@ class ModernWordCloudApp:
                 if hasattr(self, 'single_color_preview'):
                     self.single_color_preview.configure(style="SingleColorPreview.TFrame")
             if 'custom_colors' in config:
+                debug_print(f"Setting custom_colors: {config['custom_colors']}")
                 self.custom_gradient_colors = config['custom_colors']
                 self.update_custom_gradient_preview()
+            # Note: selected_colormap is derived from color_scheme, not loaded separately
             
             # Apply other settings
             if 'prefer_horizontal' in config:
-                self.horizontal_scale.set(config['prefer_horizontal'])
+                debug_print(f"Setting prefer_horizontal to: {config['prefer_horizontal']}")
+                if hasattr(self, 'prefer_horizontal'):
+                    self.prefer_horizontal.set(config['prefer_horizontal'])
+                    # Update UI elements after a delay
+                    horizontal_value = config['prefer_horizontal']
+                    def update_horizontal_ui():
+                        if hasattr(self, 'horizontal_scale'):
+                            self.horizontal_scale.set(horizontal_value)
+                            debug_print(f"Updated horizontal_scale to: {horizontal_value}")
+                        if hasattr(self, 'horizontal_label'):
+                            self.horizontal_label.config(text=f"{int(horizontal_value * 100)}%")
+                            debug_print(f"Updated horizontal_label to: {int(horizontal_value * 100)}%")
+                    self.root.after(100, update_horizontal_ui)
             if 'canvas_width' in config:
-                self.width_var.set(config['canvas_width'])
+                debug_print(f"Setting canvas_width to: {config['canvas_width']}")
+                if hasattr(self, 'canvas_width'):
+                    self.canvas_width.set(config['canvas_width'])
+                    # Update scale and label after UI is ready
+                    width_value = config['canvas_width']
+                    def update_width_ui():
+                        if hasattr(self, 'width_scale'):
+                            self.width_scale.set(width_value)
+                        if hasattr(self, 'width_label'):
+                            self.width_label.config(text=f"{width_value} px")
+                        debug_print(f"Updated width UI to: {width_value}")
+                    self.root.after(100, update_width_ui)
             if 'canvas_height' in config:
-                self.height_var.set(config['canvas_height'])
+                debug_print(f"Setting canvas_height to: {config['canvas_height']}")
+                if hasattr(self, 'canvas_height'):
+                    self.canvas_height.set(config['canvas_height'])
+                    # Update scale and label after UI is ready
+                    height_value = config['canvas_height']
+                    def update_height_ui():
+                        if hasattr(self, 'height_scale'):
+                            self.height_scale.set(height_value)
+                        if hasattr(self, 'height_label'):
+                            self.height_label.config(text=f"{height_value} px")
+                        debug_print(f"Updated height UI to: {height_value}")
+                    self.root.after(100, update_height_ui)
             if 'background_color' in config:
-                self.bg_color = config['background_color']
-                # TODO: update_bg_preview() method needs to be implemented
+                debug_print(f"Setting background_color to: {config['background_color']}")
+                self.bg_color.set(config['background_color'])
+                # Update preview after UI is ready
+                bg_color_value = config['background_color']
+                def update_bg_color_ui():
+                    if hasattr(self, 'bg_color_preview'):
+                        style = ttk.Style()
+                        style_name = f"BgPreview.TFrame"
+                        style.configure(style_name, background=bg_color_value)
+                        self.bg_color_preview.configure(style=style_name)
+                        debug_print(f"Updated bg_color_preview to: {bg_color_value}")
+                self.root.after(100, update_bg_color_ui)
+            if 'rgba_mode' in config and hasattr(self, 'rgba_mode'):
+                debug_print(f"Setting rgba_mode to: {config['rgba_mode']}")
+                self.rgba_mode.set(config['rgba_mode'])
             if 'color_mode_setting' in config:
                 self.color_mode_var.set(config['color_mode_setting'])
                 # TODO: on_color_mode_change_canvas() method needs to be implemented
             if 'max_words' in config:
-                self.max_words_var.set(config['max_words'])
+                debug_print(f"Setting max_words to: {config['max_words']}")
+                if hasattr(self, 'max_words'):
+                    self.max_words.set(config['max_words'])
+                    # Update UI elements after a delay
+                    max_words_value = config['max_words']
+                    def update_max_words_ui():
+                        if hasattr(self, 'max_words_scale'):
+                            self.max_words_scale.set(max_words_value)
+                            debug_print(f"Updated max_words_scale to: {max_words_value}")
+                        if hasattr(self, 'max_words_label'):
+                            self.max_words_label.config(text=str(max_words_value))
+                            debug_print(f"Updated max_words_label to: {max_words_value}")
+                    self.root.after(100, update_max_words_ui)
             if 'scale' in config:
-                self.scale_var.set(config['scale'])
+                debug_print(f"Setting scale to: {config['scale']}")
+                if hasattr(self, 'scale'):
+                    self.scale.set(config['scale'])
+                    # Update UI elements after a delay
+                    scale_value = config['scale']
+                    def update_scale_ui():
+                        if hasattr(self, 'scale_scale'):
+                            self.scale_scale.set(scale_value)
+                            debug_print(f"Updated scale_scale to: {scale_value}")
+                        if hasattr(self, 'scale_label'):
+                            self.scale_label.config(text=str(scale_value))
+                            debug_print(f"Updated scale_label to: {scale_value}")
+                    self.root.after(100, update_scale_ui)
             
             # Apply theme
             if 'theme' in config and config['theme'] in self.themes:
@@ -2753,74 +3210,161 @@ class ModernWordCloudApp:
             
             # Apply mask settings
             if 'mask_type' in config:
+                debug_print(f"Setting mask_type to: {config['mask_type']}")
                 mask_types = {'no_mask': 0, 'image_mask': 1, 'text_mask': 2}
                 if config['mask_type'] in mask_types:
                     self.mask_notebook.select(mask_types[config['mask_type']])
             
             # Apply contour settings
-            if hasattr(self, 'contour_var'):
-                if 'contour_enabled' in config:
-                    self.contour_var.set(config['contour_enabled'])
-                if 'contour_width' in config:
-                    self.contour_width_var.set(config['contour_width'])
-                if 'contour_color' in config:
-                    self.contour_color = config['contour_color']
+            if 'contour_enabled' in config and hasattr(self, 'contour_var'):
+                self.contour_var.set(config['contour_enabled'])
+            if 'contour_width' in config:
+                debug_print(f"Setting contour_width to: {config['contour_width']}")
+                if hasattr(self, 'contour_width'):
+                    self.contour_width.set(config['contour_width'])
+                    # Schedule label update after UI is ready
+                    contour_value = config['contour_width']
+                    def update_contour_labels():
+                        # Update all contour width labels
+                        if hasattr(self, 'contour_width_labels'):
+                            for label in self.contour_width_labels:
+                                label.config(text=f"{contour_value} pixels")
+                            debug_print(f"Updated all contour_width_labels to: {contour_value} pixels")
+                        elif hasattr(self, 'contour_width_label'):
+                            self.contour_width_label.config(text=f"{contour_value} pixels")
+                            debug_print(f"Updated contour_width_label to: {contour_value} pixels")
+                    self.root.after(100, update_contour_labels)
+            if 'contour_color' in config:
+                debug_print(f"Setting contour_color to: {config['contour_color']}")
+                if hasattr(self, 'contour_color'):
+                    self.contour_color.set(config['contour_color'])
                     # TODO: update_contour_color_preview() method needs to be implemented
             
             # Apply text mask settings
-            if hasattr(self, 'mask_text_var'):
+            if hasattr(self, 'text_mask_input'):
                 if 'text_mask_text' in config:
-                    self.mask_text_var.set(config['text_mask_text'])
+                    text_value = config['text_mask_text']
+                    debug_print(f"Loading text_mask_text: '{text_value}'")
+                    if text_value:  # Only set if not empty
+                        self.text_mask_input.set(text_value)
+                        debug_print(f"Set text_mask_input to: '{self.text_mask_input.get()}'")
+                        # Update text mask if text is present and mask type is text
+                        if config.get('mask_type') == 'text_mask':
+                            debug_print("Scheduling text mask update")
+                            # Schedule text mask update after UI is ready
+                            self.root.after(200, self.update_text_mask)
                 if 'text_mask_font' in config:
-                    self.selected_font.set(config['text_mask_font'])
+                    debug_print(f"Setting text_mask_font to: {config['text_mask_font']}")
+                    if hasattr(self, 'text_mask_font'):
+                        self.text_mask_font.set(config['text_mask_font'])
                 if 'text_mask_size' in config:
-                    self.text_size_var.set(config['text_mask_size'])
+                    debug_print(f"Setting text_mask_font_size to: {config['text_mask_size']}")
+                    if hasattr(self, 'text_mask_font_size'):
+                        self.text_mask_font_size.set(config['text_mask_size'])
+                        # Update UI elements after a delay
+                        font_size_value = config['text_mask_size']
+                        def update_font_size_ui():
+                            if hasattr(self, 'font_size_scale'):
+                                self.font_size_scale.set(font_size_value)
+                                debug_print(f"Updated font_size_scale to: {font_size_value}")
+                            if hasattr(self, 'font_size_label'):
+                                self.font_size_label.config(text=str(font_size_value))
+                                debug_print(f"Updated font_size_label to: {font_size_value}")
+                        self.root.after(100, update_font_size_ui)
                 if 'text_mask_bold' in config:
-                    self.bold_var.set(config['text_mask_bold'])
-                if 'text_mask_width' in config:
-                    self.text_width_var.set(config['text_mask_width'])
-                if 'text_mask_height' in config:
-                    self.text_height_var.set(config['text_mask_height'])
-                if 'text_mask_lock_aspect' in config and hasattr(self, 'lock_aspect_var'):
-                    self.lock_aspect_var.set(config['text_mask_lock_aspect'])
-                
-                # Update text mask if text is present
-                if config.get('text_mask_text'):
-                    self.update_text_mask()
+                    debug_print(f"Setting text_mask_bold to: {config['text_mask_bold']}")
+                    if hasattr(self, 'text_mask_bold'):
+                        self.text_mask_bold.set(config['text_mask_bold'])
+                if 'text_mask_italic' in config:
+                    debug_print(f"Setting text_mask_italic to: {config['text_mask_italic']}")
+                    if hasattr(self, 'text_mask_italic'):
+                        self.text_mask_italic.set(config['text_mask_italic'])
+                # Note: text mask uses canvas width/height, not separate dimensions
             
-            # Apply image mask settings
-            if 'mask_path' in config and hasattr(self, 'mask_path'):
-                self.mask_path = config['mask_path']
-                # Try to reload the mask if path exists
-                if self.mask_path and os.path.exists(self.mask_path):
-                    try:
-                        self.mask = np.array(Image.open(self.mask_path))
-                        # Update mask preview if it exists
-                        if hasattr(self, 'update_mask_preview'):
-                            self.update_mask_preview()
-                    except:
-                        pass
+            # Note: mask_path is derived from mask_type and specific mask data, not loaded separately
+                
+            # Load image mask from file path if available and mask_type is image
+            if 'image_mask_file_path' in config and config.get('mask_type') == 'image_mask' and os.path.exists(config['image_mask_file_path']):
+                try:
+                    file_path = config['image_mask_file_path']
+                    self.mask_image = np.array(Image.open(file_path))
+                    self.image_mask_file_path = file_path
+                    
+                    # Update UI elements after a short delay to ensure UI is ready
+                    def update_mask_ui():
+                        if hasattr(self, 'image_mask_label'):
+                            self.image_mask_label.config(text=os.path.basename(file_path))
+                        
+                        # Update mask preview with scaling
+                        img = Image.open(file_path)
+                        
+                        # Scale preview relative to canvas dimensions (25% of canvas size)
+                        canvas_w = self.canvas_width.get()
+                        canvas_h = self.canvas_height.get()
+                        preview_w = int(canvas_w * 0.25)
+                        preview_h = int(canvas_h * 0.25)
+                        
+                        # Maintain aspect ratio
+                        img_w, img_h = img.size
+                        aspect = img_w / img_h
+                        
+                        if aspect > preview_w / preview_h:
+                            # Image is wider
+                            new_w = preview_w
+                            new_h = int(preview_w / aspect)
+                        else:
+                            # Image is taller
+                            new_h = preview_h
+                            new_w = int(preview_h * aspect)
+                        
+                        # Ensure minimum size
+                        new_w = max(new_w, 100)
+                        new_h = max(new_h, 100)
+                        
+                        img.thumbnail((new_w, new_h), Image.Resampling.LANCZOS)
+                        photo = ImageTk.PhotoImage(img)
+                        if hasattr(self, 'image_mask_preview_label'):
+                            self.image_mask_preview_label.config(image=photo, text="")
+                            self.image_mask_preview_label.image = photo  # Keep a reference
+                        
+                        # Enable contour options
+                        self.update_contour_state(True)
+                    
+                    # Schedule UI update
+                    self.root.after(100, update_mask_ui)
+                    
+                except Exception as e:
+                    debug_print(f"Failed to load image mask: {e}")
             
             # Apply input settings
             if 'working_directory' in config and hasattr(self, 'working_folder'):
                 self.working_folder.set(config['working_directory'])
                 if os.path.exists(config['working_directory']):
-                    self.load_directory_files()
+                    self.populate_file_list()
             
             if show_message:
                 self.show_message("Configuration loaded successfully", "good")
             
+            debug_print("=== APPLY CONFIG END ===")
             return True
             
         except Exception as e:
+            if DEBUG and debug_logger:
+                debug_logger.error(f"Failed to apply config: {str(e)}")
+                debug_logger.error("Full traceback:", exc_info=True)
             if show_message:
                 self.show_message(f"Failed to apply config: {str(e)}", "fail")
             return False
     
     def import_config(self):
         """Import configuration from JSON file"""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        configs_dir = os.path.join(script_dir, 'configs')
+        os.makedirs(configs_dir, exist_ok=True)
+        
         file_path = filedialog.askopenfilename(
             title="Import Configuration",
+            initialdir=configs_dir,
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
         )
         
@@ -2828,38 +3372,71 @@ class ModernWordCloudApp:
             try:
                 with open(file_path, 'r') as f:
                     config = json.load(f)
+                debug_print(f"=== CONFIG LOAD START ===")
+                debug_print(f"Loading config from: {file_path}")
+                debug_print(f"Total settings in config: {len(config)}")
+                debug_print(f"Config keys: {list(config.keys())}")
+                if 'text_mask_text' in config:
+                    debug_print(f"text_mask_text value: '{config['text_mask_text']}'")
+                if 'mask_type' in config:
+                    debug_print(f"mask_type value: '{config['mask_type']}'")
                 self.apply_config(config)
+            except json.JSONDecodeError as e:
+                error_msg = f"Invalid JSON format: {str(e)}"
+                if DEBUG and debug_logger:
+                    debug_logger.error(error_msg)
+                    debug_logger.error(f"File: {file_path}")
+                self.show_message(error_msg, "fail")
             except Exception as e:
+                if DEBUG and debug_logger:
+                    debug_logger.error(f"Failed to import config: {str(e)}")
+                    debug_logger.error("Full traceback:", exc_info=True)
                 self.show_message(f"Failed to import config: {str(e)}", "fail")
     
     def auto_load_config(self):
-        """Auto-load configuration from local file if it exists"""
-        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+        """Auto-load configuration from configs folder if it exists"""
+        # Create configs folder if it doesn't exist
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        configs_dir = os.path.join(script_dir, 'configs')
+        os.makedirs(configs_dir, exist_ok=True)
+        
+        config_file = os.path.join(configs_dir, 'wordcloud_config.json')
         if os.path.exists(config_file):
             try:
                 with open(config_file, 'r') as f:
                     content = f.read().strip()
                     if content:  # Only parse if file has content
                         config = json.loads(content)
+                        debug_print(f"Loaded config: {config}")
                         self.apply_config(config, show_message=False)
-                        print(f"Auto-loaded configuration from {config_file}")
+                        debug_print(f"Successfully auto-loaded configuration from configs/wordcloud_config.json")
                     else:
                         print("Config file is empty, skipping auto-load")
             except json.JSONDecodeError as e:
                 print(f"Invalid JSON in config file: {e}")
-                print("Consider deleting wordcloud_config.json or fixing the JSON syntax")
+                print("Consider deleting configs/wordcloud_config.json or fixing the JSON syntax")
             except Exception as e:
                 print(f"Failed to auto-load config: {e}")
     
     def get_current_config(self):
         """Get current configuration as dictionary"""
+        debug_print("Getting current configuration...")
         config = {}
         
         # Basic settings
         if hasattr(self, 'min_length_var'):
             config['min_length'] = self.min_length_var.get()
+        elif hasattr(self, 'min_length_scale'):
+            config['min_length'] = int(self.min_length_scale.get())
+        else:
+            debug_print("Warning: min_length not found")
+            
         if hasattr(self, 'max_length_var'):
             config['max_length'] = self.max_length_var.get()
+        elif hasattr(self, 'max_length_scale'):
+            config['max_length'] = int(self.max_length_scale.get())
+        else:
+            debug_print("Warning: max_length not found")
         if hasattr(self, 'forbidden_text'):
             config['forbidden_words'] = self.forbidden_text.get(1.0, tk.END).strip().split('\n')
         
@@ -2868,6 +3445,7 @@ class ModernWordCloudApp:
             config['color_mode'] = self.color_mode.get()
         if hasattr(self, 'color_var'):
             config['color_scheme'] = self.color_var.get()
+        # Note: selected_colormap is derived from color_scheme, not saved separately
         if hasattr(self, 'single_color'):
             config['single_color'] = self.single_color.get()
         if hasattr(self, 'custom_gradient_colors'):
@@ -2876,20 +3454,39 @@ class ModernWordCloudApp:
         # Canvas settings
         if hasattr(self, 'horizontal_scale'):
             config['prefer_horizontal'] = self.horizontal_scale.get()
+        elif hasattr(self, 'prefer_horizontal'):
+            config['prefer_horizontal'] = self.prefer_horizontal.get()
+            
         if hasattr(self, 'width_var'):
             config['canvas_width'] = self.width_var.get()
+        elif hasattr(self, 'canvas_width'):
+            config['canvas_width'] = self.canvas_width.get()
+        else:
+            debug_print("Warning: canvas_width not found")
+            
         if hasattr(self, 'height_var'):
             config['canvas_height'] = self.height_var.get()
+        elif hasattr(self, 'canvas_height'):
+            config['canvas_height'] = self.canvas_height.get()
+        else:
+            debug_print("Warning: canvas_height not found")
         if hasattr(self, 'bg_color'):
-            config['background_color'] = self.bg_color
+            config['background_color'] = self.bg_color.get()
+        if hasattr(self, 'rgba_mode'):
+            config['rgba_mode'] = self.rgba_mode.get()
         if hasattr(self, 'color_mode_var'):
             config['color_mode_setting'] = self.color_mode_var.get()
         
         # Other settings
         if hasattr(self, 'max_words_var'):
             config['max_words'] = self.max_words_var.get()
+        elif hasattr(self, 'max_words'):
+            config['max_words'] = self.max_words.get()
+            
         if hasattr(self, 'scale_var'):
             config['scale'] = self.scale_var.get()
+        elif hasattr(self, 'scale'):
+            config['scale'] = self.scale.get()
         if hasattr(self, 'current_theme'):
             config['theme'] = self.current_theme.get()
         
@@ -2898,30 +3495,35 @@ class ModernWordCloudApp:
             config['mask_type'] = self.get_current_mask_type()
         
         # Image mask settings
-        if hasattr(self, 'mask_path'):
-            config['mask_path'] = self.mask_path
+        # Note: mask_path is derived from mask_type and specific mask data, not saved separately
+        if hasattr(self, 'image_mask_file_path') and self.image_mask_file_path:
+            config['image_mask_file_path'] = self.image_mask_file_path
         if hasattr(self, 'contour_var'):
             config['contour_enabled'] = self.contour_var.get()
-        if hasattr(self, 'contour_width_var'):
-            config['contour_width'] = self.contour_width_var.get()
+        if hasattr(self, 'contour_width'):
+            config['contour_width'] = self.contour_width.get()
+            debug_print(f"Saving contour_width: {self.contour_width.get()}")
         if hasattr(self, 'contour_color'):
-            config['contour_color'] = self.contour_color
+            config['contour_color'] = self.contour_color.get() if hasattr(self.contour_color, 'get') else self.contour_color
         
         # Text mask settings
-        if hasattr(self, 'mask_text_var'):
-            config['text_mask_text'] = self.mask_text_var.get()
-        if hasattr(self, 'selected_font'):
-            config['text_mask_font'] = self.selected_font.get()
-        if hasattr(self, 'text_size_var'):
-            config['text_mask_size'] = self.text_size_var.get()
-        if hasattr(self, 'bold_var'):
-            config['text_mask_bold'] = self.bold_var.get()
-        if hasattr(self, 'text_width_var'):
-            config['text_mask_width'] = self.text_width_var.get()
-        if hasattr(self, 'text_height_var'):
-            config['text_mask_height'] = self.text_height_var.get()
-        if hasattr(self, 'lock_aspect_var'):
-            config['text_mask_lock_aspect'] = self.lock_aspect_var.get()
+        if hasattr(self, 'text_mask_input'):
+            text_value = self.text_mask_input.get()
+            config['text_mask_text'] = text_value
+            debug_print(f"Saving text_mask_text: '{text_value}'")
+        if hasattr(self, 'text_mask_font'):
+            font_value = self.text_mask_font.get()
+            config['text_mask_font'] = font_value
+            debug_print(f"Saving text_mask_font: '{font_value}'")
+        if hasattr(self, 'text_mask_font_size'):
+            config['text_mask_size'] = self.text_mask_font_size.get()
+            debug_print(f"Saving text_mask_size: {self.text_mask_font_size.get()}")
+        if hasattr(self, 'text_mask_bold'):
+            config['text_mask_bold'] = self.text_mask_bold.get()
+            debug_print(f"Saving text_mask_bold: {self.text_mask_bold.get()}")
+        if hasattr(self, 'text_mask_italic'):
+            config['text_mask_italic'] = self.text_mask_italic.get()
+            debug_print(f"Saving text_mask_italic: {self.text_mask_italic.get()}")
         
         # Input settings
         if hasattr(self, 'working_folder'):
@@ -2931,6 +3533,7 @@ class ModernWordCloudApp:
         if hasattr(self, 'default_forbidden'):
             config['default_forbidden'] = self.default_forbidden
         
+        debug_print(f"Final config with {len(config)} settings")
         return config
     
     def get_current_mask_type(self):
@@ -2945,6 +3548,9 @@ class ModernWordCloudApp:
         """Save configuration to specified file"""
         try:
             config = self.get_current_config()
+            debug_print(f"Config to save: {config}")
+            debug_print(f"Number of settings: {len(config)}")
+            
             # Ensure all values are JSON serializable
             serializable_config = {}
             for key, value in config.items():
@@ -2957,15 +3563,22 @@ class ModernWordCloudApp:
                 json.dump(serializable_config, f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving config: {e}")
-            import traceback
-            traceback.print_exc()
+            if DEBUG and debug_logger:
+                debug_logger.error(f"Error saving config: {e}")
+                debug_logger.error("Full traceback:", exc_info=True)
+            else:
+                print(f"Error saving config: {e}")
             return False
     
     def export_config(self):
         """Export current configuration to JSON file"""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        configs_dir = os.path.join(script_dir, 'configs')
+        os.makedirs(configs_dir, exist_ok=True)
+        
         file_path = filedialog.asksaveasfilename(
             title="Export Configuration",
+            initialdir=configs_dir,
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
         )
@@ -2977,27 +3590,54 @@ class ModernWordCloudApp:
                 self.show_message("Failed to export configuration", "fail")
     
     def auto_save_config(self):
-        """Auto-save configuration to local file"""
+        """Auto-save configuration to configs folder"""
         # Only save if UI has been created and is ready
         if hasattr(self, 'ui_ready') and self.ui_ready:
-            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            configs_dir = os.path.join(script_dir, 'configs')
+            os.makedirs(configs_dir, exist_ok=True)
+            
+            config_file = os.path.join(configs_dir, 'wordcloud_config.json')
             self.save_config_to_file(config_file)
     
     def save_config_locally(self):
-        """Save configuration to local file with user feedback"""
-        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+        """Save configuration to configs folder with user feedback"""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        configs_dir = os.path.join(script_dir, 'configs')
+        os.makedirs(configs_dir, exist_ok=True)
+        
+        config_file = os.path.join(configs_dir, 'wordcloud_config.json')
         if self.save_config_to_file(config_file):
-            self.show_message(f"Configuration saved to {os.path.basename(config_file)}", "good")
+            self.show_message(f"Configuration saved to configs/{os.path.basename(config_file)}", "good")
         else:
             self.show_message("Failed to save configuration locally", "fail")
     
     def on_closing(self):
-        """Handle application closing - save config and exit"""
-        try:
-            self.auto_save_config()
-        except Exception as e:
-            print(f"Could not save config on exit: {e}")
-        self.root.quit()
+        """Handle application closing - prompt to save config and exit"""
+        from tkinter import messagebox
+        
+        # Create a custom dialog with three options
+        result = messagebox.askyesnocancel(
+            "Save Configuration?", 
+            "Do you want to save your current configuration before exiting?\n\n" +
+            "Yes - Save and Exit\n" +
+            "No - Exit without saving\n" +
+            "Cancel - Don't exit"
+        )
+        
+        if result is True:  # Yes - Save and exit
+            try:
+                self.auto_save_config()
+                debug_print("Configuration saved before exit")
+            except Exception as e:
+                print(f"Could not save config on exit: {e}")
+                messagebox.showerror("Save Error", f"Failed to save configuration: {e}")
+                return  # Don't exit if save failed
+            self.root.quit()
+        elif result is False:  # No - Exit without saving
+            debug_print("Exiting without saving configuration")
+            self.root.quit()
+        # else: result is None (Cancel) - do nothing, stay in app
     
     def reset_app(self):
         """Reset application to default settings"""
@@ -3005,281 +3645,199 @@ class ModernWordCloudApp:
         
         # Confirm reset
         if messagebox.askyesno("Reset Application", "Are you sure you want to reset all settings to defaults?"):
-            # Reset filter settings
-            self.min_length_var.set(3)
-            self.max_length_var.set(30)
-            self.forbidden_text.delete(1.0, tk.END)
-            self.forbidden_text.insert(1.0, self.default_forbidden)
-            self.update_forbidden_words()
+            try:
+                # Reset filter settings
+                if hasattr(self, 'min_length_scale'):
+                    self.min_length_scale.set(3)
+                    self.update_min_label(3)
+                if hasattr(self, 'max_length_scale'):
+                    self.max_length_scale.set(30)
+                    self.update_max_label(30)
+                self.forbidden_text.delete(1.0, tk.END)
+                self.forbidden_text.insert(1.0, self.default_forbidden)
+                self.update_forbidden_words()
+                
+                # Reset color settings
+                self.color_mode.set("preset")
+                self.color_var.set("Viridis")
+                self.single_color.set("#0078D4")
+                self.custom_gradient_colors = ["#FF0000", "#00FF00", "#0000FF"]
+                self.update_custom_gradient_preview()
+                self.on_color_mode_change()  # Update UI to reflect preset mode
+                
+                # Reset canvas settings
+                if hasattr(self, 'horizontal_scale'):
+                    self.horizontal_scale.set(0.9)
+                elif hasattr(self, 'prefer_horizontal'):
+                    self.prefer_horizontal.set(0.9)
+                    
+                if hasattr(self, 'canvas_width'):
+                    self.canvas_width.set(800)
+                if hasattr(self, 'canvas_height'):
+                    self.canvas_height.set(600)
+                if hasattr(self, 'bg_color'):
+                    self.bg_color.set("#FFFFFF")
+                if hasattr(self, 'rgba_mode'):
+                    self.rgba_mode.set(False)
+                
+                # Reset other settings
+                if hasattr(self, 'max_words'):
+                    self.max_words.set(200)
+                if hasattr(self, 'scale'):
+                    self.scale.set(1)
+                
+                # Reset mask settings
+                if hasattr(self, 'mask_notebook'):
+                    self.mask_notebook.select(0)  # Select "No Mask" tab
+                if hasattr(self, 'mask_path'):
+                    self.mask_path.set("No mask selected")
+                self.mask_image = None
+                if hasattr(self, 'mask_label'):
+                    self.mask_label.config(text="No mask selected")
+                
+                # Reset contour settings
+                if hasattr(self, 'contour_var'):
+                    self.contour_var.set(False)
+                if hasattr(self, 'contour_width'):
+                    self.contour_width.set(3)
+                if hasattr(self, 'contour_color'):
+                    self.contour_color.set('#000000')
             
-            # Reset color settings
-            self.color_mode.set("preset")
-            self.color_var.set("Viridis")
-            self.single_color.set("#0078D4")
-            self.custom_gradient_colors = ["#FF0000", "#00FF00", "#0000FF"]
-            self.update_custom_gradient_preview()
-            self.on_color_mode_change()  # Update UI to reflect preset mode
-            
-            # Reset canvas settings
-            self.horizontal_scale.set(0.9)
-            self.width_var.set(800)
-            self.height_var.set(600)
-            self.bg_color = "white"
-            self.color_mode_var.set("RGB")
-            
-            # Reset other settings
-            self.max_words_var.set(200)
-            self.scale_var.set(1.0)
-            
-            # Reset mask settings
-            self.mask_notebook.select(0)  # Select "No Mask" tab
-            self.mask_path = "No mask selected"
-            self.mask = None
-            if hasattr(self, 'mask_label'):
-                self.mask_label.config(text="No mask selected")
-            
-            # Reset contour settings
-            if hasattr(self, 'contour_var'):
-                self.contour_var.set(False)
-                self.contour_width_var.set(3)
-                self.contour_color = 'black'
-            
-            # Reset text mask settings
-            if hasattr(self, 'mask_text_var'):
-                self.mask_text_var.set("")
-                self.selected_font.set("Arial")
-                self.text_size_var.set(100)
-                self.bold_var.set(False)
-                self.text_width_var.set(800)
-                self.text_height_var.set(600)
-                if hasattr(self, 'lock_aspect_var'):
-                    self.lock_aspect_var.set(False)
+                # Reset text mask settings
+                if hasattr(self, 'text_mask_input'):
+                    debug_print("Clearing text_mask_input in reset_app()")
+                    self.text_mask_input.set("")
+                if hasattr(self, 'text_mask_font'):
+                    self.text_mask_font.set("Arial")
+                if hasattr(self, 'text_mask_font_size'):
+                    self.text_mask_font_size.set(200)  # Reset to default
+                if hasattr(self, 'text_mask_bold'):
+                    self.text_mask_bold.set(True)  # Default was True
+                if hasattr(self, 'text_mask_italic'):
+                    self.text_mask_italic.set(False)
                 # Clear text mask preview
                 if hasattr(self, 'text_mask_preview_label'):
                     self.text_mask_preview_label.config(image='', text="Preview will appear here")
             
-            # Reset working directory
-            self.working_folder.set("No folder selected")
-            if hasattr(self, 'file_listbox'):
-                self.file_listbox.delete(0, tk.END)
-            
-            # Clear loaded text
-            self.loaded_text = ""
-            if hasattr(self, 'loaded_files_label'):
-                self.loaded_files_label.config(text="No files loaded")
-            
-            # Clear text input area
-            if hasattr(self, 'text_area'):
-                self.text_area.delete(1.0, tk.END)
-            
-            # Clear canvas
-            self.clear_canvas()
-            
-            # Reset theme to default
-            self.current_theme.set("cosmo")
-            self.root.style.theme_use("cosmo")
-            
-            # Save the reset state
-            self.auto_save_config()
-            
-            self.show_message("Application reset to defaults", "good")
+                # Reset working directory
+                self.working_folder.set("No folder selected")
+                if hasattr(self, 'file_listbox'):
+                    self.file_listbox.delete(0, tk.END)
+                
+                # Clear loaded text
+                self.text_content = ""
+                if hasattr(self, 'loaded_files_label'):
+                    self.loaded_files_label.config(text="No files loaded")
+                
+                # Clear text input area
+                if hasattr(self, 'text_area'):
+                    self.text_area.delete(1.0, tk.END)
+                
+                # Clear canvas
+                self.clear_canvas()
+                
+                # Reset theme to default
+                self.current_theme.set("cosmo")
+                self.root.style.theme_use("cosmo")
+                
+                # Note: We don't auto-save after reset to preserve the user's saved configuration
+                # Users can manually save if they want to keep the reset state
+                self.show_message("Application reset to defaults (not saved)", "good")
+                
+            except Exception as e:
+                if DEBUG and debug_logger:
+                    debug_logger.error(f"Failed to reset application: {str(e)}")
+                    debug_logger.error("Full traceback:", exc_info=True)
+                self.show_message(f"Failed to reset application: {str(e)}", "fail")
+    
+    def start_tutorial_wizard(self):
+        """Start the interactive tutorial wizard"""
+        if hasattr(self, 'tutorial_wizard'):
+            self.tutorial_wizard.start_tutorial()
+        else:
+            self.show_message("Tutorial wizard not available", "error")
     
     def show_help(self):
-        """Show help dialog"""
-        help_text = """WordCloud Magic - Comprehensive Help Guide
-
-═══════════════════════════════════════════════════════════════════════════════
-
-GETTING STARTED:
-1. Input Tab: Load text from files or paste directly
-2. Filters Tab: Set word length limits and forbidden words  
-3. Style Tab: Choose colors, shapes, and appearance
-4. Click "Generate Word Cloud" to create
-5. Save your creation in PNG, JPEG, or SVG format
-
-═══════════════════════════════════════════════════════════════════════════════
-
-INPUT TAB FEATURES:
-• Working Directory: Select folder containing your documents
-• File Selection: Multi-select files from the list
-• Supported Formats: PDF, DOCX, PPTX, TXT
-• Direct Text Input: Paste or type text in the text area
-• Load Options: "Load Selected Files" or "Use Pasted Text"
-• Status Display: Shows loaded files count and total words
-
-═══════════════════════════════════════════════════════════════════════════════
-
-FILTERS TAB FEATURES:
-• Word Length Filters:
-  - Minimum Length: Filter out short words (default: 3)
-  - Maximum Length: Filter out long words (default: 30)
-  - Real-time slider adjustment with value display
-• Forbidden Words:
-  - Pre-populated with common English stop words
-  - Add custom words to exclude (one per line)
-  - Update button to apply changes
-  - Shows total count of forbidden words
-
-═══════════════════════════════════════════════════════════════════════════════
-
-STYLE TAB - COLOR SCHEMES:
-• Three Color Modes (Radio button selection):
-  1. Single Color Mode:
-     - Color picker button to choose any solid color
-     - Live preview of selected color
-  
-  2. Preset Gradients Mode:
-     - 30+ built-in gradients organized in 4-column grid:
-       * Standard: Viridis, Plasma, Inferno, Magma, Cividis
-       * Classic: Cool, Hot, Spring, Summer, Autumn, Winter
-       * Special: Rainbow, Ocean, Spectral, Jet, Turbo
-       * Custom: Sunset Sky, Deep Ocean, Forest, Fire, Cotton Candy,
-         Fall Leaves, Berry, Northern Lights, Coral Reef, Galaxy
-       * Themed: Solarized Dark/Light, Rose Pine, Grape, Dracula,
-         Gruvbox, Monokai, Army, Air Force, Cyber, Navy, Hacker
-  
-  3. Custom Gradient Mode:
-     - Create gradients with 2+ colors
-     - "Choose" button for each color stop
-     - Add/Remove color buttons for dynamic gradients
-     - Live gradient preview
-
-• Combined Preview: Shows selected color scheme below mode tabs
-
-═══════════════════════════════════════════════════════════════════════════════
-
-STYLE TAB - SHAPE & APPEARANCE:
-• Three Mask Options (Tabbed interface):
-  1. No Mask:
-     - Standard rectangular word cloud
-     - Full canvas utilization
-  
-  2. Image Mask:
-     - Load PNG, JPG, JPEG, BMP, GIF images
-     - White pixels = word placement areas
-     - Black/colored pixels = excluded areas
-     - Visual preview of loaded mask
-     - Contour options:
-       * Enable/disable contour outline
-       * Adjustable contour width (1-10)
-       * Custom contour color picker
-  
-  3. Text Mask:
-     - Create mask from typed text
-     - Font selection from system fonts
-     - Live font preview in actual font
-     - Adjustable font size (10-500)
-     - Bold option for thicker text
-     - Width/Height sliders with lock aspect ratio
-     - Real-time mask preview
-
-• Word Orientation:
-  - Prefer Horizontal slider (0-100%)
-  - 0% = All vertical, 100% = All horizontal
-  - Default: 90% horizontal
-
-• Other Settings:
-  - Maximum Words: Control word cloud density (1-2000)
-  - Scale: Performance vs quality tradeoff (0.1-5.0)
-
-═══════════════════════════════════════════════════════════════════════════════
-
-CANVAS TAB FEATURES:
-• Canvas Dimensions:
-  - Width: 100-3000 pixels
-  - Height: 100-3000 pixels
-  - Common presets: 800x600, 1024x768, 1920x1080, Square (1000x1000)
-
-• Color Mode:
-  - RGB: Solid background colors
-  - RGBA: Transparent background support
-
-• Background Color:
-  - Color picker for custom backgrounds
-  - Only active in RGB mode
-  - Visual preview of selected color
-
-═══════════════════════════════════════════════════════════════════════════════
-
-PREVIEW AREA:
-• Real-time canvas preview with dimensions
-• Generate Word Cloud button
-• Save Image button (enabled after generation)
-• Clear button to reset canvas
-• Progress indicator during generation
-
-═══════════════════════════════════════════════════════════════════════════════
-
-FILE MENU OPTIONS:
-• Load Config: Load saved settings from JSON file
-• Save Config As...: Save current settings to a new file
-• Save Config: Quick save to wordcloud_config.json
-• Reset: Restore all settings to defaults (with confirmation)
-• Help: Show this comprehensive guide
-• Exit: Close the application (auto-saves config)
-
-Configuration includes:
-- All filter settings
-- Color mode and selections
-- Custom gradient colors
-- Canvas dimensions and background
-- Mask settings
-- Word orientation and density
-- Scale settings
-
-═══════════════════════════════════════════════════════════════════════════════
-
-THEME SELECTION:
-• 18 available UI themes via dropdown
-• Light themes: Cosmo, Flatly, Journal, Litera, Lumen, Minty, 
-  Pulse, Sandstone, United, Yeti
-• Dark themes: Darkly, Cyborg, Superhero, Solar, Vapor
-
-═══════════════════════════════════════════════════════════════════════════════
-
-TIPS & BEST PRACTICES:
-• For text masks, use large, bold fonts for better results
-• High-contrast mask images work best (pure black & white)
-• Increase canvas size for print-quality exports
-• Use RGBA mode for overlays and transparent backgrounds
-• Scale setting: Lower = faster generation, Higher = better quality
-• Save configurations for consistent branding
-• The app auto-saves/loads config from 'wordcloud_config.json'
-
-═══════════════════════════════════════════════════════════════════════════════
-
-TROUBLESHOOTING:
-• If fonts don't appear, restart the app to refresh font list
-• For better performance with large texts, reduce max words
-• If mask doesn't work, ensure image has clear white areas
-• Text mask generation may be slow for complex fonts
-
-Created by @ghost-ng
-"""
-        
-        # Create help window
-        help_window = tk.Toplevel(self.root)
-        help_window.title("WordCloud Magic - Help")
-        help_window.geometry("700x600")
-        
-        # Create scrolled text widget
-        from tkinter import scrolledtext
-        help_display = scrolledtext.ScrolledText(help_window, wrap=tk.WORD, width=80, height=30)
-        help_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Insert help text
-        help_display.insert(1.0, help_text)
-        help_display.config(state=tk.DISABLED)  # Make read-only
-        
-        # Close button
-        close_btn = ttk.Button(help_window, text="Close", command=help_window.destroy)
-        close_btn.pack(pady=(0, 10))
-        
-        # Center the window
-        help_window.transient(self.root)
-        help_window.grab_set()
+        """Show help in browser as HTML"""
+        try:
+            # Check if markdown2 is available
+            try:
+                import markdown2
+            except ImportError:
+                self.show_message("Please install markdown2: pip install markdown2", "error")
+                return
+            
+            # Read help.md file
+            help_md_path = os.path.join(os.path.dirname(__file__), 'help.md')
+            if not os.path.exists(help_md_path):
+                self.show_message("Help file not found", "error")
+                return
+            
+            with open(help_md_path, 'r', encoding='utf-8') as f:
+                markdown_content = f.read()
+            
+            # Convert markdown to HTML with extras for better formatting
+            md = markdown2.Markdown(extras=[
+                'fenced-code-blocks',
+                'tables',
+                'strike',
+                'task_list',
+                'header-ids',
+                'code-friendly',
+                'break-on-newline'
+            ])
+            html_content = md.convert(markdown_content)
+            
+            # Read HTML template
+            template_path = os.path.join(os.path.dirname(__file__), 'help_template.html')
+            with open(template_path, 'r', encoding='utf-8') as f:
+                html_template = f.read()
+            
+            # Insert content into template
+            final_html = html_template.replace('{content}', html_content)
+            
+            # Create temporary HTML file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+                f.write(final_html)
+                temp_path = f.name
+            
+            # Open in default browser
+            webbrowser.open(f'file://{temp_path}')
+            
+            # Clean up temp file after a delay (give browser time to load)
+            def cleanup():
+                import time
+                time.sleep(5)
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+            
+            cleanup_thread = threading.Thread(target=cleanup, daemon=True)
+            cleanup_thread.start()
+            
+        except Exception as e:
+            debug_print(f"Error showing help: {str(e)}")
+            self.show_message(f"Failed to open help: {str(e)}", "error")
 
 def main():
+    global DEBUG
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='WordCloud Magic - Modern Word Cloud Generator')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode to print errors and debug info to console and log file')
+    args = parser.parse_args()
+    
+    DEBUG = args.debug
+    
+    if DEBUG:
+        # Setup debug logging
+        log_file = setup_debug_logging()
+        debug_print("Starting WordCloud Magic in debug mode...")
+        debug_print(f"Python version: {sys.version}")
+        debug_print(f"Platform: {platform.system()} {platform.release()}")
+        debug_print(f"Debug log file: {log_file}")
+    
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
     app = ModernWordCloudApp(root)
