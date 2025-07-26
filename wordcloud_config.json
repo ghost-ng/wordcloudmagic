@@ -1,0 +1,37 @@
+{
+  "forbidden_words": [
+    "the",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "as",
+    "is",
+    "was",
+    "are",
+    "been"
+  ],
+  "color_mode": "preset",
+  "color_scheme": "Viridis",
+  "single_color": "#0078D4",
+  "custom_colors": [
+    "#FF0000",
+    "#00FF00",
+    "#0000FF"
+  ],
+  "prefer_horizontal": 0.9,
+  "background_color": "#FFFFFF",
+  "theme": "cosmo",
+  "mask_type": "no_mask",
+  "mask_path": "No mask",
+  "contour_color": "#000000",
+  "working_directory": "No folder selected"
+}
