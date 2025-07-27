@@ -456,6 +456,9 @@ class ModernWordCloudApp:
         # Auto-load configuration if exists (after UI is created)
         self.root.after(100, self.auto_load_config)
         
+        # Ensure forbidden words are synced with GUI after config load
+        self.root.after(200, lambda: self.update_forbidden_words(show_toast=False))
+        
         # Validate available fonts after UI creation (in a thread to avoid blocking)
         threading.Thread(target=self.validate_fonts, daemon=True).start()
     
@@ -889,6 +892,9 @@ maybe"""
         
         # Pre-populate with default forbidden words
         self.forbidden_text.insert('1.0', self.default_forbidden)
+        
+        # Initialize forbidden words from the text area
+        self.root.after(50, lambda: self.update_forbidden_words(show_toast=False))
         
         ttk.Button(forbidden_frame,
                   text="Update Forbidden Words",
@@ -2374,6 +2380,13 @@ maybe"""
         if text:
             custom_forbidden = set(word.strip().lower() for word in text.split('\n') if word.strip())
             self.forbidden_words.update(custom_forbidden)
+        
+        self.print_debug(f"Updated forbidden words from GUI text area: {len(self.forbidden_words)} words")
+        # Show a sample of forbidden words for debugging
+        if self.forbidden_words:
+            sample = list(self.forbidden_words)[:10]
+            self.print_debug(f"Sample forbidden words: {sample}")
+        
         if show_toast:
             self.show_toast(f"Updated forbidden words ({len(self.forbidden_words)} total)", "info")
     
@@ -3651,9 +3664,13 @@ maybe"""
                     self.max_length_scale.set(config['max_length'])
                     self.max_length_label.config(text=str(config['max_length']))
             if 'forbidden_words' in config:
+                self.print_debug(f"Loading {len(config['forbidden_words'])} forbidden words from config")
                 self.forbidden_text.delete(1.0, tk.END)
-                self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
+                forbidden_text = '\n'.join(config['forbidden_words'])
+                self.forbidden_text.insert(1.0, forbidden_text)
+                # Update the forbidden words set from the text area
                 self.update_forbidden_words(show_toast=False)
+                self.print_debug(f"Forbidden words set now has {len(self.forbidden_words)} words")
             
             # Apply color settings
             if 'color_mode' in config:

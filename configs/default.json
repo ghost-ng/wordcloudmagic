@@ -41,5 +41,6 @@
   "mask_type": "no_mask",
   "mask_path": "No mask",
   "contour_color": "#000000",
-  "working_directory": "No folder selected"
+  "working_directory": "No folder selected",
+  "default_forbidden": "the\nand\nor\nbut\nin\non\nat\nto\nfor\nof\nwith\nby\nfrom\nas\nis\nwas\nare\nbeen\nbe\nhave\nhas\nhad\ndo\ndoes\ndid\nwill\nwould\nshould\ncould\nmay\nmight\nmust\ncan\nshall\na\nan\nthese\nthose\nthis\nthat\ntheir\nthere\nthey\nthem\nhe\nshe\nit\nwe\nyou\ni\nme\nmy\nour\nyour\nhis\nher\nits\ntheir\nwhat\nwhich\nwho\nwhen\nwhere\nwhy\nhow\nall\neach\nevery\nsome\nany\nfew\nmore\nmost\nother\nsuch\nno\nnot\nonly\nown\nsame\nso\nthan\ntoo\nvery\njust\nalso\nnow\nthen\nhere\nthere\nup\ndown\nout\noff\nover\nunder\nabout\ninto\nthrough\nduring\nbefore\nafter\nabove\nbelow\nbetween\nunder\nsince\nwithout\nwithin\nalong\namong\naround\nhowever\ntherefore\nmoreover\nfurthermore\notherwise\nnevertheless\nnonetheless\nstill\nyet\nalready\nalways\nnever\noften\nsometimes\nusually\ngenerally\nspecifically\nparticularly\nespecially\nmainly\nmostly\nsimply\nactually\nreally\nindeed\ncertainly\ndefinitely\nprobably\npossibly\nperhaps\nmaybe"
 }
