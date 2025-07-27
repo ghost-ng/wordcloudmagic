@@ -337,7 +337,7 @@ class ModernWordCloudApp:
         self.mask_path = tk.StringVar(value="No mask selected")
         self.min_word_length = tk.IntVar(value=3)
         self.max_word_length = tk.IntVar(value=20)
-        self.forbidden_words = set(STOPWORDS)
+        self.forbidden_words = set()  # Start empty, will be populated from text area
         self.selected_colormap = "viridis"
         self.color_mode = tk.StringVar(value="preset")  # "single", "preset", or "custom"
         self.single_color = tk.StringVar(value="#0078D4")
@@ -742,9 +742,153 @@ class ModernWordCloudApp:
                                           wrap=tk.WORD)
         self.forbidden_text.pack(fill=BOTH, expand=TRUE, padx=1, pady=1)
         
-        # Pre-populate with common stop words
-        default_forbidden = "the\nand\nor\nbut\nin\non\nat\nto\nfor\nof\nwith\nby\nfrom\nas\nis\nwas\nare\nbeen"
-        self.forbidden_text.insert('1.0', default_forbidden)
+        # Store default forbidden words for reset
+        self.default_forbidden = """the
+and
+or
+but
+in
+on
+at
+to
+for
+of
+with
+by
+from
+as
+is
+was
+are
+been
+be
+have
+has
+had
+do
+does
+did
+will
+would
+should
+could
+may
+might
+must
+can
+shall
+a
+an
+these
+those
+this
+that
+their
+there
+they
+them
+he
+she
+it
+we
+you
+i
+me
+my
+our
+your
+his
+her
+its
+their
+what
+which
+who
+when
+where
+why
+how
+all
+each
+every
+some
+any
+few
+more
+most
+other
+such
+no
+not
+only
+own
+same
+so
+than
+too
+very
+just
+also
+now
+then
+here
+there
+up
+down
+out
+off
+over
+under
+about
+into
+through
+during
+before
+after
+above
+below
+between
+under
+since
+without
+within
+along
+among
+around
+however
+therefore
+moreover
+furthermore
+otherwise
+nevertheless
+nonetheless
+still
+yet
+already
+always
+never
+often
+sometimes
+usually
+generally
+specifically
+particularly
+especially
+mainly
+mostly
+simply
+actually
+really
+indeed
+certainly
+definitely
+probably
+possibly
+perhaps
+maybe"""
+        
+        # Pre-populate with default forbidden words
+        self.forbidden_text.insert('1.0', self.default_forbidden)
         
         ttk.Button(forbidden_frame,
                   text="Update Forbidden Words",
@@ -2225,7 +2369,8 @@ class ModernWordCloudApp:
     def update_forbidden_words(self, show_toast=True):
         """Update forbidden words set"""
         text = self.forbidden_text.get('1.0', tk.END).strip()
-        self.forbidden_words = set(STOPWORDS)
+        # Only use the words explicitly listed in the text area, not STOPWORDS
+        self.forbidden_words = set()
         if text:
             custom_forbidden = set(word.strip().lower() for word in text.split('\n') if word.strip())
             self.forbidden_words.update(custom_forbidden)
@@ -2936,10 +3081,51 @@ class ModernWordCloudApp:
         min_len = self.min_word_length.get()
         max_len = self.max_word_length.get()
         
+        self.print_debug(f"Filtering words: min_length={min_len}, max_length={max_len}, total_words={len(words)}")
+        
+        # Count words by length for debugging
+        length_counts = {}
+        filtered_by_length = 0
+        filtered_by_forbidden = 0
+        
+        # Debug: show first 10 words being processed
+        debug_limit = 10
+        words_shown = 0
+        
         for word in words:
-            if (min_len <= len(word) <= max_len and 
-                word not in self.forbidden_words):
-                filtered_words.append(word)
+            word_len = len(word)
+            length_counts[word_len] = length_counts.get(word_len, 0) + 1
+            
+            # Detailed debug for first few words
+            if words_shown < debug_limit:
+                if min_len <= word_len <= max_len:
+                    if word not in self.forbidden_words:
+                        self.print_debug(f"  ✓ '{word}' (len={word_len}) - KEPT")
+                        filtered_words.append(word)
+                    else:
+                        self.print_debug(f"  ✗ '{word}' (len={word_len}) - FORBIDDEN")
+                        filtered_by_forbidden += 1
+                else:
+                    self.print_debug(f"  ✗ '{word}' (len={word_len}) - TOO SHORT/LONG")
+                    filtered_by_length += 1
+                words_shown += 1
+            else:
+                # Just count for remaining words
+                if min_len <= word_len <= max_len:
+                    if word not in self.forbidden_words:
+                        filtered_words.append(word)
+                    else:
+                        filtered_by_forbidden += 1
+                else:
+                    filtered_by_length += 1
+        
+        # Log length distribution for words under min_length
+        short_words = {k: v for k, v in length_counts.items() if k < min_len}
+        if short_words:
+            self.print_debug(f"Words shorter than min_length ({min_len}): {short_words}")
+        
+        self.print_debug(f"After filtering: {len(filtered_words)} words remain")
+        self.print_debug(f"Filtered out: {filtered_by_length} by length, {filtered_by_forbidden} by forbidden list")
         
         return ' '.join(filtered_words)
     
@@ -3449,12 +3635,14 @@ class ModernWordCloudApp:
                 self.print_debug(f"  {key}: {value}")
             # Apply basic settings
             if 'min_length' in config:
+                self.print_debug(f"Loading min_length: {config['min_length']}")
                 self.min_word_length.set(config['min_length'])
                 if self.min_length_meter:
                     self.min_length_meter.amountusedvar.set(config['min_length'])
                 elif self.min_length_scale:
                     self.min_length_scale.set(config['min_length'])
                     self.min_length_label.config(text=str(config['min_length']))
+                self.print_debug(f"min_word_length after loading: {self.min_word_length.get()}")
             if 'max_length' in config:
                 self.max_word_length.set(config['max_length'])
                 if self.max_length_meter:
@@ -3842,8 +4030,8 @@ class ModernWordCloudApp:
         # Confirm reset
         if messagebox.askyesno("Reset Application", "Are you sure you want to reset all settings to defaults?"):
             # Reset filter settings
-            self.min_length_var.set(3)
-            self.max_length_var.set(30)
+            self.min_word_length.set(3)
+            self.max_word_length.set(30)
             self.forbidden_text.delete(1.0, tk.END)
             self.forbidden_text.insert(1.0, self.default_forbidden)
             self.update_forbidden_words(show_toast=False)
