@@ -28,7 +28,12 @@
     "#0000FF"
   ],
   "prefer_horizontal": 0.9,
+  "letter_thickness": 1.0,
+  "canvas_width": 800,
+  "canvas_height": 800,
   "background_color": "#FFFFFF",
+  "max_words": 200,
+  "scale": 1,
   "theme": "cosmo",
   "mask_type": "no_mask",
   "mask_path": "No mask",

@@ -21,6 +21,11 @@ import matplotlib
 from matplotlib.colors import LinearSegmentedColormap
 matplotlib.use('TkAgg')
 
+# Debug print function
+def debug_print(msg):
+    """Print debug messages"""
+    print(f"[DEBUG] {msg}")
+
 # File handling imports
 import PyPDF2
 from docx import Document
@@ -593,71 +598,103 @@ class ModernWordCloudApp:
         # Word length filters
         length_frame = self.create_section(filter_frame, "Word Length")
         
-        # Min length with styled scale
-        min_container = ttk.Frame(length_frame)
-        min_container.pack(fill=X, pady=(0, 20))
+        # Create a horizontal frame for both meters
+        meters_frame = ttk.Frame(length_frame)
+        meters_frame.pack(fill=X, pady=(0, 20))
         
-        min_label_frame = ttk.Frame(min_container)
-        min_label_frame.pack(fill=X)
-        ttk.Label(min_label_frame, text="Minimum Length:", 
-                 font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
-        self.min_length_label = ttk.Label(min_label_frame, text="3",
-                                         bootstyle="primary", 
-                                         font=('Segoe UI', 14, 'bold'))
-        self.min_length_label.pack(side=RIGHT)
+        # Min length meter
+        min_container = ttk.Frame(meters_frame)
+        min_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 20))
         
-        # Scale frame with labels
-        scale_frame = ttk.Frame(min_container)
-        scale_frame.pack(fill=X, pady=(10, 0))
+        try:
+            # Add label above meter
+            ttk.Label(min_container, text="Minimum Length", 
+                     font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
+            
+            self.min_length_meter = Meter(
+                min_container,
+                metersize=180,
+                amountused=3,
+                amounttotal=50,
+                metertype='semi',
+                textleft='',
+                textright=' chars',
+                interactive=True,
+                bootstyle='primary'
+            )
+            self.min_length_meter.pack()
+            
+            # Bind the meter value change
+            self.min_length_meter.amountusedvar.trace('w', lambda *args: self.update_min_from_meter())
+            self.min_length_scale = None  # Not using scale
+        except Exception as e:
+            # Fallback to scale if meter fails
+            debug_print(f"Meter creation failed: {e}, using scale instead")
+            min_label_frame = ttk.Frame(min_container)
+            min_label_frame.pack(fill=X)
+            ttk.Label(min_label_frame, text="Minimum Length:", 
+                     font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
+            self.min_length_label = ttk.Label(min_label_frame, text="3",
+                                             bootstyle="primary", 
+                                             font=('Segoe UI', 14, 'bold'))
+            self.min_length_label.pack(side=RIGHT)
+            
+            self.min_length_scale = ttk.Scale(min_container,
+                                             from_=1,
+                                             to=50,
+                                             value=3,
+                                             command=self.update_min_label,
+                                             bootstyle="primary",
+                                             length=200)
+            self.min_length_scale.pack(fill=X, pady=(10, 0))
+            self.min_length_meter = None
         
-        ttk.Label(scale_frame, text="1", font=('Segoe UI', 9)).pack(side=LEFT)
+        # Max length meter
+        max_container = ttk.Frame(meters_frame)
+        max_container.pack(side=LEFT, fill=BOTH, expand=True)
         
-        self.min_length_scale = ttk.Scale(scale_frame,
-                                         from_=1,
-                                         to=50,
-                                         value=3,
-                                         command=self.update_min_label,
-                                         bootstyle="primary",
-                                         length=300)
-        self.min_length_scale.pack(side=LEFT, fill=X, expand=True, padx=10)
-        
-        ttk.Label(scale_frame, text="50", font=('Segoe UI', 9)).pack(side=LEFT)
-        
-        ttk.Label(min_container, text="characters", 
-                 font=('Segoe UI', 9), bootstyle="secondary").pack()
-        
-        # Max length with styled scale
-        max_container = ttk.Frame(length_frame)
-        max_container.pack(fill=X)
-        
-        max_label_frame = ttk.Frame(max_container)
-        max_label_frame.pack(fill=X)
-        ttk.Label(max_label_frame, text="Maximum Length:", 
-                 font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
-        self.max_length_label = ttk.Label(max_label_frame, text="30",
-                                         bootstyle="info", 
-                                         font=('Segoe UI', 14, 'bold'))
-        self.max_length_label.pack(side=RIGHT)
-        
-        # Scale frame with labels
-        scale_frame = ttk.Frame(max_container)
-        scale_frame.pack(fill=X, pady=(10, 0))
-        
-        ttk.Label(scale_frame, text="3", font=('Segoe UI', 9)).pack(side=LEFT)
-        
-        self.max_length_scale = ttk.Scale(scale_frame,
-                                         from_=3,
-                                         to=50,
-                                         value=30,
-                                         command=self.update_max_label,
-                                         bootstyle="info",
-                                         length=300)
-        self.max_length_scale.pack(side=LEFT, fill=X, expand=True, padx=10)
-        
-        ttk.Label(scale_frame, text="50", font=('Segoe UI', 9)).pack(side=LEFT)
-        
-        ttk.Label(max_container, text="characters", 
-                 font=('Segoe UI', 9), bootstyle="secondary").pack()
+        try:
+            # Add label above meter
+            ttk.Label(max_container, text="Maximum Length", 
+                     font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
+            
+            self.max_length_meter = Meter(
+                max_container,
+                metersize=180,
+                amountused=30,
+                amounttotal=50,
+                metertype='semi',
+                textleft='',
+                textright=' chars',
+                interactive=True,
+                bootstyle='info'
+            )
+            self.max_length_meter.pack()
+            
+            # Bind the meter value change
+            self.max_length_meter.amountusedvar.trace('w', lambda *args: self.update_max_from_meter())
+            self.max_length_scale = None  # Not using scale
+        except Exception as e:
+            # Fallback to scale if meter fails
+            debug_print(f"Meter creation failed: {e}, using scale instead")
+            max_label_frame = ttk.Frame(max_container)
+            max_label_frame.pack(fill=X)
+            ttk.Label(max_label_frame, text="Maximum Length:", 
+                     font=('Segoe UI', 11, 'bold')).pack(side=LEFT)
+            self.max_length_label = ttk.Label(max_label_frame, text="30",
+                                             bootstyle="info", 
+                                             font=('Segoe UI', 14, 'bold'))
+            self.max_length_label.pack(side=RIGHT)
+            
+            self.max_length_scale = ttk.Scale(max_container,
+                                             from_=3,
+                                             to=50,
+                                             value=30,
+                                             command=self.update_max_label,
+                                             bootstyle="info",
+                                             length=200)
+            self.max_length_scale.pack(fill=X, pady=(10, 0))
+            self.max_length_meter = None
         
         # Forbidden words
         forbidden_frame = self.create_section(filter_frame, "Forbidden Words")
@@ -954,20 +991,32 @@ class ModernWordCloudApp:
         orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
         orientation_frame.pack(fill=X, pady=(0, 10))
         
+        # Center container for all content
+        center_container = ttk.Frame(orientation_frame)
+        center_container.pack(expand=True)
+        
         # Prefer horizontal with Floodgauge
-        horizontal_container = ttk.Frame(orientation_frame)
-        horizontal_container.pack(fill=X)
+        horizontal_container = ttk.Frame(center_container)
+        horizontal_container.pack()
         
         ttk.Label(horizontal_container, text="Word Orientation", 
                  font=('Segoe UI', 11, 'bold')).pack()
         
+        ttk.Label(horizontal_container, 
+                 text="Control the ratio of horizontal to vertical words in your cloud",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
         # Create a frame to hold the gauge and labels
-        gauge_frame = ttk.Frame(horizontal_container)
-        gauge_frame.pack(fill=X, pady=10)
+        gauge_container = ttk.Frame(horizontal_container)
+        gauge_container.pack(pady=10)
+        
+        gauge_frame = ttk.Frame(gauge_container)
+        gauge_frame.pack()
         
         # Left label
         ttk.Label(gauge_frame, text="Vertical", 
-                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(20, 10))
+                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(0, 10))
         
         # Create Floodgauge for orientation
         self.horizontal_gauge = Floodgauge(
@@ -981,98 +1030,225 @@ class ModernWordCloudApp:
             mode='determinate',
             orient='horizontal'
         )
-        self.horizontal_gauge.pack(side=LEFT, expand=True, fill=X)
+        self.horizontal_gauge.pack(side=LEFT)
         
         # Right label
         ttk.Label(gauge_frame, text="Horizontal", 
-                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(10, 20))
+                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(10, 0))
         
         # Add interactive control
         control_frame = ttk.Frame(horizontal_container)
-        control_frame.pack(fill=X)
+        control_frame.pack()
         
-        self.horizontal_scale = ttk.Scale(control_frame,
+        scale_container = ttk.Frame(control_frame)
+        scale_container.pack()
+        
+        self.horizontal_scale = ttk.Scale(scale_container,
                                         from_=0,
                                         to=100,
                                         value=90,
                                         command=self.update_horizontal_gauge,
-                                        bootstyle="primary")
-        self.horizontal_scale.pack(fill=X, pady=(5, 0))
+                                        bootstyle="primary",
+                                        length=250)
+        self.horizontal_scale.pack(pady=(5, 10))
+        
+        # Reset button
+        ttk.Button(control_frame,
+                  text="Reset to Default (90%)",
+                  command=lambda: self.reset_orientation(),
+                  bootstyle="secondary-outline").pack()
         
         # Other Settings
         other_frame = ttk.LabelFrame(mask_frame, text="Other Settings", padding=10)
         other_frame.pack(fill=X, pady=(0, 10))
         
-        # Letter thickness slider
+        # Center container
+        center_container = ttk.Frame(other_frame)
+        center_container.pack(expand=True)
+        
+        # Create a grid layout for meters
+        meters_grid = ttk.Frame(center_container)
+        meters_grid.pack()
+        
+        # Letter thickness meter
         self.letter_thickness = tk.DoubleVar(value=1.0)
-        thickness_container = ttk.Frame(other_frame)
-        thickness_container.pack(fill=X, pady=(0, 10))
+        thickness_container = ttk.Frame(meters_grid)
+        thickness_container.grid(row=0, column=0, padx=10, pady=10)
         
-        thickness_label_frame = ttk.Frame(thickness_container)
-        thickness_label_frame.pack(fill=X)
-        ttk.Label(thickness_label_frame, text="Letter Thickness:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.thickness_label = ttk.Label(thickness_label_frame, text="Normal",
-                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.thickness_label.pack(side=RIGHT)
+        try:
+            ttk.Label(thickness_container, text="Letter Thickness", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.thickness_meter = Meter(
+                thickness_container,
+                metersize=150,
+                amountused=1,
+                amounttotal=3,
+                metertype='full',
+                textleft='',
+                textright='',
+                interactive=True,
+                bootstyle='warning',
+                stripethickness=10
+            )
+            self.thickness_meter.pack()
+            self.thickness_meter.amountusedvar.trace('w', lambda *args: self.update_thickness_from_meter())
+            self.thickness_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Thickness meter failed: {e}")
+            thickness_label_frame = ttk.Frame(thickness_container)
+            thickness_label_frame.pack(fill=X)
+            ttk.Label(thickness_label_frame, text="Letter Thickness:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.thickness_label = ttk.Label(thickness_label_frame, text="Normal",
+                                            bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.thickness_label.pack(side=RIGHT)
+            
+            self.thickness_scale = ttk.Scale(thickness_container,
+                                            from_=0.1,
+                                            to=3.0,
+                                            value=1.0,
+                                            command=self.update_thickness_label,
+                                            bootstyle="primary")
+            self.thickness_scale.pack(fill=X, pady=(5, 0))
+            
+            ttk.Label(thickness_container, 
+                     text="Thin ← → Thick",
+                     font=('Segoe UI', 9),
+                     bootstyle="secondary").pack(pady=(2, 0))
+            self.thickness_meter = None
         
-        self.thickness_scale = ttk.Scale(thickness_container,
-                                        from_=0.1,
-                                        to=3.0,
-                                        value=1.0,
-                                        command=self.update_thickness_label,
-                                        bootstyle="primary")
-        self.thickness_scale.pack(fill=X, pady=(5, 0))
+        # Max words meter
+        max_words_container = ttk.Frame(meters_grid)
+        max_words_container.grid(row=0, column=1, padx=10, pady=10)
         
-        ttk.Label(thickness_container, 
-                 text="Thin ← → Thick",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(2, 0))
-        
-        # Max words slider
-        max_words_container = ttk.Frame(other_frame)
-        max_words_container.pack(fill=X, pady=(0, 10))
-        
-        max_words_label_frame = ttk.Frame(max_words_container)
-        max_words_label_frame.pack(fill=X)
-        ttk.Label(max_words_label_frame, text="Maximum Words:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.max_words_label = ttk.Label(max_words_label_frame, text="200",
-                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.max_words_label.pack(side=RIGHT)
-        
-        self.max_words_scale = ttk.Scale(max_words_container,
-                                        from_=10,
-                                        to=500,
-                                        value=200,
-                                        command=self.update_max_words,
-                                        bootstyle="primary")
-        self.max_words_scale.pack(fill=X, pady=(5, 0))
+        try:
+            # Add label above meter
+            ttk.Label(max_words_container, text="Max Words", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.max_words_meter = Meter(
+                max_words_container,
+                metersize=150,
+                amountused=200,
+                amounttotal=500,
+                metertype='full',
+                textleft='',
+                textright='',
+                interactive=True,
+                bootstyle='success'
+            )
+            self.max_words_meter.pack()
+            self.max_words_meter.amountusedvar.trace('w', lambda *args: self.update_max_words_from_meter())
+            self.max_words_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Max words meter failed: {e}")
+            self.max_words_label = ttk.Label(max_words_container, text="200",
+                                            bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.max_words_label.pack()
+            self.max_words_scale = ttk.Scale(max_words_container,
+                                            from_=10,
+                                            to=500,
+                                            value=200,
+                                            command=self.update_max_words,
+                                            bootstyle="primary")
+            self.max_words_scale.pack(fill=X, pady=(5, 0))
+            self.max_words_meter = None
         
         ttk.Label(max_words_container, 
                  text="More words = denser cloud, fewer words = cleaner look",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
-        # Scale slider
-        scale_container = ttk.Frame(other_frame)
-        scale_container.pack(fill=X)
+        # Scale meter
+        scale_container = ttk.Frame(meters_grid)
+        scale_container.grid(row=1, column=0, padx=10, pady=10)
         
-        scale_label_frame = ttk.Frame(scale_container)
-        scale_label_frame.pack(fill=X)
-        ttk.Label(scale_label_frame, text="Computation Scale:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.scale_label = ttk.Label(scale_label_frame, text="1",
-                                    bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.scale_label.pack(side=RIGHT)
-        
-        self.scale_scale = ttk.Scale(scale_container,
-                                    from_=1,
-                                    to=10,
-                                    value=1,
-                                    command=self.update_scale,
-                                    bootstyle="primary")
-        self.scale_scale.pack(fill=X, pady=(5, 0))
+        try:
+            # Add label above meter
+            ttk.Label(scale_container, text="Computation Scale", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.scale_meter = Meter(
+                scale_container,
+                metersize=150,
+                amountused=1,
+                amounttotal=10,
+                metertype='full',
+                textleft='',
+                textright='',
+                interactive=True,
+                bootstyle='warning',
+                stripethickness=10
+            )
+            self.scale_meter.pack()
+            self.scale_meter.amountusedvar.trace('w', lambda *args: self.update_scale_from_meter())
+            self.scale_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Scale meter failed: {e}")
+            self.scale_label = ttk.Label(scale_container, text="1",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.scale_label.pack()
+            self.scale_scale = ttk.Scale(scale_container,
+                                        from_=1,
+                                        to=10,
+                                        value=1,
+                                        command=self.update_scale,
+                                        bootstyle="primary")
+            self.scale_scale.pack(fill=X, pady=(5, 0))
+            self.scale_meter = None
         
         ttk.Label(scale_container, 
                  text="Higher = faster generation but coarser word placement",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Words per line meter
+        words_container = ttk.Frame(meters_grid)
+        words_container.grid(row=1, column=1, padx=10, pady=10)
+        
+        try:
+            ttk.Label(words_container, text="Words per Line", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.words_per_line_meter = Meter(
+                words_container,
+                metersize=150,
+                amountused=1,
+                amounttotal=10,
+                metertype='full',
+                textleft='',
+                textright=' words',
+                interactive=True,
+                bootstyle='info',
+                stripethickness=10
+            )
+            self.words_per_line_meter.pack()
+            self.words_per_line_meter.amountusedvar.trace('w', lambda *args: self.update_words_per_line_from_meter())
+            self.words_per_line_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Words per line meter failed: {e}")
+            words_label_frame = ttk.Frame(words_container)
+            words_label_frame.pack(fill=X)
+            ttk.Label(words_label_frame, text="Words per line:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.words_per_line_label = ttk.Label(words_label_frame, text="1 word",
+                                                 bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.words_per_line_label.pack(side=RIGHT)
+            
+            self.words_per_line_scale = ttk.Scale(words_container,
+                                                  from_=1,
+                                                  to=10,
+                                                  value=1,
+                                                  command=self.update_words_per_line,
+                                                  bootstyle="primary")
+            self.words_per_line_scale.pack(fill=X, pady=(5, 0))
+            self.words_per_line_meter = None
+        
+        ttk.Label(words_container, 
+                 text="Words per line for text masks",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
         
@@ -1080,9 +1256,13 @@ class ModernWordCloudApp:
         canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
         canvas_frame.pack(fill=X, pady=(0, 10))
         
+        # Center container
+        canvas_center = ttk.Frame(canvas_frame)
+        canvas_center.pack(expand=True)
+        
         # Lock aspect ratio checkbox
-        ratio_frame = ttk.Frame(canvas_frame)
-        ratio_frame.pack(fill=X, pady=(0, 10))
+        ratio_frame = ttk.Frame(canvas_center)
+        ratio_frame.pack(pady=(0, 10))
         
         self.lock_ratio_check = ttk.Checkbutton(ratio_frame,
                                                text="Lock aspect ratio",
@@ -1096,47 +1276,97 @@ class ModernWordCloudApp:
                                     bootstyle="secondary")
         self.ratio_label.pack(side=LEFT, padx=(10, 0))
         
-        # Width slider
-        width_container = ttk.Frame(canvas_frame)
-        width_container.pack(fill=X, pady=(0, 15))
+        # Create horizontal container for width and height meters
+        dimensions_container = ttk.Frame(canvas_center)
+        dimensions_container.pack(pady=(0, 15))
         
-        width_label_frame = ttk.Frame(width_container)
-        width_label_frame.pack(fill=X)
-        ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.width_label = ttk.Label(width_label_frame, text="800 px",
-                                    bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.width_label.pack(side=RIGHT)
+        # Width meter
+        width_container = ttk.Frame(dimensions_container)
+        width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
         
-        self.width_scale = ttk.Scale(width_container,
-                                    from_=400,
-                                    to=4000,
-                                    value=800,
-                                    command=self.update_width,
-                                    bootstyle="primary")
-        self.width_scale.pack(fill=X, pady=(5, 0))
+        try:
+            ttk.Label(width_container, text="Width", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.width_meter = Meter(
+                width_container,
+                metersize=120,
+                amountused=800,
+                amounttotal=4000,
+                metertype='semi',
+                textleft='',
+                textright=' px',
+                interactive=True,
+                bootstyle='primary'
+            )
+            self.width_meter.pack()
+            self.width_meter.amountusedvar.trace('w', lambda *args: self.update_width_from_meter())
+            self.width_scale = None
+            self.width_label = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Width meter failed: {e}")
+            width_label_frame = ttk.Frame(width_container)
+            width_label_frame.pack(fill=X)
+            ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.width_label = ttk.Label(width_label_frame, text="800 px",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.width_label.pack(side=RIGHT)
+            
+            self.width_scale = ttk.Scale(width_container,
+                                        from_=400,
+                                        to=4000,
+                                        value=800,
+                                        command=self.update_width,
+                                        bootstyle="primary")
+            self.width_scale.pack(fill=X, pady=(5, 0))
+            self.width_meter = None
         
-        # Height slider
-        height_container = ttk.Frame(canvas_frame)
-        height_container.pack(fill=X, pady=(0, 10))
+        # Height meter
+        height_container = ttk.Frame(dimensions_container)
+        height_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
         
-        height_label_frame = ttk.Frame(height_container)
-        height_label_frame.pack(fill=X)
-        ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.height_label = ttk.Label(height_label_frame, text="600 px",
-                                     bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.height_label.pack(side=RIGHT)
-        
-        self.height_scale = ttk.Scale(height_container,
-                                     from_=300,
-                                     to=4000,
-                                     value=600,
-                                     command=self.update_height,
-                                     bootstyle="primary")
-        self.height_scale.pack(fill=X, pady=(5, 0))
+        try:
+            ttk.Label(height_container, text="Height", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.height_meter = Meter(
+                height_container,
+                metersize=120,
+                amountused=600,
+                amounttotal=4000,
+                metertype='semi',
+                textleft='',
+                textright=' px',
+                interactive=True,
+                bootstyle='primary'
+            )
+            self.height_meter.pack()
+            self.height_meter.amountusedvar.trace('w', lambda *args: self.update_height_from_meter())
+            self.height_scale = None
+            self.height_label = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Height meter failed: {e}")
+            height_label_frame = ttk.Frame(height_container)
+            height_label_frame.pack(fill=X)
+            ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.height_label = ttk.Label(height_label_frame, text="600 px",
+                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.height_label.pack(side=RIGHT)
+            
+            self.height_scale = ttk.Scale(height_container,
+                                         from_=300,
+                                         to=4000,
+                                         value=600,
+                                         command=self.update_height,
+                                         bootstyle="primary")
+            self.height_scale.pack(fill=X, pady=(5, 0))
+            self.height_meter = None
         
         # Size presets
-        preset_frame = ttk.Frame(canvas_frame)
-        preset_frame.pack(fill=X, pady=(10, 0))
+        preset_frame = ttk.Frame(canvas_center)
+        preset_frame.pack(pady=(10, 20))
         
         ttk.Label(preset_frame, text="", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
         
@@ -1155,8 +1385,12 @@ class ModernWordCloudApp:
                       bootstyle="secondary-outline",
                       width=8).pack(side=LEFT, padx=2)
         
+        # Mode and Background Color center container
+        mode_bg_center = ttk.Frame(canvas_frame)
+        mode_bg_center.pack(expand=True, pady=(10, 0))
+        
         # Mode selection (RGB/RGBA)
-        mode_container = ttk.Frame(canvas_frame)
+        mode_container = ttk.Frame(mode_bg_center)
         mode_container.pack(fill=X, pady=(0, 10))
         
         ttk.Label(mode_container, text="Mode:", font=('Segoe UI', 10)).pack(side=LEFT)
@@ -1179,7 +1413,7 @@ class ModernWordCloudApp:
                        bootstyle="primary").pack(side=LEFT)
         
         # Background color
-        self.bg_container = ttk.Frame(canvas_frame)
+        self.bg_container = ttk.Frame(mode_bg_center)
         self.bg_container.pack(fill=X)
         
         self.bg_label = ttk.Label(self.bg_container, text="Background Color:", font=('Segoe UI', 10))
@@ -1240,59 +1474,13 @@ class ModernWordCloudApp:
         # Create the text mask frame content
         self.create_text_mask_frame(text_mask_frame)
         
-        # Add contour options to this tab
-        self.create_contour_options(text_mask_frame)
-        
         # Add mask preview to this tab
         self.create_mask_preview(text_mask_frame)
     
     def create_contour_options(self, parent):
         """Create contour options frame"""
-        contour_frame = ttk.LabelFrame(parent, text="Contour Options", padding=10)
-        contour_frame.pack(fill=X, pady=(10, 10))
-        
-        # Contour width
-        width_container = ttk.Frame(contour_frame)
-        width_container.pack(fill=X, pady=(0, 10))
-        
-        width_label_frame = ttk.Frame(width_container)
-        width_label_frame.pack(fill=X)
-        contour_width_lbl = ttk.Label(width_label_frame, text="Contour Width:", font=('Segoe UI', 10))
-        contour_width_lbl.pack(side=LEFT)
-        contour_width_label = ttk.Label(width_label_frame, text="2 pixels",
-                                       bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        contour_width_label.pack(side=RIGHT)
-        
-        contour_width_scale = ttk.Scale(width_container,
-                                       from_=0,
-                                       to=10,
-                                       value=2,
-                                       command=lambda v: self.update_contour_width(v, contour_width_label),
-                                       bootstyle="primary")
-        contour_width_scale.pack(fill=X, pady=(5, 0))
-        
-        # Contour color
-        color_container = ttk.Frame(contour_frame)
-        color_container.pack(fill=X)
-        
-        contour_color_lbl = ttk.Label(color_container, text="Contour Color:", font=('Segoe UI', 10))
-        contour_color_lbl.pack(side=LEFT)
-        
-        contour_color_preview = ttk.Frame(color_container, width=30, height=30, bootstyle="dark")
-        contour_color_preview.pack(side=RIGHT, padx=(10, 0))
-        
-        contour_color_btn = ttk.Button(color_container,
-                                      text="Choose Color",
-                                      command=lambda: self.choose_contour_color(contour_color_preview),
-                                      bootstyle="primary-outline",
-                                      width=15)
-        contour_color_btn.pack(side=RIGHT)
-        
-        # Store references if this is the first creation
-        if not hasattr(self, 'contour_width_label'):
-            self.contour_width_label = contour_width_label
-            self.contour_width_scale = contour_width_scale
-            self.contour_color_preview = contour_color_preview
+        # This function is now empty as contour options are moved to text_mask_frame
+        pass
     
     def create_mask_preview(self, parent):
         """Create mask preview frame"""
@@ -1370,66 +1558,150 @@ class ModernWordCloudApp:
         self.font_listbox.pack(fill=X)
         self.font_listbox.bind('<<FontSelected>>', lambda e: self.update_text_mask())
         
-        # Font size
-        font_size_container = ttk.Frame(text_input_frame)
-        font_size_container.pack(fill=X, pady=(0, 10))
+        # Create horizontal container for font settings and contour settings
+        meters_container = ttk.Frame(text_input_frame)
+        meters_container.pack(fill=X, pady=(15, 0))
         
-        font_size_label_frame = ttk.Frame(font_size_container)
-        font_size_label_frame.pack(fill=X)
-        ttk.Label(font_size_label_frame, text="Font Size:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.font_size_label = ttk.Label(font_size_label_frame, text="200",
-                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.font_size_label.pack(side=RIGHT)
+        # Font Settings frame (left side)
+        font_settings_frame = ttk.LabelFrame(meters_container, text="Font Settings", padding=10)
+        font_settings_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 20))
         
-        self.font_size_scale = ttk.Scale(font_size_container,
-                                        from_=50,
-                                        to=2000,
-                                        value=200,
-                                        command=self.update_font_size,
-                                        bootstyle="primary")
-        self.font_size_scale.pack(fill=X, pady=(5, 0))
+        # Font size meter in font settings frame
+        font_size_container = ttk.Frame(font_settings_frame)
+        font_size_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 15))
         
-        # Font style options
-        style_frame = ttk.Frame(text_input_frame)
-        style_frame.pack(fill=X, pady=(10, 0))
+        try:
+            ttk.Label(font_size_container, text="Size", 
+                     font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+            
+            self.font_size_meter = Meter(
+                font_size_container,
+                metersize=100,
+                amountused=200,
+                amounttotal=2000,
+                metertype='semi',
+                textleft='',
+                textright='',
+                interactive=True,
+                bootstyle='info'
+            )
+            self.font_size_meter.pack()
+            self.font_size_meter.amountusedvar.trace('w', lambda *args: self.update_font_size_from_meter())
+            self.font_size_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Font size meter failed: {e}")
+            font_size_label_frame = ttk.Frame(font_size_container)
+            font_size_label_frame.pack(fill=X)
+            ttk.Label(font_size_label_frame, text="Size:", font=('Segoe UI', 9)).pack(side=LEFT)
+            self.font_size_label = ttk.Label(font_size_label_frame, text="200",
+                                            bootstyle="primary", font=('Segoe UI', 9, 'bold'))
+            self.font_size_label.pack(side=RIGHT)
+            
+            self.font_size_scale = ttk.Scale(font_size_container,
+                                            from_=50,
+                                            to=2000,
+                                            value=200,
+                                            command=self.update_font_size,
+                                            bootstyle="primary")
+            self.font_size_scale.pack(fill=X, pady=(5, 0))
+            self.font_size_meter = None
         
-        ttk.Label(style_frame, text="Font Style:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 20))
+        # Font style options in font settings frame
+        style_container = ttk.Frame(font_settings_frame)
+        style_container.pack(side=LEFT, fill=X, padx=(0, 10))
         
-        ttk.Checkbutton(style_frame,
+        ttk.Label(style_container, text="Style", 
+                 font=('Segoe UI', 9, 'bold')).pack(pady=(0, 10))
+        
+        ttk.Checkbutton(style_container,
                        text="Bold",
                        variable=self.text_mask_bold,
                        command=self.update_text_mask,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+                       bootstyle="primary").pack(anchor=W, pady=(0, 5))
         
-        ttk.Checkbutton(style_frame,
+        ttk.Checkbutton(style_container,
                        text="Italic",
                        variable=self.text_mask_italic,
                        command=self.update_text_mask,
-                       bootstyle="primary").pack(side=LEFT)
+                       bootstyle="primary").pack(anchor=W)
         
-        # Words per line control
-        words_frame = ttk.Frame(text_input_frame)
-        words_frame.pack(fill=X, pady=(15, 0))
+        # Contour settings frame (right side)
+        contour_frame = ttk.LabelFrame(meters_container, text="Contour Settings", padding=10)
+        contour_frame.pack(side=LEFT, fill=BOTH, expand=True)
         
-        words_label_frame = ttk.Frame(words_frame)
-        words_label_frame.pack(fill=X)
-        ttk.Label(words_label_frame, text="Words per line:", font=('Segoe UI', 10)).pack(side=LEFT)
-        self.words_per_line_label = ttk.Label(words_label_frame, text="1 word",
-                                             bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-        self.words_per_line_label.pack(side=RIGHT)
+        # Create horizontal layout inside contour frame
+        contour_layout = ttk.Frame(contour_frame)
+        contour_layout.pack(fill=X)
         
-        self.words_per_line_scale = ttk.Scale(words_frame,
-                                              from_=1,
-                                              to=10,
-                                              value=1,
-                                              command=self.update_words_per_line,
-                                              bootstyle="primary")
-        self.words_per_line_scale.pack(fill=X, pady=(5, 0))
+        # Contour width meter
+        width_container = ttk.Frame(contour_layout)
+        width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 15))
         
-        ttk.Label(words_frame, 
-                 text="Tip: Use multiple words per line to create wider text masks",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(5, 0))
+        try:
+            ttk.Label(width_container, text="Width", 
+                     font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+            
+            self.contour_width_meter = Meter(
+                width_container,
+                metersize=100,
+                amountused=2,
+                amounttotal=30,
+                metertype='semi',
+                textleft='',
+                textright=' px',
+                interactive=True,
+                bootstyle='primary',
+                stripethickness=10
+            )
+            self.contour_width_meter.pack()
+            self.contour_width_meter.amountusedvar.trace('w', lambda *args: self.update_contour_width_from_meter())
+            self.contour_width_scale = None
+            self.contour_width_label = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Contour width meter failed: {e}")
+            width_label_frame = ttk.Frame(width_container)
+            width_label_frame.pack(fill=X)
+            contour_width_lbl = ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 9))
+            contour_width_lbl.pack(side=LEFT)
+            contour_width_label = ttk.Label(width_label_frame, text="2 px",
+                                           bootstyle="primary", font=('Segoe UI', 9, 'bold'))
+            contour_width_label.pack(side=RIGHT)
+            
+            contour_width_scale = ttk.Scale(width_container,
+                                           from_=0,
+                                           to=30,
+                                           value=2,
+                                           command=lambda v: self.update_contour_width(v, contour_width_label),
+                                           bootstyle="primary")
+            contour_width_scale.pack(fill=X, pady=(5, 0))
+            self.contour_width_label = contour_width_label
+            self.contour_width_scale = contour_width_scale
+            self.contour_width_meter = None
+        
+        # Contour color
+        color_container = ttk.Frame(contour_layout)
+        color_container.pack(side=LEFT, fill=X)
+        
+        ttk.Label(color_container, text="Color", 
+                 font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+        
+        color_frame = ttk.Frame(color_container)
+        color_frame.pack()
+        
+        contour_color_preview = ttk.Frame(color_frame, width=25, height=25, bootstyle="dark")
+        contour_color_preview.pack(side=LEFT, padx=(0, 8))
+        
+        contour_color_btn = ttk.Button(color_frame,
+                                      text="Choose",
+                                      command=lambda: self.choose_contour_color(contour_color_preview),
+                                      bootstyle="primary-outline",
+                                      width=10)
+        contour_color_btn.pack(side=LEFT)
+        
+        # Store reference
+        self.contour_color_preview = contour_color_preview
     
     def on_mask_tab_changed(self, event):
         """Handle mask tab change"""
@@ -1574,10 +1846,19 @@ class ModernWordCloudApp:
         # Update values and UI
         self.canvas_width.set(width)
         self.canvas_height.set(height)
-        self.width_label.config(text=f"{width} px")
-        self.height_label.config(text=f"{height} px")
-        self.width_scale.set(width)
-        self.height_scale.set(height)
+        
+        # Update meters or scales
+        if self.width_meter:
+            self.width_meter.amountusedvar.set(width)
+        elif self.width_scale:
+            self.width_label.config(text=f"{width} px")
+            self.width_scale.set(width)
+            
+        if self.height_meter:
+            self.height_meter.amountusedvar.set(height)
+        elif self.height_scale:
+            self.height_label.config(text=f"{height} px")
+            self.height_scale.set(height)
         
         # Show toast with preset info
         ratio_text = self.get_ratio_text(width, height)
@@ -1882,6 +2163,23 @@ class ModernWordCloudApp:
         if self.min_length_scale.get() > val:
             self.min_length_scale.set(val)
     
+    def update_min_from_meter(self):
+        """Update min length from meter widget"""
+        if self.min_length_meter:
+            val = int(self.min_length_meter.amountusedvar.get())
+            self.min_word_length.set(val)
+            # Ensure max is not less than min
+            if self.max_length_meter and self.max_length_meter.amountusedvar.get() < val:
+                self.max_length_meter.amountusedvar.set(val)
+    
+    def update_max_from_meter(self):
+        """Update max length from meter widget"""
+        if self.max_length_meter:
+            val = int(self.max_length_meter.amountusedvar.get())
+            self.max_word_length.set(val)
+            # Ensure min is not greater than max
+            if self.min_length_meter and self.min_length_meter.amountusedvar.get() > val:
+                self.min_length_meter.amountusedvar.set(val)
     
     def update_forbidden_words(self):
         """Update forbidden words set"""
@@ -2373,12 +2671,6 @@ class ModernWordCloudApp:
                 widget.configure(state=state)
             except:
                 pass  # Some widgets might not support state
-        
-        # Update frame title
-        if has_mask:
-            self.contour_frame.configure(text="Contour Options")
-        else:
-            self.contour_frame.configure(text="Contour Options (requires mask)")
     
     def update_horizontal_label(self, value):
         """Update prefer horizontal label"""
@@ -2391,6 +2683,14 @@ class ModernWordCloudApp:
         val = float(value)
         self.horizontal_gauge.configure(value=val)
         self.prefer_horizontal.set(val / 100.0)  # Convert percentage to 0-1 range
+    
+    def reset_orientation(self):
+        """Reset word orientation to default 90%"""
+        self.horizontal_scale.set(90)
+        self.horizontal_gauge.configure(value=90)
+        self.prefer_horizontal.set(0.9)
+        self.show_toast("Word orientation reset to 90% horizontal", "info")
+        self.clear_canvas()
     
     def update_thickness_label(self, value):
         """Update letter thickness label"""
@@ -2412,15 +2712,93 @@ class ModernWordCloudApp:
         """Update max words label and clear canvas"""
         val = int(float(value))
         self.max_words.set(val)
-        self.max_words_label.config(text=str(val))
+        if hasattr(self, 'max_words_label'):
+            self.max_words_label.config(text=str(val))
         self.clear_canvas()
+    
+    def update_max_words_from_meter(self):
+        """Update max words from meter widget"""
+        if self.max_words_meter:
+            val = int(self.max_words_meter.amountusedvar.get())
+            self.max_words.set(val)
+            self.clear_canvas()
     
     def update_scale(self, value):
         """Update scale label and clear canvas"""
         val = int(float(value))
         self.scale.set(val)
-        self.scale_label.config(text=str(val))
+        if hasattr(self, 'scale_label'):
+            self.scale_label.config(text=str(val))
         self.clear_canvas()
+    
+    def update_scale_from_meter(self):
+        """Update scale from meter widget"""
+        if self.scale_meter:
+            val = int(self.scale_meter.amountusedvar.get())
+            self.scale.set(val)
+            self.clear_canvas()
+    
+    def update_thickness_from_meter(self):
+        """Update letter thickness from meter widget"""
+        if self.thickness_meter:
+            val = self.thickness_meter.amountusedvar.get()
+            self.letter_thickness.set(val)
+    
+    def update_words_per_line_from_meter(self):
+        """Update words per line from meter widget"""
+        if self.words_per_line_meter:
+            val = int(self.words_per_line_meter.amountusedvar.get())
+            self.text_mask_words_per_line.set(val)
+            if self.mask_type.get() == "text" and self.text_mask_input.get():
+                self.update_text_mask()
+    
+    def update_contour_width_from_meter(self):
+        """Update contour width from meter widget"""
+        if self.contour_width_meter:
+            val = int(self.contour_width_meter.amountusedvar.get())
+            self.contour_width.set(val)
+            if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
+                self.update_text_mask()
+    
+    def update_font_size_from_meter(self):
+        """Update font size from meter widget"""
+        if self.font_size_meter:
+            val = int(self.font_size_meter.amountusedvar.get())
+            self.text_mask_font_size.set(val)
+            if self.mask_type.get() == "text" and self.text_mask_input.get():
+                self.update_text_mask()
+    
+    def update_width_from_meter(self):
+        """Update width from meter widget"""
+        if self.width_meter:
+            val = int(self.width_meter.amountusedvar.get())
+            self.canvas_width.set(val)
+            
+            if self.lock_aspect_ratio.get() and self.aspect_ratio > 0:
+                # Update height to maintain aspect ratio
+                new_height = int(val / self.aspect_ratio)
+                new_height = max(300, min(4000, new_height))
+                self.canvas_height.set(new_height)
+                if self.height_meter:
+                    self.height_meter.amountusedvar.set(new_height)
+            
+            self.clear_canvas()
+    
+    def update_height_from_meter(self):
+        """Update height from meter widget"""
+        if self.height_meter:
+            val = int(self.height_meter.amountusedvar.get())
+            self.canvas_height.set(val)
+            
+            if self.lock_aspect_ratio.get() and self.aspect_ratio > 0:
+                # Update width to maintain aspect ratio
+                new_width = int(val * self.aspect_ratio)
+                new_width = max(400, min(4000, new_width))
+                self.canvas_width.set(new_width)
+                if self.width_meter:
+                    self.width_meter.amountusedvar.set(new_width)
+            
+            self.clear_canvas()
     
     def update_mode(self):
         """Update mode between RGB and RGBA"""
@@ -2459,7 +2837,7 @@ class ModernWordCloudApp:
         issues = []
         
         # Check if min length > max length
-        if self.min_length.get() > self.max_length.get():
+        if self.min_word_length.get() > self.max_word_length.get():
             issues.append(("error", "Minimum word length cannot be greater than maximum word length"))
         
         # Check canvas size
@@ -2487,8 +2865,8 @@ class ModernWordCloudApp:
         if text_preview:
             words = text_preview.split()
             avg_word_length = sum(len(w) for w in words) / len(words) if words else 0
-            if avg_word_length < self.min_length.get():
-                issues.append(("warning", f"Average word length ({avg_word_length:.1f}) is less than minimum filter ({self.min_length.get()}). Most words may be filtered out"))
+            if avg_word_length < self.min_word_length.get():
+                issues.append(("warning", f"Average word length ({avg_word_length:.1f}) is less than minimum filter ({self.min_word_length.get()}). Most words may be filtered out"))
         
         return issues
     
@@ -2906,12 +3284,18 @@ class ModernWordCloudApp:
             # Apply basic settings
             if 'min_length' in config:
                 self.min_length.set(config['min_length'])
-                self.min_length_scale.set(config['min_length'])
-                self.min_length_label.config(text=str(config['min_length']))
+                if self.min_length_meter:
+                    self.min_length_meter.amountusedvar.set(config['min_length'])
+                elif self.min_length_scale:
+                    self.min_length_scale.set(config['min_length'])
+                    self.min_length_label.config(text=str(config['min_length']))
             if 'max_length' in config:
                 self.max_length.set(config['max_length'])
-                self.max_length_scale.set(config['max_length'])
-                self.max_length_label.config(text=str(config['max_length']))
+                if self.max_length_meter:
+                    self.max_length_meter.amountusedvar.set(config['max_length'])
+                elif self.max_length_scale:
+                    self.max_length_scale.set(config['max_length'])
+                    self.max_length_label.config(text=str(config['max_length']))
             if 'forbidden_words' in config:
                 self.forbidden_text.delete(1.0, tk.END)
                 self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
@@ -2941,7 +3325,12 @@ class ModernWordCloudApp:
                 self.horizontal_scale.set(pref_val)
                 self.horizontal_gauge.configure(value=pref_val)
             if 'letter_thickness' in config:
-                self.thickness_scale.set(config.get('letter_thickness', 1.0))
+                thickness_val = config.get('letter_thickness', 1.0)
+                self.letter_thickness.set(thickness_val)
+                if hasattr(self, 'thickness_meter') and self.thickness_meter:
+                    self.thickness_meter.amountusedvar.set(thickness_val)
+                elif hasattr(self, 'thickness_scale') and self.thickness_scale:
+                    self.thickness_scale.set(thickness_val)
             if 'canvas_width' in config:
                 self.width_var.set(config['canvas_width'])
             if 'canvas_height' in config:
@@ -2953,9 +3342,17 @@ class ModernWordCloudApp:
                 self.color_mode_var.set(config['color_mode_setting'])
                 # TODO: on_color_mode_change_canvas() method needs to be implemented
             if 'max_words' in config:
-                self.max_words_var.set(config['max_words'])
+                self.max_words.set(config['max_words'])
+                if self.max_words_meter:
+                    self.max_words_meter.amountusedvar.set(config['max_words'])
+                elif self.max_words_scale:
+                    self.max_words_scale.set(config['max_words'])
             if 'scale' in config:
-                self.scale_var.set(config['scale'])
+                self.scale.set(config['scale'])
+                if self.scale_meter:
+                    self.scale_meter.amountusedvar.set(config['scale'])
+                elif self.scale_scale:
+                    self.scale_scale.set(config['scale'])
             
             # Apply theme
             if 'theme' in config and config['theme'] in self.themes:
@@ -3087,22 +3484,22 @@ class ModernWordCloudApp:
         # Canvas settings
         if hasattr(self, 'horizontal_scale'):
             config['prefer_horizontal'] = self.horizontal_scale.get() / 100.0  # Convert percentage to 0-1
-        if hasattr(self, 'thickness_scale'):
-            config['letter_thickness'] = self.thickness_scale.get()
-        if hasattr(self, 'width_var'):
-            config['canvas_width'] = self.width_var.get()
-        if hasattr(self, 'height_var'):
-            config['canvas_height'] = self.height_var.get()
+        if hasattr(self, 'letter_thickness'):
+            config['letter_thickness'] = self.letter_thickness.get()
+        if hasattr(self, 'canvas_width'):
+            config['canvas_width'] = self.canvas_width.get()
+        if hasattr(self, 'canvas_height'):
+            config['canvas_height'] = self.canvas_height.get()
         if hasattr(self, 'bg_color'):
             config['background_color'] = self.bg_color
         if hasattr(self, 'color_mode_var'):
             config['color_mode_setting'] = self.color_mode_var.get()
         
         # Other settings
-        if hasattr(self, 'max_words_var'):
-            config['max_words'] = self.max_words_var.get()
-        if hasattr(self, 'scale_var'):
-            config['scale'] = self.scale_var.get()
+        if hasattr(self, 'max_words'):
+            config['max_words'] = self.max_words.get()
+        if hasattr(self, 'scale'):
+            config['scale'] = self.scale.get()
         if hasattr(self, 'current_theme'):
             config['theme'] = self.current_theme.get()
         
@@ -3241,8 +3638,16 @@ class ModernWordCloudApp:
             self.color_mode_var.set("RGB")
             
             # Reset other settings
-            self.max_words_var.set(200)
-            self.scale_var.set(1.0)
+            self.max_words.set(200)
+            if self.max_words_meter:
+                self.max_words_meter.amountusedvar.set(200)
+            elif self.max_words_scale:
+                self.max_words_scale.set(200)
+            self.scale.set(1)
+            if self.scale_meter:
+                self.scale_meter.amountusedvar.set(1)
+            elif self.scale_scale:
+                self.scale_scale.set(1)
             
             # Reset mask settings
             self.mask_notebook.select(0)  # Select "No Mask" tab
