@@ -1898,18 +1898,25 @@ class ModernWordCloudApp:
         self.clear_canvas()
         
     def calculate_preview_size(self):
-        """Calculate preview display size maintaining aspect ratio with max width constraint"""
+        """Calculate preview display size maintaining aspect ratio with max constraints"""
         actual_width = self.canvas_width.get()
         actual_height = self.canvas_height.get()
         
-        # Calculate scale factor based on max width only
-        if actual_width > self.preview_max_width:
-            scale = self.preview_max_width / actual_width
-        else:
-            scale = 1.0  # Don't upscale
+        # Define max constraints for preview
+        max_preview_width = 600
+        max_preview_height = 450  # Reasonable height limit
+        
+        # Calculate scale factors for both dimensions
+        width_scale = max_preview_width / actual_width if actual_width > max_preview_width else 1.0
+        height_scale = max_preview_height / actual_height if actual_height > max_preview_height else 1.0
+        
+        # Use the smaller scale to ensure it fits in both dimensions
+        scale = min(width_scale, height_scale, 1.0)  # Don't upscale
         
         display_width = int(actual_width * scale)
         display_height = int(actual_height * scale)
+        
+        self.print_debug(f"Preview size: {display_width}x{display_height} (scale: {scale:.2f})")
         
         return display_width, display_height
     
@@ -1935,9 +1942,6 @@ class ModernWordCloudApp:
         
         canvas_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
         canvas_frame.pack(pady=(0, 15))
-        
-        # Fixed preview max width (will scale height proportionally)
-        self.preview_max_width = 600
         
         # Calculate initial display size
         display_width, display_height = self.calculate_preview_size()
@@ -2667,9 +2671,19 @@ class ModernWordCloudApp:
             style.configure(style_name, background=self.contour_color)
             self.contour_color_preview.configure(style=style_name)
     
-    def clear_canvas(self):
+    def clear_canvas(self, clear_wordcloud=True):
         """Clear the canvas completely"""
-        # Clear all axes and artists
+        self.print_debug("Clearing canvas...")
+        
+        # Store current axes for complete removal
+        axes_to_remove = self.figure.axes[:]
+        
+        # Remove all axes completely
+        for ax in axes_to_remove:
+            ax.clear()
+            self.figure.delaxes(ax)
+        
+        # Clear the figure completely
         self.figure.clear()
         
         # Force garbage collection of matplotlib objects
@@ -2678,27 +2692,34 @@ class ModernWordCloudApp:
         
         # Create fresh subplot
         ax = self.figure.add_subplot(111)
-        ax.clear()
         ax.set_facecolor('white')
         ax.axis('off')
         
-        # Reset figure properties
-        self.figure.patch.set_facecolor('white')
+        # Reset figure properties based on theme
+        if hasattr(self, 'current_theme') and self.current_theme.get() in ["darkly", "superhero", "solar", "cyborg", "vapor"]:
+            self.figure.patch.set_facecolor('#2b2b2b')
+        else:
+            self.figure.patch.set_facecolor('white')
         
-        # Force complete redraw
-        self.figure.canvas.draw_idle()
-        self.canvas.draw()
+        # Clear the canvas widget
+        self.canvas.draw_idle()
+        self.canvas.flush_events()
         
-        # Flush any pending events
-        self.figure.canvas.flush_events()
+        # Process pending GUI events to ensure complete update
+        self.root.update_idletasks()
         
         # Disable save button since there's nothing to save
         if hasattr(self, 'save_btn'):
             self.save_btn.config(state=DISABLED)
         
-        # Clear any stored wordcloud
-        if hasattr(self, 'current_wordcloud'):
-            self.current_wordcloud = None
+        # Clear wordcloud object only if requested
+        if clear_wordcloud:
+            if hasattr(self, 'wordcloud'):
+                self.wordcloud = None
+            if hasattr(self, 'current_wordcloud'):
+                self.current_wordcloud = None
+            
+        self.print_debug("Canvas cleared successfully")
     
     def update_preview_size(self, *args):
         """Update preview canvas size when dimensions change"""
@@ -2708,6 +2729,9 @@ class ModernWordCloudApp:
             
             # Update figure size for display
             self.figure.set_size_inches(display_width/100, display_height/100)
+            
+            # Update the canvas widget size to match
+            self.canvas_widget.config(width=display_width, height=display_height)
             
             # Update scale indicator
             actual_width = self.canvas_width.get()
@@ -2720,8 +2744,12 @@ class ModernWordCloudApp:
             
             # Clear canvas when size changes
             self.clear_canvas()
-        except:
-            pass  # Ignore errors during initialization
+            
+            # Force canvas to redraw with new size
+            self.canvas.draw()
+        except Exception as e:
+            if hasattr(self, 'print_debug'):
+                self.print_debug(f"Error updating preview size: {str(e)}")
     
     def update_contour_state(self, has_mask=None):
         """Enable/disable contour options based on mask selection"""
@@ -2883,8 +2911,8 @@ class ModernWordCloudApp:
         """Filter words based on length and forbidden words"""
         words = re.findall(r'\b\w+\b', text.lower())
         
-        # Update forbidden words
-        self.update_forbidden_words()
+        # Update forbidden words (don't show toast during generation)
+        self.update_forbidden_words(show_toast=False)
         
         # Filter words
         filtered_words = []
@@ -2961,7 +2989,11 @@ class ModernWordCloudApp:
         
         # Clear the canvas before generating new word cloud
         self.print_debug("Clearing canvas before generation")
+        # Force a complete clear before generation
         self.clear_canvas()
+        # Additional forced update
+        self.canvas.draw()
+        self.root.update_idletasks()
         
         # Show progress and disable button
         self.generate_btn.config(state=DISABLED)
@@ -3034,15 +3066,27 @@ class ModernWordCloudApp:
     
     def _update_preview(self):
         """Update the preview canvas with generated word cloud"""
+        self.print_debug("Updating preview with new word cloud")
+        
+        # Get the word cloud image before clearing (since clear_canvas sets wordcloud to None)
+        if not hasattr(self, 'wordcloud') or self.wordcloud is None:
+            self.print_fail("No wordcloud object to display")
+            return
+            
+        wc_image = self.wordcloud.to_image()
+        
         # Ensure preview size is updated
         display_width, display_height = self.calculate_preview_size()
         self.figure.set_size_inches(display_width/100, display_height/100)
         
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
+        # Update canvas widget size
+        self.canvas_widget.config(width=display_width, height=display_height)
         
-        # Get the word cloud as an image (full resolution)
-        wc_image = self.wordcloud.to_image()
+        # Clear canvas but keep the wordcloud object
+        self.clear_canvas(clear_wordcloud=False)
+        
+        # Get the current axes (created by clear_canvas)
+        ax = self.figure.gca()
         
         if self.rgba_mode.get():
             # For RGBA mode, create a checkered background to show transparency
@@ -3085,12 +3129,19 @@ class ModernWordCloudApp:
             #       verticalalignment='top',
             #       bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
         
+        # Force canvas update
         self.canvas.draw()
+        self.canvas.flush_events()
+        
+        # Ensure the GUI is fully updated
+        self.root.update_idletasks()
         
         # Enable save button and show success
         self.save_btn.config(state=NORMAL)
         mode_text = "with transparency" if self.rgba_mode.get() else "with solid background"
         self.show_toast(f"Word cloud generated successfully {mode_text}!", "success")
+        
+        self.print_debug("Preview updated successfully")
     
     def _generation_complete(self):
         """Called when generation is complete"""
