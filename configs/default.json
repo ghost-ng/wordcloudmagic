@@ -1,4 +1,6 @@
 {
+  "min_length": 3,
+  "max_length": 20,
   "forbidden_words": [
     "the",
     "and",
@@ -29,14 +31,15 @@
   ],
   "prefer_horizontal": 0.9,
   "letter_thickness": 1.0,
-  "canvas_width": 800,
-  "canvas_height": 800,
-  "background_color": "#FFFFFF",
+  "canvas_width": 1920,
+  "canvas_height": 1080,
+  "background_color": "#ffffff",
+  "rgba_mode": false,
   "max_words": 200,
   "scale": 1,
   "theme": "cosmo",
   "mask_type": "no_mask",
   "mask_path": "No mask",
   "contour_color": "#000000",
-  "working_directory": "No folder selected"
+  "working_directory": "C:/Users/miguel/Downloads/Papers"
 }

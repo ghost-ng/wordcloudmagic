@@ -15,11 +15,15 @@ import platform
 import subprocess
 import json
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+
+# Set matplotlib backend BEFORE importing pyplot
+import matplotlib
+matplotlib.use('TkAgg')
+
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib
 from matplotlib.colors import LinearSegmentedColormap
-matplotlib.use('TkAgg')
+plt.ioff()  # Turn off interactive mode to prevent popup windows
 
 # Debug print function
 def debug_print(msg):
@@ -187,6 +191,23 @@ class FontListbox(ttk.Frame):
         self._populate_fonts()
 
 class ModernWordCloudApp:
+    def print_debug(self, message):
+        """Print debug message if in debug mode"""
+        if hasattr(self, 'debug_mode') and self.debug_mode:
+            print(f"[DEBUG] {message}")
+    
+    def print_info(self, message):
+        """Print info message"""
+        print(f"[INFO] {message}")
+    
+    def print_warning(self, message):
+        """Print warning message"""
+        print(f"[WARNING] {message}")
+    
+    def print_fail(self, message):
+        """Print failure/error message"""
+        print(f"[ERROR] {message}")
+    
     def create_custom_gradients(self):
         """Create and register custom color gradients"""
         gradients = {}
@@ -290,6 +311,12 @@ class ModernWordCloudApp:
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
         self.root.state('zoomed')  # Start maximized
+        
+        # Initialize debug mode from command line arguments
+        import sys
+        self.debug_mode = '--debug' in sys.argv
+        if self.debug_mode:
+            self.print_info("Debug mode enabled")
         
         # Flag to track UI readiness
         self.ui_ready = False
@@ -2006,6 +2033,14 @@ class ModernWordCloudApp:
         if status not in self.message_styles:
             status = "info"
         
+        # Print to console based on status
+        if status in ["bad", "error"]:
+            self.print_fail(message)
+        elif status == "warning":
+            self.print_warning(message)
+        else:
+            self.print_info(message)
+        
         style = self.message_styles[status]
         
         # Update message content
@@ -2045,7 +2080,7 @@ class ModernWordCloudApp:
             self.working_folder.set(folder)
             self.populate_file_list()
     
-    def populate_file_list(self):
+    def populate_file_list(self, show_toast=True):
         """Populate file listbox with supported files"""
         self.file_listbox.delete(0, tk.END)
         
@@ -2059,9 +2094,11 @@ class ModernWordCloudApp:
             
             if files_found == 0:
                 self.file_listbox.insert(tk.END, "No supported files found")
-                self.show_message("No supported files found in the selected folder", "info")
+                if show_toast:
+                    self.show_message("No supported files found in the selected folder", "info")
             else:
-                self.show_message(f"Found {files_found} supported file(s) in the selected folder", "info")
+                if show_toast:
+                    self.show_message(f"Found {files_found} supported file(s) in the selected folder", "info")
     
     def select_all_files(self):
         """Select all files in the listbox"""
@@ -2148,7 +2185,7 @@ class ModernWordCloudApp:
     def update_min_label(self, value):
         """Update minimum length label"""
         val = int(float(value))
-        self.min_length.set(val)
+        self.min_word_length.set(val)
         self.min_length_label.config(text=str(val))
         # Ensure max is not less than min
         if self.max_length_scale.get() < val:
@@ -2157,7 +2194,7 @@ class ModernWordCloudApp:
     def update_max_label(self, value):
         """Update maximum length label"""
         val = int(float(value))
-        self.max_length.set(val)
+        self.max_word_length.set(val)
         self.max_length_label.config(text=str(val))
         # Ensure min is not greater than max
         if self.min_length_scale.get() > val:
@@ -2181,14 +2218,15 @@ class ModernWordCloudApp:
             if self.min_length_meter and self.min_length_meter.amountusedvar.get() > val:
                 self.min_length_meter.amountusedvar.set(val)
     
-    def update_forbidden_words(self):
+    def update_forbidden_words(self, show_toast=True):
         """Update forbidden words set"""
         text = self.forbidden_text.get('1.0', tk.END).strip()
         self.forbidden_words = set(STOPWORDS)
         if text:
             custom_forbidden = set(word.strip().lower() for word in text.split('\n') if word.strip())
             self.forbidden_words.update(custom_forbidden)
-        self.show_toast(f"Updated forbidden words ({len(self.forbidden_words)} total)", "info")
+        if show_toast:
+            self.show_toast(f"Updated forbidden words ({len(self.forbidden_words)} total)", "info")
     
     def on_color_select(self):
         """Handle color scheme selection"""
@@ -2597,11 +2635,37 @@ class ModernWordCloudApp:
         if color:
             hex_color = color.hex
             self.bg_color.set(hex_color)
+            self.update_bg_preview()
+    
+    def update_bg_preview(self):
+        """Update the background color preview"""
+        if hasattr(self, 'bg_color_preview'):
             # Update preview - ttk frames don't support background, use style instead
             style = ttk.Style()
             style_name = f"BgPreview.TFrame"
-            style.configure(style_name, background=hex_color)
+            style.configure(style_name, background=self.bg_color.get())
             self.bg_color_preview.configure(style=style_name)
+    
+    def on_color_mode_change_canvas(self):
+        """Handle canvas color mode change between RGB and RGBA"""
+        if hasattr(self, 'bg_color_btn') and hasattr(self, 'rgba_mode'):
+            if self.rgba_mode.get():
+                # RGBA mode - disable background color selection
+                self.bg_color_btn.configure(state='disabled')
+                if hasattr(self, 'bg_color_preview'):
+                    self.bg_color_preview.configure(bootstyle="secondary")
+            else:
+                # RGB mode - enable background color selection
+                self.bg_color_btn.configure(state='normal')
+                self.update_bg_preview()
+    
+    def update_contour_color_preview(self):
+        """Update the contour color preview"""
+        if hasattr(self, 'contour_color_preview') and hasattr(self, 'contour_color'):
+            style = ttk.Style()
+            style_name = f"ContourPreview{id(self)}.TFrame"
+            style.configure(style_name, background=self.contour_color)
+            self.contour_color_preview.configure(style=style_name)
     
     def clear_canvas(self):
         """Clear the canvas completely"""
@@ -2800,18 +2864,20 @@ class ModernWordCloudApp:
             
             self.clear_canvas()
     
-    def update_mode(self):
+    def update_mode(self, show_toast=True):
         """Update mode between RGB and RGBA"""
         if self.rgba_mode.get():
             # RGBA mode - disable background color
             self.bg_label.configure(state=DISABLED)
             self.bg_color_btn.configure(state=DISABLED)
-            self.show_toast("RGBA mode enabled - background will be transparent", "info")
+            if show_toast:
+                self.show_toast("RGBA mode enabled - background will be transparent", "info")
         else:
             # RGB mode - enable background color
             self.bg_label.configure(state=NORMAL)
             self.bg_color_btn.configure(state=NORMAL)
-            self.show_toast("RGB mode enabled - solid background", "info")
+            if show_toast:
+                self.show_toast("RGB mode enabled - solid background", "info")
     
     def filter_words(self, text):
         """Filter words based on length and forbidden words"""
@@ -2892,6 +2958,10 @@ class ModernWordCloudApp:
             if warnings:
                 warning_msg = "Warnings:\n" + "\n".join(f"• {msg}" for msg in warnings)
                 self.show_toast(warning_msg, "warning")
+        
+        # Clear the canvas before generating new word cloud
+        self.print_debug("Clearing canvas before generation")
+        self.clear_canvas()
         
         # Show progress and disable button
         self.generate_btn.config(state=DISABLED)
@@ -3009,11 +3079,11 @@ class ModernWordCloudApp:
         if display_width < actual_width or display_height < actual_height:
             scale_percent = int((display_width / actual_width) * 100)
             reduction = 100 - scale_percent
-            ax.text(0.02, 0.98, f"Preview reduced by {reduction}% to fit\nActual size: {actual_width}×{actual_height}px\nPreview size: {display_width}×{display_height}px", 
-                   transform=ax.transAxes, 
-                   fontsize=9, 
-                   verticalalignment='top',
-                   bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
+            #ax.text(0.02, 0.98, f"Preview reduced by {reduction}% to fit\nActual size: {actual_width}×{actual_height}px\nPreview size: {display_width}×{display_height}px", 
+            #       transform=ax.transAxes, 
+            #       fontsize=9, 
+            #       verticalalignment='top',
+            #       bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
         
         self.canvas.draw()
         
@@ -3253,6 +3323,14 @@ class ModernWordCloudApp:
     
     def show_toast(self, message, style="info"):
         """Show toast notification"""
+        # Print to console based on style
+        if style in ["danger", "error"]:
+            self.print_fail(message)
+        elif style == "warning":
+            self.print_warning(message)
+        else:
+            self.print_info(message)
+            
         toast = ToastNotification(
             title="WordCloud Magic",
             message=message,
@@ -3281,16 +3359,20 @@ class ModernWordCloudApp:
     def apply_config(self, config, show_message=True):
         """Apply configuration from dictionary"""
         try:
+            self.print_debug("Applying configuration...")
+            self.print_debug("Configuration being loaded:")
+            for key, value in config.items():
+                self.print_debug(f"  {key}: {value}")
             # Apply basic settings
             if 'min_length' in config:
-                self.min_length.set(config['min_length'])
+                self.min_word_length.set(config['min_length'])
                 if self.min_length_meter:
                     self.min_length_meter.amountusedvar.set(config['min_length'])
                 elif self.min_length_scale:
                     self.min_length_scale.set(config['min_length'])
                     self.min_length_label.config(text=str(config['min_length']))
             if 'max_length' in config:
-                self.max_length.set(config['max_length'])
+                self.max_word_length.set(config['max_length'])
                 if self.max_length_meter:
                     self.max_length_meter.amountusedvar.set(config['max_length'])
                 elif self.max_length_scale:
@@ -3299,7 +3381,7 @@ class ModernWordCloudApp:
             if 'forbidden_words' in config:
                 self.forbidden_text.delete(1.0, tk.END)
                 self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
-                self.update_forbidden_words()
+                self.update_forbidden_words(show_toast=False)
             
             # Apply color settings
             if 'color_mode' in config:
@@ -3331,16 +3413,56 @@ class ModernWordCloudApp:
                     self.thickness_meter.amountusedvar.set(thickness_val)
                 elif hasattr(self, 'thickness_scale') and self.thickness_scale:
                     self.thickness_scale.set(thickness_val)
+            # Canvas settings
             if 'canvas_width' in config:
-                self.width_var.set(config['canvas_width'])
+                self.print_debug(f"Setting canvas width to: {config['canvas_width']}")
+                self.canvas_width.set(config['canvas_width'])
+                # Update UI elements
+                if hasattr(self, 'width_meter') and self.width_meter:
+                    self.width_meter.amountusedvar.set(config['canvas_width'])
+                elif hasattr(self, 'width_scale') and self.width_scale:
+                    self.width_scale.set(config['canvas_width'])
+                    if hasattr(self, 'width_label'):
+                        self.width_label.config(text=f"{config['canvas_width']} px")
+            else:
+                self.print_warning("canvas_width not found in config")
+                
             if 'canvas_height' in config:
-                self.height_var.set(config['canvas_height'])
+                self.print_debug(f"Setting canvas height to: {config['canvas_height']}")
+                self.canvas_height.set(config['canvas_height'])
+                # Update UI elements
+                if hasattr(self, 'height_meter') and self.height_meter:
+                    self.height_meter.amountusedvar.set(config['canvas_height'])
+                elif hasattr(self, 'height_scale') and self.height_scale:
+                    self.height_scale.set(config['canvas_height'])
+                    if hasattr(self, 'height_label'):
+                        self.height_label.config(text=f"{config['canvas_height']} px")
+            else:
+                self.print_warning("canvas_height not found in config")
+                
             if 'background_color' in config:
-                self.bg_color = config['background_color']
-                # TODO: update_bg_preview() method needs to be implemented
-            if 'color_mode_setting' in config:
-                self.color_mode_var.set(config['color_mode_setting'])
-                # TODO: on_color_mode_change_canvas() method needs to be implemented
+                self.print_debug(f"Setting background color to: {config['background_color']}")
+                self.bg_color.set(config['background_color'])
+                self.update_bg_preview()
+            else:
+                self.print_warning("background_color not found in config")
+                
+            if 'rgba_mode' in config:
+                self.print_debug(f"Setting RGBA mode to: {config['rgba_mode']}")
+                self.rgba_mode.set(config['rgba_mode'])
+                self.on_color_mode_change_canvas()
+                self.update_mode(show_toast=False)  # Also update the UI state
+            # Legacy support for old config files
+            elif 'color_mode_setting' in config:
+                self.print_debug(f"Using legacy color_mode_setting: {config['color_mode_setting']}")
+                if config['color_mode_setting'] == 'RGBA':
+                    self.rgba_mode.set(True)
+                else:
+                    self.rgba_mode.set(False)
+                self.on_color_mode_change_canvas()
+                self.update_mode(show_toast=False)  # Also update the UI state
+            else:
+                self.print_warning("rgba_mode not found in config")
             if 'max_words' in config:
                 self.max_words.set(config['max_words'])
                 if self.max_words_meter:
@@ -3373,7 +3495,7 @@ class ModernWordCloudApp:
                     self.contour_width_var.set(config['contour_width'])
                 if 'contour_color' in config:
                     self.contour_color = config['contour_color']
-                    # TODO: update_contour_color_preview() method needs to be implemented
+                    self.update_contour_color_preview()
             
             # Apply text mask settings
             if hasattr(self, 'mask_text_var'):
@@ -3398,11 +3520,12 @@ class ModernWordCloudApp:
             
             # Apply image mask settings
             if 'mask_path' in config and hasattr(self, 'mask_path'):
-                self.mask_path = config['mask_path']
+                self.mask_path.set(config['mask_path'])
                 # Try to reload the mask if path exists
-                if self.mask_path and os.path.exists(self.mask_path):
+                mask_path_value = self.mask_path.get()
+                if mask_path_value and os.path.exists(mask_path_value):
                     try:
-                        self.mask = np.array(Image.open(self.mask_path))
+                        self.mask = np.array(Image.open(mask_path_value))
                         # Update mask preview if it exists
                         if hasattr(self, 'update_mask_preview'):
                             self.update_mask_preview()
@@ -3413,14 +3536,19 @@ class ModernWordCloudApp:
             if 'working_directory' in config and hasattr(self, 'working_folder'):
                 self.working_folder.set(config['working_directory'])
                 if os.path.exists(config['working_directory']):
-                    self.load_directory_files()
+                    self.populate_file_list(show_toast=False)
+                    self.print_debug(f"Populated file list for directory: {config['working_directory']}")
             
             if show_message:
                 self.show_message("Configuration loaded successfully", "good")
             
+            self.print_info("Configuration applied successfully")
             return True
             
         except Exception as e:
+            self.print_fail(f"Error applying config: {str(e)}")
+            import traceback
+            self.print_debug(traceback.format_exc())
             if show_message:
                 self.show_message(f"Failed to apply config: {str(e)}", "fail")
             return False
@@ -3443,31 +3571,36 @@ class ModernWordCloudApp:
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
         config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+        if not os.path.exists(config_file):
+            # Try configs directory
+            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
+            
         if os.path.exists(config_file):
             try:
+                self.print_info(f"Auto-loading configuration from {config_file}")
                 with open(config_file, 'r') as f:
                     content = f.read().strip()
                     if content:  # Only parse if file has content
                         config = json.loads(content)
                         self.apply_config(config, show_message=False)
-                        print(f"Auto-loaded configuration from {config_file}")
+                        self.print_info(f"Auto-loaded configuration from {config_file}")
                     else:
-                        print("Config file is empty, skipping auto-load")
+                        self.print_warning("Config file is empty, skipping auto-load")
             except json.JSONDecodeError as e:
-                print(f"Invalid JSON in config file: {e}")
-                print("Consider deleting wordcloud_config.json or fixing the JSON syntax")
+                self.print_fail(f"Invalid JSON in config file: {e}")
+                self.print_warning("Consider deleting the config file or fixing the JSON syntax")
             except Exception as e:
-                print(f"Failed to auto-load config: {e}")
+                self.print_fail(f"Failed to auto-load config: {e}")
     
     def get_current_config(self):
         """Get current configuration as dictionary"""
         config = {}
         
         # Basic settings
-        if hasattr(self, 'min_length_var'):
-            config['min_length'] = self.min_length_var.get()
-        if hasattr(self, 'max_length_var'):
-            config['max_length'] = self.max_length_var.get()
+        if hasattr(self, 'min_word_length'):
+            config['min_length'] = self.min_word_length.get()
+        if hasattr(self, 'max_word_length'):
+            config['max_length'] = self.max_word_length.get()
         if hasattr(self, 'forbidden_text'):
             config['forbidden_words'] = self.forbidden_text.get(1.0, tk.END).strip().split('\n')
         
@@ -3491,9 +3624,9 @@ class ModernWordCloudApp:
         if hasattr(self, 'canvas_height'):
             config['canvas_height'] = self.canvas_height.get()
         if hasattr(self, 'bg_color'):
-            config['background_color'] = self.bg_color
-        if hasattr(self, 'color_mode_var'):
-            config['color_mode_setting'] = self.color_mode_var.get()
+            config['background_color'] = self.bg_color.get()
+        if hasattr(self, 'rgba_mode'):
+            config['rgba_mode'] = self.rgba_mode.get()
         
         # Other settings
         if hasattr(self, 'max_words'):
@@ -3509,7 +3642,7 @@ class ModernWordCloudApp:
         
         # Image mask settings
         if hasattr(self, 'mask_path'):
-            config['mask_path'] = self.mask_path
+            config['mask_path'] = self.mask_path.get()
         if hasattr(self, 'contour_var'):
             config['contour_enabled'] = self.contour_var.get()
         if hasattr(self, 'contour_width_var'):
@@ -3554,7 +3687,14 @@ class ModernWordCloudApp:
     def save_config_to_file(self, file_path):
         """Save configuration to specified file"""
         try:
+            self.print_debug(f"Saving configuration to: {file_path}")
             config = self.get_current_config()
+            
+            # Debug print the configuration
+            self.print_debug("Configuration to save:")
+            for key, value in config.items():
+                self.print_debug(f"  {key}: {value}")
+            
             # Ensure all values are JSON serializable
             serializable_config = {}
             for key, value in config.items():
@@ -3565,9 +3705,11 @@ class ModernWordCloudApp:
             
             with open(file_path, 'w') as f:
                 json.dump(serializable_config, f, indent=2)
+            
+            self.print_info(f"Configuration saved successfully to: {file_path}")
             return True
         except Exception as e:
-            print(f"Error saving config: {e}")
+            self.print_fail(f"Error saving config: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -3590,12 +3732,12 @@ class ModernWordCloudApp:
         """Auto-save configuration to local file"""
         # Only save if UI has been created and is ready
         if hasattr(self, 'ui_ready') and self.ui_ready:
-            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
             self.save_config_to_file(config_file)
     
     def save_config_locally(self):
         """Save configuration to local file with user feedback"""
-        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
         if self.save_config_to_file(config_file):
             self.show_message(f"Configuration saved to {os.path.basename(config_file)}", "good")
         else:
@@ -3620,7 +3762,7 @@ class ModernWordCloudApp:
             self.max_length_var.set(30)
             self.forbidden_text.delete(1.0, tk.END)
             self.forbidden_text.insert(1.0, self.default_forbidden)
-            self.update_forbidden_words()
+            self.update_forbidden_words(show_toast=False)
             
             # Reset color settings
             self.color_mode.set("preset")
@@ -3651,8 +3793,9 @@ class ModernWordCloudApp:
             
             # Reset mask settings
             self.mask_notebook.select(0)  # Select "No Mask" tab
-            self.mask_path = "No mask selected"
+            self.mask_path.set("No mask selected")
             self.mask = None
+            self.mask_image = None
             if hasattr(self, 'mask_label'):
                 self.mask_label.config(text="No mask selected")
             
@@ -3703,199 +3846,90 @@ class ModernWordCloudApp:
             self.show_message("Application reset to defaults", "good")
     
     def show_help(self):
-        """Show help dialog"""
-        help_text = """WordCloud Magic - Comprehensive Help Guide
-
-═══════════════════════════════════════════════════════════════════════════════
-
-GETTING STARTED:
-1. Input Tab: Load text from files or paste directly
-2. Filters Tab: Set word length limits and forbidden words  
-3. Style Tab: Choose colors, shapes, and appearance
-4. Click "Generate Word Cloud" to create
-5. Save your creation in PNG, JPEG, or SVG format
-
-═══════════════════════════════════════════════════════════════════════════════
-
-INPUT TAB FEATURES:
-• Working Directory: Select folder containing your documents
-• File Selection: Multi-select files from the list
-• Supported Formats: PDF, DOCX, PPTX, TXT
-• Direct Text Input: Paste or type text in the text area
-• Load Options: "Load Selected Files" or "Use Pasted Text"
-• Status Display: Shows loaded files count and total words
-
-═══════════════════════════════════════════════════════════════════════════════
-
-FILTERS TAB FEATURES:
-• Word Length Filters:
-  - Minimum Length: Filter out short words (default: 3)
-  - Maximum Length: Filter out long words (default: 30)
-  - Real-time slider adjustment with value display
-• Forbidden Words:
-  - Pre-populated with common English stop words
-  - Add custom words to exclude (one per line)
-  - Update button to apply changes
-  - Shows total count of forbidden words
-
-═══════════════════════════════════════════════════════════════════════════════
-
-STYLE TAB - COLOR SCHEMES:
-• Three Color Modes (Radio button selection):
-  1. Single Color Mode:
-     - Color picker button to choose any solid color
-     - Live preview of selected color
-  
-  2. Preset Gradients Mode:
-     - 30+ built-in gradients organized in 4-column grid:
-       * Standard: Viridis, Plasma, Inferno, Magma, Cividis
-       * Classic: Cool, Hot, Spring, Summer, Autumn, Winter
-       * Special: Rainbow, Ocean, Spectral, Jet, Turbo
-       * Custom: Sunset Sky, Deep Ocean, Forest, Fire, Cotton Candy,
-         Fall Leaves, Berry, Northern Lights, Coral Reef, Galaxy
-       * Themed: Solarized Dark/Light, Rose Pine, Grape, Dracula,
-         Gruvbox, Monokai, Army, Air Force, Cyber, Navy, Hacker
-  
-  3. Custom Gradient Mode:
-     - Create gradients with 2+ colors
-     - "Choose" button for each color stop
-     - Add/Remove color buttons for dynamic gradients
-     - Live gradient preview
-
-• Combined Preview: Shows selected color scheme below mode tabs
-
-═══════════════════════════════════════════════════════════════════════════════
-
-STYLE TAB - SHAPE & APPEARANCE:
-• Three Mask Options (Tabbed interface):
-  1. No Mask:
-     - Standard rectangular word cloud
-     - Full canvas utilization
-  
-  2. Image Mask:
-     - Load PNG, JPG, JPEG, BMP, GIF images
-     - White pixels = word placement areas
-     - Black/colored pixels = excluded areas
-     - Visual preview of loaded mask
-     - Contour options:
-       * Enable/disable contour outline
-       * Adjustable contour width (1-10)
-       * Custom contour color picker
-  
-  3. Text Mask:
-     - Create mask from typed text
-     - Font selection from system fonts
-     - Live font preview in actual font
-     - Adjustable font size (10-500)
-     - Bold option for thicker text
-     - Width/Height sliders with lock aspect ratio
-     - Real-time mask preview
-
-• Word Orientation:
-  - Prefer Horizontal slider (0-100%)
-  - 0% = All vertical, 100% = All horizontal
-  - Default: 90% horizontal
-
-• Other Settings:
-  - Maximum Words: Control word cloud density (1-2000)
-  - Scale: Performance vs quality tradeoff (0.1-5.0)
-
-═══════════════════════════════════════════════════════════════════════════════
-
-CANVAS TAB FEATURES:
-• Canvas Dimensions:
-  - Width: 100-3000 pixels
-  - Height: 100-3000 pixels
-  - Common presets: 800x600, 1024x768, 1920x1080, Square (1000x1000)
-
-• Color Mode:
-  - RGB: Solid background colors
-  - RGBA: Transparent background support
-
-• Background Color:
-  - Color picker for custom backgrounds
-  - Only active in RGB mode
-  - Visual preview of selected color
-
-═══════════════════════════════════════════════════════════════════════════════
-
-PREVIEW AREA:
-• Real-time canvas preview with dimensions
-• Generate Word Cloud button
-• Save Image button (enabled after generation)
-• Clear button to reset canvas
-• Progress indicator during generation
-
-═══════════════════════════════════════════════════════════════════════════════
-
-FILE MENU OPTIONS:
-• Load Config: Load saved settings from JSON file
-• Save Config As...: Save current settings to a new file
-• Save Config: Quick save to wordcloud_config.json
-• Reset: Restore all settings to defaults (with confirmation)
-• Help: Show this comprehensive guide
-• Exit: Close the application (auto-saves config)
-
-Configuration includes:
-- All filter settings
-- Color mode and selections
-- Custom gradient colors
-- Canvas dimensions and background
-- Mask settings
-- Word orientation and density
-- Scale settings
-
-═══════════════════════════════════════════════════════════════════════════════
-
-THEME SELECTION:
-• 18 available UI themes via dropdown
-• Light themes: Cosmo, Flatly, Journal, Litera, Lumen, Minty, 
-  Pulse, Sandstone, United, Yeti
-• Dark themes: Darkly, Cyborg, Superhero, Solar, Vapor
-
-═══════════════════════════════════════════════════════════════════════════════
-
-TIPS & BEST PRACTICES:
-• For text masks, use large, bold fonts for better results
-• High-contrast mask images work best (pure black & white)
-• Increase canvas size for print-quality exports
-• Use RGBA mode for overlays and transparent backgrounds
-• Scale setting: Lower = faster generation, Higher = better quality
-• Save configurations for consistent branding
-• The app auto-saves/loads config from 'wordcloud_config.json'
-
-═══════════════════════════════════════════════════════════════════════════════
-
-TROUBLESHOOTING:
-• If fonts don't appear, restart the app to refresh font list
-• For better performance with large texts, reduce max words
-• If mask doesn't work, ensure image has clear white areas
-• Text mask generation may be slow for complex fonts
-
-Created by @ghost-ng
-"""
+        """Show help in browser"""
+        # Import at the top to catch errors early
+        import webbrowser
         
-        # Create help window
-        help_window = tk.Toplevel(self.root)
-        help_window.title("WordCloud Magic - Help")
-        help_window.geometry("700x600")
+        try:
+            import markdown2
+        except ImportError:
+            self.show_toast("markdown2 module not installed - please install it with: pip install markdown2", "danger")
+            return
         
-        # Create scrolled text widget
-        from tkinter import scrolledtext
-        help_display = scrolledtext.ScrolledText(help_window, wrap=tk.WORD, width=80, height=30)
-        help_display.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Insert help text
-        help_display.insert(1.0, help_text)
-        help_display.config(state=tk.DISABLED)  # Make read-only
-        
-        # Close button
-        close_btn = ttk.Button(help_window, text="Close", command=help_window.destroy)
-        close_btn.pack(pady=(0, 10))
-        
-        # Center the window
-        help_window.transient(self.root)
-        help_window.grab_set()
+        try:
+            # Get base directory
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Read the help.md file from templates folder
+            help_md_path = os.path.join(base_dir, 'templates', 'help.md')
+            
+            # Check if help.md exists
+            if not os.path.exists(help_md_path):
+                self.show_toast("templates/help.md file not found", "danger")
+                return
+                
+            with open(help_md_path, 'r', encoding='utf-8') as f:
+                markdown_content = f.read()
+            
+            # Convert markdown to HTML with extras for better formatting
+            html_content = markdown2.markdown(
+                markdown_content,
+                extras=['tables', 'fenced-code-blocks', 'header-ids', 'toc']
+            )
+            
+            # Read the HTML template
+            template_path = os.path.join(base_dir, 'templates', 'help_template.html')
+            if not os.path.exists(template_path):
+                self.show_toast("templates/help_template.html not found", "danger")
+                return
+                
+            with open(template_path, 'r', encoding='utf-8') as f:
+                html_template = f.read()
+            
+            # Replace the {content} placeholder with the generated HTML
+            full_html = html_template.replace('{content}', html_content)
+            
+            # Create temp directory if it doesn't exist
+            temp_dir = os.path.join(base_dir, 'temp')
+            if not os.path.exists(temp_dir):
+                os.makedirs(temp_dir)
+            
+            # Create HTML file in local temp directory
+            import time
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            temp_filename = f"help_{timestamp}.html"
+            temp_path = os.path.join(temp_dir, temp_filename)
+            
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                f.write(full_html)
+            
+            # Open in default browser
+            # Convert path to proper file URL for Windows
+            if os.name == 'nt':  # Windows
+                file_url = 'file:///' + temp_path.replace('\\', '/')
+            else:
+                file_url = f'file://{temp_path}'
+            
+            print(f"Opening help in browser: {file_url}")  # Debug
+            webbrowser.open(file_url)
+            
+            # Schedule deletion of temp file after a delay
+            def cleanup():
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+            
+            self.root.after(30000, cleanup)  # Delete after 30 seconds
+            
+            self.show_toast("Help opened in your browser", "info")
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"Error opening help: {str(e)}"
+            print(f"Help error: {error_msg}")
+            print(traceback.format_exc())
+            self.show_toast(error_msg, "danger")
 
 def main():
     # Create the app with a modern theme
