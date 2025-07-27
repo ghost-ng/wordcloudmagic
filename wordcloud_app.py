@@ -2898,12 +2898,29 @@ class ModernWordCloudApp:
             # RGBA mode - disable background color
             self.bg_label.configure(state=DISABLED)
             self.bg_color_btn.configure(state=DISABLED)
+            
+            # Disable contour options in RGBA mode
+            if hasattr(self, 'contour_width_scale'):
+                self.contour_width_scale.configure(state=DISABLED)
+            if hasattr(self, 'contour_color_btn'):
+                self.contour_color_btn.configure(state=DISABLED)
+            
             if show_toast:
                 self.show_toast("RGBA mode enabled - background will be transparent", "info")
+                if self.contour_width.get() > 0:
+                    self.show_toast("Note: Contours disabled in RGBA mode", "warning")
         else:
             # RGB mode - enable background color
             self.bg_label.configure(state=NORMAL)
             self.bg_color_btn.configure(state=NORMAL)
+            
+            # Re-enable contour options if mask is selected
+            if hasattr(self, 'mask_image') and self.mask_image is not None:
+                if hasattr(self, 'contour_width_scale'):
+                    self.contour_width_scale.configure(state=NORMAL)
+                if hasattr(self, 'contour_color_btn'):
+                    self.contour_color_btn.configure(state=NORMAL)
+            
             if show_toast:
                 self.show_toast("RGB mode enabled - solid background", "info")
     
@@ -2945,6 +2962,10 @@ class ModernWordCloudApp:
         # Check if using text mask with no text
         if self.mask_type.get() == "text" and not self.text_mask_input.get():
             issues.append(("error", "Text mask selected but no text provided"))
+        
+        # Check if using RGBA mode with contours
+        if self.rgba_mode.get() and self.mask_image is not None and self.contour_width.get() > 0:
+            issues.append(("error", "Contours are not supported in RGBA (transparent) mode. Please disable contours or switch to RGB mode"))
         
         # Check max words
         if self.max_words.get() < 5:
@@ -3049,9 +3070,13 @@ class ModernWordCloudApp:
             
             if self.mask_image is not None:
                 wc_params['mask'] = self.mask_image
-                if self.contour_width.get() > 0:
+                # Disable contours in RGBA mode due to wordcloud library bug
+                # (shape mismatch between RGBA image and RGB contour)
+                if self.contour_width.get() > 0 and not self.rgba_mode.get():
                     wc_params['contour_width'] = self.contour_width.get()
                     wc_params['contour_color'] = self.contour_color.get()
+                elif self.contour_width.get() > 0 and self.rgba_mode.get():
+                    self.print_warning("Contours disabled in RGBA mode due to library compatibility")
             
             self.wordcloud = WordCloud(**wc_params).generate(filtered_text)
             
@@ -3073,7 +3098,15 @@ class ModernWordCloudApp:
             self.print_fail("No wordcloud object to display")
             return
             
-        wc_image = self.wordcloud.to_image()
+        try:
+            wc_image = self.wordcloud.to_image()
+        except ValueError as e:
+            if "broadcast together with shapes" in str(e):
+                self.print_fail("Error: RGBA mode with contours is not supported due to library limitations")
+                self.show_toast("Please disable contours or switch to RGB mode", "danger")
+                return
+            else:
+                raise
         
         # Ensure preview size is updated
         display_width, display_height = self.calculate_preview_size()

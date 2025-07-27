@@ -1,6 +1,6 @@
 {
-  "min_length": 3,
-  "max_length": 20,
+  "min_length": 1,
+  "max_length": 50,
   "forbidden_words": [
     "the",
     "and",
@@ -21,7 +21,7 @@
     "are",
     "been"
   ],
-  "color_mode": "preset",
+  "color_mode": "custom",
   "color_scheme": "Viridis",
   "single_color": "#0078D4",
   "custom_colors": [
@@ -31,15 +31,15 @@
   ],
   "prefer_horizontal": 0.9,
   "letter_thickness": 1.0,
-  "canvas_width": 3485,
+  "canvas_width": 1920,
   "canvas_height": 1080,
-  "background_color": "#ffffff",
-  "rgba_mode": false,
+  "background_color": "#000000",
+  "rgba_mode": true,
   "max_words": 200,
   "scale": 1,
   "theme": "cosmo",
-  "mask_type": "no_mask",
-  "mask_path": "No mask",
-  "contour_color": "#000000",
+  "mask_type": "text_mask",
+  "mask_path": "Text: Mommy!",
+  "contour_color": "#3bc2c4",
   "working_directory": "C:/Users/miguel/Downloads/Papers"
 }
