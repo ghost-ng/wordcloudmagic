@@ -1688,25 +1688,12 @@ class ModernWordCloudApp:
         preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
         preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
         
-        # Create border frame for text mask preview
-        if "text" in str(parent).lower() or not ("image" in str(parent).lower()):
-            # Create frame with border for text mask
-            border_frame = ttk.Frame(preview_container, bootstyle="secondary", padding=2)
-            border_frame.pack(fill=BOTH, expand=TRUE, padx=5, pady=5)
-            
-            preview_label = ttk.Label(border_frame,
-                                     text="No mask selected",
-                                     anchor=CENTER,
-                                     font=('Segoe UI', 10),
-                                     background='white')
-            preview_label.pack(fill=BOTH, expand=TRUE)
-        else:
-            # Regular label for image mask
-            preview_label = ttk.Label(preview_container,
-                                     text="No mask selected",
-                                     anchor=CENTER,
-                                     font=('Segoe UI', 10))
-            preview_label.pack(fill=BOTH, expand=TRUE)
+        # Create a label for this specific tab
+        preview_label = ttk.Label(preview_container,
+                                 text="No mask selected",
+                                 anchor=CENTER,
+                                 font=('Segoe UI', 10))
+        preview_label.pack(fill=BOTH, expand=TRUE)
         
         # Store reference based on parent tab
         if "image" in str(parent):
@@ -3147,6 +3134,25 @@ class ModernWordCloudApp:
             
             # Resize for preview maintaining aspect ratio
             preview_img.thumbnail((preview_width, preview_height), Image.Resampling.LANCZOS)
+            
+            # Add border to text mask preview
+            if current_tab == 2:  # Text mask tab
+                # Create a new image with border
+                border_width = 2
+                border_color = '#6B7280'  # Gray border
+                
+                # Get the size after thumbnail
+                img_width, img_height = preview_img.size
+                
+                # Create new image with border
+                bordered_img = Image.new('RGB', 
+                                       (img_width + 2*border_width, img_height + 2*border_width), 
+                                       border_color)
+                
+                # Paste the preview image in the center
+                bordered_img.paste(preview_img, (border_width, border_width))
+                preview_img = bordered_img
+            
             photo = ImageTk.PhotoImage(preview_img)
             
             # Update the preview label
