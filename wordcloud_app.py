@@ -968,27 +968,13 @@ class ModernWordCloudApp:
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
         
-        # Color mode selection
-        mode_frame = ttk.Frame(color_frame)
-        mode_frame.pack(fill=X, pady=(0, 10))
-        
-        ttk.Radiobutton(mode_frame, text="Single Color", variable=self.color_mode, 
-                       value="single", command=self.on_color_mode_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Preset Gradients", variable=self.color_mode,
-                       value="preset", command=self.on_color_mode_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Custom Gradient", variable=self.color_mode,
-                       value="custom", command=self.on_color_mode_change,
-                       bootstyle="primary").pack(side=LEFT)
-        
-        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create notebook for different color modes
-        self.color_notebook = ttk.Notebook(color_frame)
+        self.color_notebook = ttk.Notebook(color_frame, bootstyle="primary")
         self.color_notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Bind tab change event
+        self.color_notebook.bind("<<NotebookTabChanged>>", self.on_color_tab_changed)
         
         # Single color tab
         single_tab = ttk.Frame(self.color_notebook)
@@ -1155,39 +1141,16 @@ class ModernWordCloudApp:
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
-        # Radio buttons for mask selection
-        radio_frame = ttk.Frame(mask_frame)
-        radio_frame.pack(fill=X, pady=(0, 10))
-        
-        # Radio button frame
-        mode_frame = ttk.Frame(radio_frame)
-        mode_frame.pack(anchor='w')
-        
         self.mask_type = tk.StringVar(value="no_mask")
-        
-        ttk.Radiobutton(mode_frame, text="No Mask", 
-                       variable=self.mask_type, 
-                       value="no_mask",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Image Mask", 
-                       variable=self.mask_type, 
-                       value="image_mask",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Text Mask", 
-                       variable=self.mask_type, 
-                       value="text_mask",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT)
         
         ttk.Separator(mask_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create notebook for mask options
-        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
+        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="primary")
         self.mask_notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Bind tab change event
+        self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
         # Create tabs
         self.create_no_mask_tab()
@@ -2755,6 +2718,28 @@ class ModernWordCloudApp:
         if self.color_mode.get() == "preset":
             self.update_combined_color_preview()
         
+    def on_color_tab_changed(self, event):
+        """Handle color notebook tab change"""
+        selected_tab = event.widget.index('current')
+        if selected_tab == 0:  # Single Color
+            self.color_mode.set("single")
+        elif selected_tab == 1:  # Preset Gradients
+            self.color_mode.set("preset")
+        elif selected_tab == 2:  # Custom Gradient
+            self.color_mode.set("custom")
+        self.on_color_mode_change()
+    
+    def on_mask_tab_changed(self, event):
+        """Handle mask notebook tab change"""
+        selected_tab = event.widget.index('current')
+        if selected_tab == 0:  # No Mask
+            self.mask_type.set("no_mask")
+        elif selected_tab == 1:  # Image Mask
+            self.mask_type.set("image_mask")
+        elif selected_tab == 2:  # Text Mask
+            self.mask_type.set("text_mask")
+        self.on_mask_type_change()
+    
     def on_color_mode_change(self):
         """Handle color mode radio button change"""
         mode = self.color_mode.get()
