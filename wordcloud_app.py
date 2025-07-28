@@ -786,7 +786,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
             
             # Add description
-            ttk.Label(min_container, text="Filter out words shorter than this", 
+            ttk.Label(min_container, text="Filter out words shorter than this (1-50)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.min_length_meter = Meter(
@@ -795,8 +795,8 @@ class ModernWordCloudApp:
                 amountused=3,
                 amounttotal=50,
                 metertype='semi',
-                textleft='1',
-                textright='50 chars',
+                textleft='',
+                textright='chars',
                 interactive=True,
                 bootstyle='primary'
             )
@@ -837,7 +837,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
             
             # Add description
-            ttk.Label(max_container, text="Filter out words longer than this", 
+            ttk.Label(max_container, text="Filter out words longer than this (1-50)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.max_length_meter = Meter(
@@ -846,8 +846,8 @@ class ModernWordCloudApp:
                 amountused=30,
                 amounttotal=50,
                 metertype='semi',
-                textleft='1',
-                textright='50 chars',
+                textleft='',
+                textright='chars',
                 interactive=True,
                 bootstyle='info'
             )
@@ -1257,7 +1257,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(thickness_container, text="Line thickness for text masks", 
+            ttk.Label(thickness_container, text="Line thickness for text masks (0.5-3)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.thickness_meter = Meter(
@@ -1266,8 +1266,8 @@ class ModernWordCloudApp:
                 amountused=1,
                 amounttotal=3,
                 metertype='full',
-                textleft='0.5',
-                textright='3',
+                textleft='',
+                textright='',
                 interactive=True,
                 bootstyle='warning',
                 stripethickness=10
@@ -1309,7 +1309,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(max_words_container, text="Maximum words to display", 
+            ttk.Label(max_words_container, text="Maximum words to display (10-500)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.max_words_meter = Meter(
@@ -1318,8 +1318,8 @@ class ModernWordCloudApp:
                 amountused=200,
                 amounttotal=500,
                 metertype='full',
-                textleft='10',
-                textright='500',
+                textleft='',
+                textright='',
                 interactive=True,
                 bootstyle='success'
             )
@@ -1356,7 +1356,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(scale_container, text="Higher = better quality, slower", 
+            ttk.Label(scale_container, text="Higher = better quality, slower (1-10)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.scale_meter = Meter(
@@ -1365,8 +1365,8 @@ class ModernWordCloudApp:
                 amountused=1,
                 amounttotal=10,
                 metertype='full',
-                textleft='1',
-                textright='10',
+                textleft='',
+                textright='',
                 interactive=True,
                 bootstyle='warning',
                 stripethickness=10
@@ -1403,7 +1403,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(words_container, text="Words per line in text masks", 
+            ttk.Label(words_container, text="Words per line in text masks (1-10)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.words_per_line_meter = Meter(
@@ -1412,8 +1412,8 @@ class ModernWordCloudApp:
                 amountused=1,
                 amounttotal=10,
                 metertype='full',
-                textleft='1',
-                textright='10 words',
+                textleft='',
+                textright='words',
                 interactive=True,
                 bootstyle='info',
                 stripethickness=10
@@ -1482,7 +1482,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(width_container, text="Canvas width in pixels", 
+            ttk.Label(width_container, text="Canvas width in pixels (100-4000)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.width_meter = Meter(
@@ -1491,8 +1491,8 @@ class ModernWordCloudApp:
                 amountused=800,
                 amounttotal=4000,
                 metertype='semi',
-                textleft='100',
-                textright='4000 px',
+                textleft='',
+                textright='px',
                 interactive=True,
                 bootstyle='primary'
             )
@@ -1528,7 +1528,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(height_container, text="Canvas height in pixels", 
+            ttk.Label(height_container, text="Canvas height in pixels (100-4000)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.height_meter = Meter(
@@ -1537,8 +1537,8 @@ class ModernWordCloudApp:
                 amountused=600,
                 amounttotal=4000,
                 metertype='semi',
-                textleft='100',
-                textright='4000 px',
+                textleft='',
+                textright='px',
                 interactive=True,
                 bootstyle='primary'
             )
@@ -1789,7 +1789,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(font_size_container, text="Font size for text mask", 
+            ttk.Label(font_size_container, text="Font size for text mask (10-2000)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.font_size_meter = Meter(
@@ -1798,8 +1798,8 @@ class ModernWordCloudApp:
                 amountused=200,
                 amounttotal=2000,
                 metertype='semi',
-                textleft='10',
-                textright='2000',
+                textleft='',
+                textright='',
                 interactive=True,
                 bootstyle='info'
             )
@@ -1861,7 +1861,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(width_container, text="Outline thickness around shape", 
+            ttk.Label(width_container, text="Outline thickness around shape (0-30)", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.outline_width_meter = Meter(
@@ -1870,8 +1870,8 @@ class ModernWordCloudApp:
                 amountused=0.0,
                 amounttotal=30,
                 metertype='semi',
-                textleft='0',
-                textright='30 px',
+                textleft='',
+                textright='px',
                 interactive=True,
                 bootstyle='primary',
                 stripethickness=10,
