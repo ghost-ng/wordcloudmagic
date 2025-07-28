@@ -337,7 +337,7 @@ class ModernWordCloudApp:
         self.mask_path = tk.StringVar(value="No mask selected")
         self.min_word_length = tk.IntVar(value=3)
         self.max_word_length = tk.IntVar(value=20)
-        self.forbidden_words = set(STOPWORDS)
+        self.forbidden_words = set()  # Start empty, will be populated from text area
         self.selected_colormap = "viridis"
         self.color_mode = tk.StringVar(value="preset")  # "single", "preset", or "custom"
         self.single_color = tk.StringVar(value="#0078D4")
@@ -742,9 +742,11 @@ class ModernWordCloudApp:
                                           wrap=tk.WORD)
         self.forbidden_text.pack(fill=BOTH, expand=TRUE, padx=1, pady=1)
         
-        # Pre-populate with common stop words
-        default_forbidden = "the\nand\nor\nbut\nin\non\nat\nto\nfor\nof\nwith\nby\nfrom\nas\nis\nwas\nare\nbeen"
-        self.forbidden_text.insert('1.0', default_forbidden)
+        # Store default forbidden words for reset - using wordcloud STOPWORDS
+        self.default_forbidden = '\n'.join(sorted(STOPWORDS))
+        
+        # Don't pre-populate here - let config loading handle it
+        # If no config is loaded, we'll insert defaults later
         
         ttk.Button(forbidden_frame,
                   text="Update Forbidden Words",
@@ -2225,10 +2227,14 @@ class ModernWordCloudApp:
     def update_forbidden_words(self, show_toast=True):
         """Update forbidden words set"""
         text = self.forbidden_text.get('1.0', tk.END).strip()
-        self.forbidden_words = set(STOPWORDS)
+        # Only use the words explicitly listed in the text area, not STOPWORDS
+        self.forbidden_words = set()
         if text:
             custom_forbidden = set(word.strip().lower() for word in text.split('\n') if word.strip())
             self.forbidden_words.update(custom_forbidden)
+            self.print_debug(f"Custom forbidden words: {self.forbidden_words}")
+        
+        self.print_debug(f"Updated forbidden words from GUI text area: {len(self.forbidden_words)} words")
         if show_toast:
             self.show_toast(f"Updated forbidden words ({len(self.forbidden_words)} total)", "info")
     
@@ -2936,10 +2942,51 @@ class ModernWordCloudApp:
         min_len = self.min_word_length.get()
         max_len = self.max_word_length.get()
         
+        self.print_debug(f"Filtering words: min_length={min_len}, max_length={max_len}, total_words={len(words)}")
+        
+        # Count words by length for debugging
+        length_counts = {}
+        filtered_by_length = 0
+        filtered_by_forbidden = 0
+        
+        # Debug: show first 10 words being processed
+        debug_limit = 10
+        words_shown = 0
+        
         for word in words:
-            if (min_len <= len(word) <= max_len and 
-                word not in self.forbidden_words):
-                filtered_words.append(word)
+            word_len = len(word)
+            length_counts[word_len] = length_counts.get(word_len, 0) + 1
+            
+            # Detailed debug for first few words
+            if words_shown < debug_limit:
+                if min_len <= word_len <= max_len:
+                    if word not in self.forbidden_words:
+                        self.print_debug(f"  ✓ '{word}' (len={word_len}) - KEPT")
+                        filtered_words.append(word)
+                    else:
+                        self.print_debug(f"  ✗ '{word}' (len={word_len}) - FORBIDDEN")
+                        filtered_by_forbidden += 1
+                else:
+                    self.print_debug(f"  ✗ '{word}' (len={word_len}) - TOO SHORT/LONG")
+                    filtered_by_length += 1
+                words_shown += 1
+            else:
+                # Just count for remaining words
+                if min_len <= word_len <= max_len:
+                    if word not in self.forbidden_words:
+                        filtered_words.append(word)
+                    else:
+                        filtered_by_forbidden += 1
+                else:
+                    filtered_by_length += 1
+        
+        # Log length distribution for words under min_length
+        short_words = {k: v for k, v in length_counts.items() if k < min_len}
+        if short_words:
+            self.print_debug(f"Words shorter than min_length ({min_len}): {short_words}")
+        
+        self.print_debug(f"After filtering: {len(filtered_words)} words remain")
+        self.print_debug(f"Filtered out: {filtered_by_length} by length, {filtered_by_forbidden} by forbidden list")
         
         return ' '.join(filtered_words)
     
@@ -3077,6 +3124,9 @@ class ModernWordCloudApp:
                     wc_params['contour_color'] = self.contour_color.get()
                 elif self.contour_width.get() > 0 and self.rgba_mode.get():
                     self.print_warning("Contours disabled in RGBA mode due to library compatibility")
+            
+            # Use our forbidden words instead of default STOPWORDS
+            wc_params['stopwords'] = self.forbidden_words
             
             self.wordcloud = WordCloud(**wc_params).generate(filtered_text)
             
@@ -3449,12 +3499,14 @@ class ModernWordCloudApp:
                 self.print_debug(f"  {key}: {value}")
             # Apply basic settings
             if 'min_length' in config:
+                self.print_debug(f"Loading min_length: {config['min_length']}")
                 self.min_word_length.set(config['min_length'])
                 if self.min_length_meter:
                     self.min_length_meter.amountusedvar.set(config['min_length'])
                 elif self.min_length_scale:
                     self.min_length_scale.set(config['min_length'])
                     self.min_length_label.config(text=str(config['min_length']))
+                self.print_debug(f"min_word_length after loading: {self.min_word_length.get()}")
             if 'max_length' in config:
                 self.max_word_length.set(config['max_length'])
                 if self.max_length_meter:
@@ -3463,9 +3515,13 @@ class ModernWordCloudApp:
                     self.max_length_scale.set(config['max_length'])
                     self.max_length_label.config(text=str(config['max_length']))
             if 'forbidden_words' in config:
+                self.print_debug(f"Loading {len(config['forbidden_words'])} forbidden words from config")
                 self.forbidden_text.delete(1.0, tk.END)
-                self.forbidden_text.insert(1.0, '\n'.join(config['forbidden_words']))
+                forbidden_text = '\n'.join(config['forbidden_words'])
+                self.forbidden_text.insert(1.0, forbidden_text)
+                # Update the forbidden words set from the text area
                 self.update_forbidden_words(show_toast=False)
+                self.print_debug(f"Forbidden words set now has {len(self.forbidden_words)} words")
             
             # Apply color settings
             if 'color_mode' in config:
@@ -3623,6 +3679,12 @@ class ModernWordCloudApp:
                     self.populate_file_list(show_toast=False)
                     self.print_debug(f"Populated file list for directory: {config['working_directory']}")
             
+            # Load pasted text if present
+            if 'pasted_text' in config and hasattr(self, 'text_input'):
+                self.text_input.delete('1.0', tk.END)
+                self.text_input.insert('1.0', config['pasted_text'])
+                self.print_debug(f"Loaded pasted text: {len(config['pasted_text'])} characters")
+            
             if show_message:
                 self.show_message("Configuration loaded successfully", "good")
             
@@ -3654,6 +3716,7 @@ class ModernWordCloudApp:
     
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
+        config_loaded = False
         config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
         if not os.path.exists(config_file):
             # Try configs directory
@@ -3668,6 +3731,7 @@ class ModernWordCloudApp:
                         config = json.loads(content)
                         self.apply_config(config, show_message=False)
                         self.print_info(f"Auto-loaded configuration from {config_file}")
+                        config_loaded = True
                     else:
                         self.print_warning("Config file is empty, skipping auto-load")
             except json.JSONDecodeError as e:
@@ -3675,6 +3739,12 @@ class ModernWordCloudApp:
                 self.print_warning("Consider deleting the config file or fixing the JSON syntax")
             except Exception as e:
                 self.print_fail(f"Failed to auto-load config: {e}")
+        
+        # If no config was loaded, populate forbidden words with defaults
+        if not config_loaded:
+            self.print_debug("No config loaded, using default forbidden words")
+            self.forbidden_text.insert('1.0', self.default_forbidden)
+            self.update_forbidden_words(show_toast=False)
     
     def get_current_config(self):
         """Get current configuration as dictionary"""
@@ -3686,7 +3756,9 @@ class ModernWordCloudApp:
         if hasattr(self, 'max_word_length'):
             config['max_length'] = self.max_word_length.get()
         if hasattr(self, 'forbidden_text'):
-            config['forbidden_words'] = self.forbidden_text.get(1.0, tk.END).strip().split('\n')
+            # Get forbidden words and filter out empty lines
+            forbidden_text = self.forbidden_text.get(1.0, tk.END).strip()
+            config['forbidden_words'] = [word.strip() for word in forbidden_text.split('\n') if word.strip()]
         
         # Color settings
         if hasattr(self, 'color_mode'):
@@ -3754,9 +3826,13 @@ class ModernWordCloudApp:
         if hasattr(self, 'working_folder'):
             config['working_directory'] = self.working_folder.get()
         
-        # Default forbidden words
-        if hasattr(self, 'default_forbidden'):
-            config['default_forbidden'] = self.default_forbidden
+        # Save pasted text if any
+        if hasattr(self, 'text_input'):
+            pasted_text = self.text_input.get('1.0', tk.END).strip()
+            if pasted_text:
+                config['pasted_text'] = pasted_text
+        
+        # Note: We don't save default_forbidden as it's only for reset functionality
         
         return config
     
@@ -3842,8 +3918,8 @@ class ModernWordCloudApp:
         # Confirm reset
         if messagebox.askyesno("Reset Application", "Are you sure you want to reset all settings to defaults?"):
             # Reset filter settings
-            self.min_length_var.set(3)
-            self.max_length_var.set(30)
+            self.min_word_length.set(3)
+            self.max_word_length.set(30)
             self.forbidden_text.delete(1.0, tk.END)
             self.forbidden_text.insert(1.0, self.default_forbidden)
             self.update_forbidden_words(show_toast=False)
