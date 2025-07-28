@@ -1,5 +1,5 @@
 {
-  "min_length": 8,
+  "min_length": 6,
   "max_length": 50,
   "forbidden_words": [
     "about",
@@ -142,11 +142,11 @@
   "canvas_height": 800,
   "background_color": "#ffffff",
   "rgba_mode": false,
-  "max_words": 200,
+  "max_words": 118,
   "scale": 1,
   "theme": "cosmo",
-  "mask_type": "no_mask",
-  "mask_path": "No mask",
+  "mask_type": "text_mask",
+  "mask_path": "Text: CYBER",
   "contour_color": "#000000",
   "working_directory": "C:/Users/miguel/Downloads/Papers"
 }

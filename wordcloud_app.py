@@ -48,6 +48,11 @@ class ToastManager:
     
     def show_toast(self, message, style="info", duration=15000):
         """Show a stacked toast notification"""
+        # Truncate message if too long
+        max_chars = 80
+        if len(message) > max_chars:
+            message = message[:max_chars-3] + "..."
+        
         # Calculate Y position based on existing toasts
         y_position = self.base_y_offset
         
@@ -64,6 +69,20 @@ class ToastManager:
                         y_position += toast_height + self.toast_gap
                     except:
                         y_position += 80 + self.toast_gap  # Fallback height
+        
+        # Add status icon based on style
+        icon_map = {
+            "info": "ℹ️",
+            "success": "✅",
+            "warning": "⚠️",
+            "danger": "❌",
+            "error": "❌",
+            "primary": "🔵",
+            "secondary": "⚪"
+        }
+        icon = icon_map.get(style, "")
+        if icon:
+            message = f"{icon} {message}"
         
         # Create toast
         toast = ToastNotification(
@@ -1836,6 +1855,9 @@ class ModernWordCloudApp:
             # Update text mask if text exists
             if self.text_mask_input.get():
                 self.update_text_mask()
+        
+        # Update the mode label
+        self.update_mode_label()
     
     
     def update_font_size(self, value):
@@ -2227,8 +2249,7 @@ class ModernWordCloudApp:
         self.file_listbox.selection_clear(0, tk.END)
         self.text_content = ""
         # Update source mode label
-        if hasattr(self, 'source_mode_label'):
-            self.source_mode_label.config(text="Mode: None")
+        self.update_mode_label()
         self.show_message("File selection cleared", "info")
     
     def load_files(self):
@@ -2242,8 +2263,7 @@ class ModernWordCloudApp:
         folder = self.working_folder.get()
         
         # Update source mode label
-        if hasattr(self, 'source_mode_label'):
-            self.source_mode_label.config(text="Mode: Files")
+        self.update_mode_label(source="Files")
         
         for idx in selected_indices:
             filename = self.file_listbox.get(idx).replace("📄 ", "")
@@ -2292,8 +2312,7 @@ class ModernWordCloudApp:
         self.text_content = self.text_input.get('1.0', tk.END).strip()
         if self.text_content:
             # Update source mode label
-            if hasattr(self, 'source_mode_label'):
-                self.source_mode_label.config(text="Mode: Custom Text")
+            self.update_mode_label(source="Custom Text")
             word_count = len(self.text_content.split())
             self.show_message(f"Text loaded successfully with approximately {word_count:,} words", "good")
             self.show_toast("Text loaded successfully", "success")
@@ -2336,6 +2355,48 @@ class ModernWordCloudApp:
             # Ensure min is not greater than max
             if self.min_length_meter and self.min_length_meter.amountusedvar.get() > val:
                 self.min_length_meter.amountusedvar.set(val)
+    
+    def update_mode_label(self, source=None):
+        """Update the mode label with source and mask information"""
+        if not hasattr(self, 'source_mode_label'):
+            return
+        
+        # Determine source
+        if source is None:
+            if self.text_content:
+                # Check if it's from files or custom text
+                if hasattr(self, 'file_listbox') and self.file_listbox.curselection():
+                    source = "Files"
+                else:
+                    source = "Custom Text"
+            else:
+                source = "None"
+        
+        # Determine mask type with icons
+        mask_icons = {
+            "none": "⬜",
+            "no_mask": "⬜",
+            "image": "🖼️",
+            "image_mask": "🖼️",
+            "text": "🔤",
+            "text_mask": "🔤"
+        }
+        
+        mask_type = self.mask_type.get() if hasattr(self, 'mask_type') else "none"
+        mask_icon = mask_icons.get(mask_type, "⬜")
+        
+        # Build mask description
+        if mask_type in ["none", "no_mask"]:
+            mask_desc = f"{mask_icon} No Mask"
+        elif mask_type in ["image", "image_mask"]:
+            mask_desc = f"{mask_icon} Image Mask"
+        elif mask_type in ["text", "text_mask"]:
+            mask_desc = f"{mask_icon} Text Mask"
+        else:
+            mask_desc = f"{mask_icon} No Mask"
+        
+        # Update label
+        self.source_mode_label.config(text=f"Source: {source} | Mask: {mask_desc}")
     
     def update_forbidden_words(self, show_toast=True):
         """Update forbidden words set"""
@@ -2564,6 +2625,9 @@ class ModernWordCloudApp:
                 
                 # Enable contour options when mask is selected
                 self.update_contour_state(True)
+                
+                # Update mode label
+                self.update_mode_label()
             except Exception as e:
                 self.show_toast(f"Error loading mask: {str(e)}", "danger")
     
@@ -2582,6 +2646,9 @@ class ModernWordCloudApp:
         
         # Disable contour options when mask is cleared
         self.update_contour_state(False)
+        
+        # Update mode label
+        self.update_mode_label()
     
     def create_text_mask(self, text, width=None, height=None, font_size=None):
         """Create a mask image from text"""
@@ -2686,6 +2753,9 @@ class ModernWordCloudApp:
             
             # Enable contour options
             self.update_contour_state(True)
+            
+            # Update mode label
+            self.update_mode_label()
     
     def update_mask_preview(self):
         """Update the mask preview display"""
@@ -4018,12 +4088,6 @@ class ModernWordCloudApp:
             else:
                 self.show_message("Failed to export configuration", "fail")
     
-    def auto_save_config(self):
-        """Auto-save configuration to local file"""
-        # Only save if UI has been created and is ready
-        if hasattr(self, 'ui_ready') and self.ui_ready:
-            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
-            self.save_config_to_file(config_file)
     
     def save_config_locally(self):
         """Save configuration to local file with user feedback"""
@@ -4034,11 +4098,7 @@ class ModernWordCloudApp:
             self.show_message("Failed to save configuration locally", "fail")
     
     def on_closing(self):
-        """Handle application closing - save config and exit"""
-        try:
-            self.auto_save_config()
-        except Exception as e:
-            print(f"Could not save config on exit: {e}")
+        """Handle application closing"""
         self.root.quit()
     
     def reset_app(self):
@@ -4129,9 +4189,6 @@ class ModernWordCloudApp:
             # Reset theme to default
             self.current_theme.set("cosmo")
             self.root.style.theme_use("cosmo")
-            
-            # Save the reset state
-            self.auto_save_config()
             
             self.show_message("Application reset to defaults", "good")
     
