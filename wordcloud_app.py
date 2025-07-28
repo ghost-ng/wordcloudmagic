@@ -583,6 +583,9 @@ class ModernWordCloudApp:
         # Mark UI as ready
         self.ui_ready = True
         
+        # Initialize status bar labels
+        self.update_color_scheme_label()
+        
         # Bind window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
@@ -2207,6 +2210,31 @@ class ModernWordCloudApp:
         self.mask_label = tk.Label(mask_text_frame, text="No Mask", font=('Segoe UI', 11, 'bold'), bg='#F3F4F6', fg='#1F2937')
         self.mask_label.pack(anchor='w')
         
+        # Second divider
+        divider2 = tk.Frame(inner_container, bg='#E5E7EB', width=1)
+        divider2.pack(side=LEFT, fill=Y, padx=30)
+        
+        # Color scheme info
+        color_frame = tk.Frame(inner_container, bg='#F3F4F6')
+        color_frame.pack(side=LEFT, fill=Y)
+        
+        # Color container
+        color_container = tk.Frame(color_frame, bg='#F3F4F6')
+        color_container.pack(expand=True)
+        
+        # Color icon and label
+        color_row = tk.Frame(color_container, bg='#F3F4F6')
+        color_row.pack()
+        
+        tk.Label(color_row, text="🎨", font=('Segoe UI', 14), bg='#F3F4F6', fg='#6B7280').pack(side=LEFT, padx=(0, 8))
+        
+        color_text_frame = tk.Frame(color_row, bg='#F3F4F6')
+        color_text_frame.pack(side=LEFT)
+        
+        tk.Label(color_text_frame, text="COLOR SCHEME", font=('Segoe UI', 8), bg='#F3F4F6', fg='#9CA3AF').pack(anchor='w')
+        self.color_scheme_label = tk.Label(color_text_frame, text="Single Color", font=('Segoe UI', 11, 'bold'), bg='#F3F4F6', fg='#1F2937')
+        self.color_scheme_label.pack(anchor='w')
+        
         # Add bottom border
         bottom_border = tk.Frame(status_bar, bg='#E5E7EB', height=1)
         bottom_border.pack(fill=X, side=BOTTOM)
@@ -2646,6 +2674,22 @@ class ModernWordCloudApp:
         # Update mask label
         self.mask_label.config(text=mask_desc)
     
+    def update_color_scheme_label(self):
+        """Update the color scheme label based on current selection"""
+        if not hasattr(self, 'color_scheme_label'):
+            return
+            
+        mode = self.color_mode.get()
+        
+        if mode == "single":
+            self.color_scheme_label.config(text="Single Color")
+        elif mode == "preset":
+            # Get the selected preset name
+            preset_name = self.color_var.get()
+            self.color_scheme_label.config(text=preset_name)
+        elif mode == "custom":
+            self.color_scheme_label.config(text="Custom Gradient")
+    
     def update_status_bar_colors(self, bg_color, border_color, text_color, label_color):
         """Update status bar colors based on theme"""
         # Update main container
@@ -2721,6 +2765,8 @@ class ModernWordCloudApp:
         # Update combined preview if in preset mode
         if self.color_mode.get() == "preset":
             self.update_combined_color_preview()
+        # Update color scheme label
+        self.update_color_scheme_label()
         
     def on_color_tab_changed(self, event):
         """Handle color notebook tab change"""
@@ -2757,6 +2803,9 @@ class ModernWordCloudApp:
         
         # Update the combined preview
         self.update_combined_color_preview()
+        
+        # Update color scheme label
+        self.update_color_scheme_label()
     
     def choose_custom_color(self, index):
         """Choose a color for custom gradient"""
