@@ -742,25 +742,8 @@ class ModernWordCloudApp:
                                           wrap=tk.WORD)
         self.forbidden_text.pack(fill=BOTH, expand=TRUE, padx=1, pady=1)
         
-        # Store default forbidden words for reset - matches what's shown in GUI
-        self.default_forbidden = """the
-and
-or
-but
-in
-on
-at
-to
-for
-of
-with
-by
-from
-as
-is
-was
-are
-been"""
+        # Store default forbidden words for reset - using wordcloud STOPWORDS
+        self.default_forbidden = '\n'.join(sorted(STOPWORDS))
         
         # Don't pre-populate here - let config loading handle it
         # If no config is loaded, we'll insert defaults later
@@ -2249,13 +2232,9 @@ been"""
         if text:
             custom_forbidden = set(word.strip().lower() for word in text.split('\n') if word.strip())
             self.forbidden_words.update(custom_forbidden)
+            self.print_debug(f"Custom forbidden words: {self.forbidden_words}")
         
         self.print_debug(f"Updated forbidden words from GUI text area: {len(self.forbidden_words)} words")
-        # Show a sample of forbidden words for debugging
-        if self.forbidden_words:
-            sample = list(self.forbidden_words)[:10]
-            self.print_debug(f"Sample forbidden words: {sample}")
-        
         if show_toast:
             self.show_toast(f"Updated forbidden words ({len(self.forbidden_words)} total)", "info")
     
@@ -3146,6 +3125,9 @@ been"""
                 elif self.contour_width.get() > 0 and self.rgba_mode.get():
                     self.print_warning("Contours disabled in RGBA mode due to library compatibility")
             
+            # Use our forbidden words instead of default STOPWORDS
+            wc_params['stopwords'] = self.forbidden_words
+            
             self.wordcloud = WordCloud(**wc_params).generate(filtered_text)
             
             # Update UI in main thread
@@ -3697,6 +3679,12 @@ been"""
                     self.populate_file_list(show_toast=False)
                     self.print_debug(f"Populated file list for directory: {config['working_directory']}")
             
+            # Load pasted text if present
+            if 'pasted_text' in config and hasattr(self, 'text_input'):
+                self.text_input.delete('1.0', tk.END)
+                self.text_input.insert('1.0', config['pasted_text'])
+                self.print_debug(f"Loaded pasted text: {len(config['pasted_text'])} characters")
+            
             if show_message:
                 self.show_message("Configuration loaded successfully", "good")
             
@@ -3837,6 +3825,12 @@ been"""
         # Input settings
         if hasattr(self, 'working_folder'):
             config['working_directory'] = self.working_folder.get()
+        
+        # Save pasted text if any
+        if hasattr(self, 'text_input'):
+            pasted_text = self.text_input.get('1.0', tk.END).strip()
+            if pasted_text:
+                config['pasted_text'] = pasted_text
         
         # Note: We don't save default_forbidden as it's only for reset functionality
         
