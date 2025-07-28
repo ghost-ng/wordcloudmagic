@@ -530,6 +530,12 @@ class ModernWordCloudApp:
         
         # Color schemes with descriptions
         self.color_schemes = {
+            # Military/Service themes first
+            "Army": "army",
+            "Air Force": "airforce",
+            "Navy": "navy",
+            "Cyber": "cyber",
+            # Standard colormaps
             "Viridis": "viridis",
             "Plasma": "plasma",
             "Inferno": "inferno",
@@ -557,6 +563,8 @@ class ModernWordCloudApp:
             "Mint": "mint",
             "Volcano": "volcano",
             "Aurora": "aurora",
+            "Neon": "neon",
+            "Mystic": "mystic",
             "Hacker": "hacker",
             "SolarizedDk": "solarized_dark",
             "SolarizedLt": "solarized_light",
@@ -564,11 +572,7 @@ class ModernWordCloudApp:
             "Grape": "grape",
             "Dracula": "dracula",
             "Gruvbox": "gruvbox",
-            "Monokai": "monokai",
-            "Army": "army",
-            "Air Force": "airforce",
-            "Cyber": "cyber",
-            "Navy": "navy"
+            "Monokai": "monokai"
         }
         
         # Load theme preference before creating UI
