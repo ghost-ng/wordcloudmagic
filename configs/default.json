@@ -1,5 +1,5 @@
 {
-  "min_length": 1,
+  "min_length": 5,
   "max_length": 50,
   "forbidden_words": [
     "about",
@@ -129,7 +129,7 @@
     "yourself"
   ],
   "color_mode": "preset",
-  "color_scheme": "Viridis",
+  "color_scheme": "Navy",
   "single_color": "#0078D4",
   "custom_colors": [
     "#FF0000",
@@ -145,9 +145,8 @@
   "max_words": 200,
   "scale": 1,
   "theme": "cosmo",
-  "mask_type": "no_mask",
-  "mask_path": "No mask",
+  "mask_type": "text_mask",
+  "mask_path": "Text: CYBER",
   "contour_color": "#000000",
-  "working_directory": "No folder selected",
-  "pasted_text": "this is a test of the system"
+  "working_directory": "C:/Users/miguel/Downloads/Papers"
 }

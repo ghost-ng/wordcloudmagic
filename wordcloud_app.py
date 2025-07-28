@@ -39,48 +39,89 @@ from io import BytesIO
 
 class ToastManager:
     """Manages stacked toast notifications"""
-    def __init__(self):
+    def __init__(self, root):
+        self.root = root
         self.active_toasts = []
-        self.toast_height = 60  # Approximate height of each toast
         self.toast_gap = 10
         self.base_y_offset = 50
+        self.screen_width = root.winfo_screenwidth()
     
     def show_toast(self, message, style="info", duration=15000):
         """Show a stacked toast notification"""
-        # Calculate position for new toast
-        y_position = self.base_y_offset + len(self.active_toasts) * (self.toast_height + self.toast_gap)
+        # Calculate Y position based on existing toasts
+        y_position = self.base_y_offset
         
-        # Create custom toast that tracks its position
+        if self.active_toasts:
+            # Calculate position based on actual heights of existing toasts
+            for toast_data in self.active_toasts:
+                if toast_data['toast'].toplevel and toast_data['toast'].toplevel.winfo_exists():
+                    # Get actual height after toast is displayed
+                    try:
+                        toast_height = toast_data['toast'].toplevel.winfo_height()
+                        # If height is 1, toast hasn't been rendered yet, use estimate
+                        if toast_height == 1:
+                            toast_height = toast_data.get('estimated_height', 80)
+                        y_position += toast_height + self.toast_gap
+                    except:
+                        y_position += 80 + self.toast_gap  # Fallback height
+        
+        # Create toast
         toast = ToastNotification(
             title="WordCloud Magic",
             message=message,
             duration=duration,
-            bootstyle=style,
-            position=(50, y_position, 'ne')  # northeast position with offset
+            bootstyle=style
         )
         
-        # Track this toast
-        self.active_toasts.append(toast)
+        # Calculate X position (right side of screen with margin)
+        x_position = self.screen_width - 350  # 350 is approximate toast width
         
-        # Show the toast
+        # Store toast data with estimated height
+        toast_data = {
+            'toast': toast,
+            'y_position': y_position,
+            'estimated_height': 80 + (message.count('\n') * 20)  # Estimate based on lines
+        }
+        self.active_toasts.append(toast_data)
+        
+        # Show the toast at calculated position
         toast.show_toast()
+        
+        # Override the position after showing
+        def position_toast():
+            if toast.toplevel and toast.toplevel.winfo_exists():
+                toast.toplevel.geometry(f"+{x_position}+{y_position}")
+                # Update with actual height once rendered
+                toast_data['actual_height'] = toast.toplevel.winfo_height()
+        
+        # Position after a short delay to ensure toast is created
+        self.root.after(10, position_toast)
         
         # Schedule removal from tracking after duration
         def remove_toast():
-            if toast in self.active_toasts:
-                self.active_toasts.remove(toast)
-                self._reposition_toasts()
+            # Remove this toast from active list
+            self.active_toasts = [t for t in self.active_toasts if t['toast'] != toast]
+            self._reposition_toasts()
         
         # Schedule removal slightly after the toast duration
-        toast.toplevel.after(duration + 100, remove_toast)
+        self.root.after(duration + 100, remove_toast)
     
     def _reposition_toasts(self):
         """Reposition remaining toasts after one is removed"""
-        for i, toast in enumerate(self.active_toasts):
-            if hasattr(toast, 'toplevel') and toast.toplevel.winfo_exists():
-                new_y = self.base_y_offset + i * (self.toast_height + self.toast_gap)
-                x = toast.toplevel.winfo_x()
-                toast.toplevel.geometry(f"+{x}+{new_y}")
+        y_position = self.base_y_offset
+        x_position = self.screen_width - 350
+        
+        for toast_data in self.active_toasts:
+            toast = toast_data['toast']
+            if hasattr(toast, 'toplevel') and toast.toplevel and toast.toplevel.winfo_exists():
+                try:
+                    toast.toplevel.geometry(f"+{x_position}+{y_position}")
+                    toast_height = toast.toplevel.winfo_height()
+                    if toast_height == 1:  # Not rendered yet
+                        toast_height = toast_data.get('estimated_height', 80)
+                    y_position += toast_height + self.toast_gap
+                except:
+                    pass
 
 class FontListbox(ttk.Frame):
     """Custom font selector that displays fonts in their actual style"""
@@ -364,7 +405,7 @@ class ModernWordCloudApp:
             self.print_info("Debug mode enabled")
         
         # Initialize toast manager
-        self.toast_manager = ToastManager()
+        self.toast_manager = ToastManager(self.root)
         
         # Flag to track UI readiness
         self.ui_ready = False
