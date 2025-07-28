@@ -1135,37 +1135,37 @@ class ModernWordCloudApp:
         radio_center = ttk.Frame(radio_frame)
         radio_center.pack()
         
-        self.mask_selection = tk.StringVar(value="no_mask")
+        self.mask_type = tk.StringVar(value="no_mask")
         
         ttk.Radiobutton(radio_center, text="No Mask", 
-                       variable=self.mask_selection, 
+                       variable=self.mask_type, 
                        value="no_mask",
-                       command=self.on_mask_selection_change,
+                       command=self.on_mask_type_change,
                        bootstyle="primary-outline-toolbutton").pack(side=LEFT, padx=5)
         
         ttk.Radiobutton(radio_center, text="Image Mask", 
-                       variable=self.mask_selection, 
+                       variable=self.mask_type, 
                        value="image_mask",
-                       command=self.on_mask_selection_change,
+                       command=self.on_mask_type_change,
                        bootstyle="primary-outline-toolbutton").pack(side=LEFT, padx=5)
         
         ttk.Radiobutton(radio_center, text="Text Mask", 
-                       variable=self.mask_selection, 
+                       variable=self.mask_type, 
                        value="text_mask",
-                       command=self.on_mask_selection_change,
+                       command=self.on_mask_type_change,
                        bootstyle="primary-outline-toolbutton").pack(side=LEFT, padx=5)
         
-        # Create container for mask options (will show/hide based on selection)
-        self.mask_options_container = ttk.Frame(mask_frame)
-        self.mask_options_container.pack(fill=BOTH, expand=TRUE)
+        # Create notebook for mask options
+        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
+        self.mask_notebook.pack(fill=BOTH, expand=TRUE)
         
-        # Create all mask frames but hide them initially
-        self.create_no_mask_frame()
-        self.create_image_mask_frame()
-        self.create_text_mask_frame()
+        # Create tabs
+        self.create_no_mask_tab()
+        self.create_image_mask_tab()
+        self.create_text_mask_tab()
         
-        # Show the default (no mask)
-        self.show_mask_options("no_mask")
+        # Bind tab change event
+        self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
         # Word Orientation
         orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
@@ -1610,10 +1610,10 @@ class ModernWordCloudApp:
                                       width=15)
         self.bg_color_btn.pack(side=RIGHT)
         
-    def create_no_mask_frame(self):
-        """Create the no mask frame"""
-        self.no_mask_frame = ttk.Frame(self.mask_options_container)
-        no_mask_frame = self.no_mask_frame
+    def create_no_mask_tab(self):
+        """Create the no mask tab"""
+        no_mask_frame = ttk.Frame(self.mask_notebook)
+        self.mask_notebook.add(no_mask_frame, text="No Mask")
         
         # Info frame with border
         info_frame = ttk.LabelFrame(no_mask_frame, text="Information", padding=15)
@@ -1632,13 +1632,13 @@ class ModernWordCloudApp:
                  font=('Segoe UI', 9, 'italic'),
                  bootstyle="info").pack()
     
-    def create_image_mask_frame(self):
-        """Create the image mask frame"""
-        self.image_mask_frame = ttk.Frame(self.mask_options_container, padding=20)
-        image_mask_frame = self.image_mask_frame
+    def create_image_mask_tab(self):
+        """Create the image mask tab"""
+        image_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(image_mask_frame, text="Image Mask")
         
         # Create the image mask frame content
-        self.create_image_mask_content(image_mask_frame)
+        self.create_image_mask_frame(image_mask_frame)
         
         # Add contour options to this tab
         self.create_contour_options(image_mask_frame)
@@ -1646,13 +1646,13 @@ class ModernWordCloudApp:
         # Add mask preview to this tab
         self.create_mask_preview(image_mask_frame)
     
-    def create_text_mask_frame(self):
-        """Create the text mask frame"""
-        self.text_mask_frame = ttk.Frame(self.mask_options_container, padding=20)
-        text_mask_frame = self.text_mask_frame
+    def create_text_mask_tab(self):
+        """Create the text mask tab"""
+        text_mask_frame = ttk.Frame(self.mask_notebook, padding=20)
+        self.mask_notebook.add(text_mask_frame, text="Text Mask")
         
         # Create the text mask frame content
-        self.create_text_mask_content(text_mask_frame)
+        self.create_text_mask_frame(text_mask_frame)
         
         # Add mask preview to this tab
         self.create_mask_preview(text_mask_frame)
@@ -1680,8 +1680,8 @@ class ModernWordCloudApp:
         else:
             self.text_mask_preview_label = preview_label
     
-    def create_image_mask_content(self, parent):
-        """Create the image mask options content"""
+    def create_image_mask_frame(self, parent):
+        """Create the image mask options frame"""
         mask_file_frame = ttk.LabelFrame(parent, text="Image File", padding=10)
         mask_file_frame.pack(fill=X)
         
@@ -1709,8 +1709,8 @@ class ModernWordCloudApp:
                   bootstyle="secondary",
                   width=15).pack(side=LEFT)
     
-    def create_text_mask_content(self, parent):
-        """Create the text mask options content"""
+    def create_text_mask_frame(self, parent):
+        """Create the text mask options frame"""
         text_input_frame = ttk.LabelFrame(parent, text="Text Input", padding=10)
         text_input_frame.pack(fill=X)
         
@@ -1883,45 +1883,48 @@ class ModernWordCloudApp:
         # Store reference
         self.contour_color_preview = contour_color_preview
     
-    def on_mask_selection_change(self):
-        """Handle mask selection radio button change"""
-        selection = self.mask_selection.get()
-        self.show_mask_options(selection)
+    def on_mask_type_change(self):
+        """Handle mask type radio button change"""
+        mask_type = self.mask_type.get()
         
-        # Update mask type
-        if selection == "no_mask":
-            self.mask_type.set("none")
+        # Sync with notebook
+        tab_map = {
+            "no_mask": 0,
+            "image_mask": 1,
+            "text_mask": 2
+        }
+        
+        if mask_type in tab_map:
+            self.mask_notebook.select(tab_map[mask_type])
+    
+    def on_mask_tab_changed(self, event):
+        """Handle mask tab change"""
+        selected_tab = self.mask_notebook.index(self.mask_notebook.select())
+        
+        # Update radio button
+        tab_to_type = {
+            0: "no_mask",
+            1: "image_mask",
+            2: "text_mask"
+        }
+        
+        if selected_tab in tab_to_type:
+            self.mask_type.set(tab_to_type[selected_tab])
+        
+        # Update mask settings
+        if selected_tab == 0:  # No Mask
             self.mask_image = None
             self.mask_path.set("No mask")
-        elif selection == "image_mask":
-            self.mask_type.set("image")
+        elif selected_tab == 1:  # Image Mask
             # Keep existing image mask if any
-        elif selection == "text_mask":
-            self.mask_type.set("text")
+            pass
+        elif selected_tab == 2:  # Text Mask
             # Update text mask if text exists
             if hasattr(self, 'text_mask_input') and self.text_mask_input.get():
                 self.update_text_mask()
         
         # Update the mode label
         self.update_mode_label()
-    
-    def show_mask_options(self, mask_type):
-        """Show/hide mask option frames based on selection"""
-        # Hide all frames
-        if hasattr(self, 'no_mask_frame'):
-            self.no_mask_frame.pack_forget()
-        if hasattr(self, 'image_mask_frame'):
-            self.image_mask_frame.pack_forget()
-        if hasattr(self, 'text_mask_frame'):
-            self.text_mask_frame.pack_forget()
-        
-        # Show selected frame
-        if mask_type == "no_mask" and hasattr(self, 'no_mask_frame'):
-            self.no_mask_frame.pack(fill=BOTH, expand=TRUE)
-        elif mask_type == "image_mask" and hasattr(self, 'image_mask_frame'):
-            self.image_mask_frame.pack(fill=BOTH, expand=TRUE)
-        elif mask_type == "text_mask" and hasattr(self, 'text_mask_frame'):
-            self.text_mask_frame.pack(fill=BOTH, expand=TRUE)
     
     
     def update_font_size(self, value):
@@ -2510,7 +2513,12 @@ class ModernWordCloudApp:
             "text_mask": "🔤"
         }
         
-        mask_type = self.mask_type.get() if hasattr(self, 'mask_type') else "none"
+        # Get mask type from the current state
+        if hasattr(self, 'mask_notebook'):
+            selected_tab = self.mask_notebook.index(self.mask_notebook.select())
+            mask_type = ["no_mask", "image_mask", "text_mask"][selected_tab]
+        else:
+            mask_type = "no_mask"
         mask_icon = mask_icons.get(mask_type, "⬜")
         
         # Build mask description
@@ -4036,10 +4044,10 @@ class ModernWordCloudApp:
                 self.root.style.theme_use(config['theme'].lower().replace(" ", ""))
             
             # Apply mask settings
-            if 'mask_type' in config and hasattr(self, 'mask_selection'):
-                if config['mask_type'] in ['no_mask', 'image_mask', 'text_mask']:
-                    self.mask_selection.set(config['mask_type'])
-                    self.on_mask_selection_change()
+            if 'mask_type' in config:
+                mask_types = {'no_mask': 0, 'image_mask': 1, 'text_mask': 2}
+                if config['mask_type'] in mask_types:
+                    self.mask_notebook.select(mask_types[config['mask_type']])
             
             # Apply contour settings
             if hasattr(self, 'contour_var'):
@@ -4207,8 +4215,8 @@ class ModernWordCloudApp:
             config['theme'] = self.current_theme.get()
         
         # Mask settings
-        if hasattr(self, 'mask_selection'):
-            config['mask_type'] = self.mask_selection.get()
+        if hasattr(self, 'mask_notebook'):
+            config['mask_type'] = self.get_current_mask_type()
         
         # Image mask settings
         if hasattr(self, 'mask_path'):
@@ -4253,7 +4261,8 @@ class ModernWordCloudApp:
     def get_current_mask_type(self):
         """Get the currently selected mask type"""
         try:
-            return self.mask_selection.get()
+            current_tab = self.mask_notebook.index(self.mask_notebook.select())
+            return ['no_mask', 'image_mask', 'text_mask'][current_tab]
         except:
             return 'no_mask'
     
@@ -4355,9 +4364,7 @@ class ModernWordCloudApp:
                 self.scale_scale.set(1)
             
             # Reset mask settings
-            if hasattr(self, 'mask_selection'):
-                self.mask_selection.set("no_mask")
-                self.on_mask_selection_change()
+            self.mask_notebook.select(0)  # Select "No Mask" tab
             self.mask_path.set("No mask selected")
             self.mask = None
             self.mask_image = None
