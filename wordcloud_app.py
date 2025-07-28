@@ -514,10 +514,10 @@ class ModernWordCloudApp:
         self.canvas_width.trace('w', self.update_preview_size)
         self.canvas_height.trace('w', self.update_preview_size)
         
-        # Contour settings
-        self.contour_width = tk.IntVar(value=0)
-        self.contour_color = tk.StringVar(value="#000000")
-        self.contour_widgets = []  # Keep track of contour widgets
+        # Outline settings
+        self.outline_width = tk.IntVar(value=0)
+        self.outline_color = tk.StringVar(value="#000000")
+        self.outline_widgets = []  # Keep track of outline widgets
         
         # Word orientation and mode
         self.prefer_horizontal = tk.DoubleVar(value=0.9)
@@ -1643,7 +1643,7 @@ class ModernWordCloudApp:
         
         # Info label
         info_label = ttk.Label(info_frame, 
-                              text="Word cloud will be generated in a rectangular shape.\nNo special shape or contours will be applied.",
+                              text="Word cloud will be generated in a rectangular shape.\nNo special shape or outlines will be applied.",
                               font=('Segoe UI', 10),
                               bootstyle="secondary")
         info_label.pack()
@@ -1662,8 +1662,8 @@ class ModernWordCloudApp:
         # Create the image mask frame content
         self.create_image_mask_frame(image_mask_frame)
         
-        # Add contour options to this tab
-        self.create_contour_options(image_mask_frame)
+        # Add outline options to this tab
+        self.create_outline_options(image_mask_frame)
         
         # Add mask preview to this tab
         self.create_mask_preview(image_mask_frame)
@@ -1679,9 +1679,9 @@ class ModernWordCloudApp:
         # Add mask preview to this tab
         self.create_mask_preview(text_mask_frame)
     
-    def create_contour_options(self, parent):
-        """Create contour options frame"""
-        # This function is now empty as contour options are moved to text_mask_frame
+    def create_outline_options(self, parent):
+        """Create outline options frame"""
+        # This function is now empty as outline options are moved to text_mask_frame
         pass
     
     def create_mask_preview(self, parent):
@@ -1760,7 +1760,7 @@ class ModernWordCloudApp:
         self.font_listbox.pack(fill=X)
         self.font_listbox.bind('<<FontSelected>>', lambda e: self.update_text_mask())
         
-        # Create horizontal container for font settings and contour settings
+        # Create horizontal container for font settings and outline settings
         meters_container = ttk.Frame(text_input_frame)
         meters_container.pack(fill=X, pady=(15, 0))
         
@@ -1828,23 +1828,23 @@ class ModernWordCloudApp:
                        command=self.update_text_mask,
                        bootstyle="primary").pack(anchor=W)
         
-        # Contour settings frame (right side)
-        contour_frame = ttk.LabelFrame(meters_container, text="Contour Settings", padding=10)
-        contour_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        # Outline settings frame (right side)
+        outline_frame = ttk.LabelFrame(meters_container, text="Outline Settings", padding=10)
+        outline_frame.pack(side=LEFT, fill=BOTH, expand=True)
         
-        # Create horizontal layout inside contour frame
-        contour_layout = ttk.Frame(contour_frame)
-        contour_layout.pack(fill=X)
+        # Create horizontal layout inside outline frame
+        outline_layout = ttk.Frame(outline_frame)
+        outline_layout.pack(fill=X)
         
-        # Contour width meter
-        width_container = ttk.Frame(contour_layout)
+        # Outline width meter
+        width_container = ttk.Frame(outline_layout)
         width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 15))
         
         try:
             ttk.Label(width_container, text="Width", 
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
-            self.contour_width_meter = Meter(
+            self.outline_width_meter = Meter(
                 width_container,
                 metersize=100,
                 amountused=0.0,
@@ -1858,51 +1858,51 @@ class ModernWordCloudApp:
                 stepsize=1,
                 striped=False
             )
-            self.contour_width_meter.pack()
-            self.contour_width_meter.amountusedvar.trace('w', lambda *args: self.update_contour_width_from_meter())
+            self.outline_width_meter.pack()
+            self.outline_width_meter.amountusedvar.trace('w', lambda *args: self.update_outline_width_from_meter())
             
             # Add zero button function
-            def set_contour_zero():
+            def set_outline_zero():
                 # Use the workaround approach
-                self.contour_width_meter.configure(amountused=0.001)
-                self.contour_width_meter.update_idletasks()
-                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
-                self.root.after(100, lambda: self.contour_width_meter.update_idletasks())
-                self.contour_width.set(0)
+                self.outline_width_meter.configure(amountused=0.001)
+                self.outline_width_meter.update_idletasks()
+                self.root.after(50, lambda: self.outline_width_meter.configure(amountused=0.0))
+                self.root.after(100, lambda: self.outline_width_meter.update_idletasks())
+                self.outline_width.set(0)
             
             # Add double-click to reset to 0
-            self.contour_width_meter.bind("<Double-Button-1>", lambda e: set_contour_zero())
+            self.outline_width_meter.bind("<Double-Button-1>", lambda e: set_outline_zero())
                 
             zero_btn = ttk.Button(width_container, text="0", width=3, 
-                                 command=set_contour_zero,
+                                 command=set_outline_zero,
                                  bootstyle="secondary-outline")
             zero_btn.pack(pady=(5, 0))
-            self.contour_width_scale = None
-            self.contour_width_label = None
+            self.outline_width_scale = None
+            self.outline_width_label = None
         except Exception as e:
             # Fallback to scale
-            debug_print(f"Contour width meter failed: {e}")
+            debug_print(f"Outline width meter failed: {e}")
             width_label_frame = ttk.Frame(width_container)
             width_label_frame.pack(fill=X)
-            contour_width_lbl = ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 9))
-            contour_width_lbl.pack(side=LEFT)
-            contour_width_label = ttk.Label(width_label_frame, text="0 px",
+            outline_width_lbl = ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 9))
+            outline_width_lbl.pack(side=LEFT)
+            outline_width_label = ttk.Label(width_label_frame, text="0 px",
                                            bootstyle="primary", font=('Segoe UI', 9, 'bold'))
-            contour_width_label.pack(side=RIGHT)
+            outline_width_label.pack(side=RIGHT)
             
-            contour_width_scale = ttk.Scale(width_container,
+            outline_width_scale = ttk.Scale(width_container,
                                            from_=0,
                                            to=30,
                                            value=0,
-                                           command=lambda v: self.update_contour_width(v, contour_width_label),
+                                           command=lambda v: self.update_outline_width(v, outline_width_label),
                                            bootstyle="primary")
-            contour_width_scale.pack(fill=X, pady=(5, 0))
-            self.contour_width_label = contour_width_label
-            self.contour_width_scale = contour_width_scale
-            self.contour_width_meter = None
+            outline_width_scale.pack(fill=X, pady=(5, 0))
+            self.outline_width_label = outline_width_label
+            self.outline_width_scale = outline_width_scale
+            self.outline_width_meter = None
         
-        # Contour color
-        color_container = ttk.Frame(contour_layout)
+        # Outline color
+        color_container = ttk.Frame(outline_layout)
         color_container.pack(side=LEFT, fill=X)
         
         ttk.Label(color_container, text="Color", 
@@ -1911,18 +1911,18 @@ class ModernWordCloudApp:
         color_frame = ttk.Frame(color_container)
         color_frame.pack()
         
-        contour_color_preview = ttk.Frame(color_frame, width=25, height=25, bootstyle="dark")
-        contour_color_preview.pack(side=LEFT, padx=(0, 8))
+        outline_color_preview = ttk.Frame(color_frame, width=25, height=25, bootstyle="dark")
+        outline_color_preview.pack(side=LEFT, padx=(0, 8))
         
-        contour_color_btn = ttk.Button(color_frame,
+        outline_color_btn = ttk.Button(color_frame,
                                       text="Choose",
-                                      command=lambda: self.choose_contour_color(contour_color_preview),
+                                      command=lambda: self.choose_outline_color(outline_color_preview),
                                       bootstyle="primary-outline",
                                       width=10)
-        contour_color_btn.pack(side=LEFT)
+        outline_color_btn.pack(side=LEFT)
         
         # Store reference
-        self.contour_color_preview = contour_color_preview
+        self.outline_color_preview = outline_color_preview
     
     def on_mask_type_change(self):
         """Handle mask type radio button change"""
@@ -1932,8 +1932,8 @@ class ModernWordCloudApp:
         # Update the mode label to reflect the mask selection
         self.update_mode_label()
         
-        # Update contour state based on new selection
-        self.update_contour_state()
+        # Update outline state based on new selection
+        self.update_outline_state()
     
     def on_mask_tab_changed(self, event):
         """Handle mask tab change"""
@@ -2919,8 +2919,8 @@ class ModernWordCloudApp:
                     self.image_mask_preview_label.config(image=photo, text="")
                     self.image_mask_preview_label.image = photo  # Keep a reference
                 
-                # Enable contour options when mask is selected
-                self.update_contour_state(True)
+                # Enable outline options when mask is selected
+                self.update_outline_state(True)
                 
                 # Update mode label
                 self.update_mode_label()
@@ -2948,8 +2948,8 @@ class ModernWordCloudApp:
         elif current_tab == 2 and hasattr(self, 'text_mask_preview_label'):
             self.text_mask_preview_label.config(image="", text="No mask selected")
         
-        # Disable contour options when mask is cleared
-        self.update_contour_state(False)
+        # Disable outline options when mask is cleared
+        self.update_outline_state(False)
         
         # Update mode label
         self.update_mode_label()
@@ -3056,8 +3056,8 @@ class ModernWordCloudApp:
             # Update preview
             self.update_mask_preview()
             
-            # Enable contour options
-            self.update_contour_state(True)
+            # Enable outline options
+            self.update_outline_state(True)
             
             # Update mode label
             self.update_mode_label()
@@ -3111,31 +3111,31 @@ class ModernWordCloudApp:
             preview_label.config(image=photo, text="")
             preview_label.image = photo
     
-    def update_contour_width(self, value, label=None):
-        """Update contour width label"""
+    def update_outline_width(self, value, label=None):
+        """Update outline width label"""
         val = int(float(value))
-        self.contour_width.set(val)
+        self.outline_width.set(val)
         if label:
             label.config(text=f"{val} pixels")
-        elif hasattr(self, 'contour_width_label'):
-            self.contour_width_label.config(text=f"{val} pixels")
+        elif hasattr(self, 'outline_width_label'):
+            self.outline_width_label.config(text=f"{val} pixels")
     
-    def choose_contour_color(self, preview_frame=None):
-        """Open color chooser for contour color"""
+    def choose_outline_color(self, preview_frame=None):
+        """Open color chooser for outline color"""
         dialog = ColorChooserDialog()
         dialog.show()
         color = dialog.result
         if color:
             hex_color = color.hex
-            self.contour_color.set(hex_color)
+            self.outline_color.set(hex_color)
             # Update preview - ttk frames don't support background, use style instead
             style = ttk.Style()
-            style_name = f"ContourPreview.TFrame"
+            style_name = f"OutlinePreview.TFrame"
             style.configure(style_name, background=hex_color)
             if preview_frame:
                 preview_frame.configure(style=style_name)
-            elif hasattr(self, 'contour_color_preview'):
-                self.contour_color_preview.configure(style=style_name)
+            elif hasattr(self, 'outline_color_preview'):
+                self.outline_color_preview.configure(style=style_name)
     
     def choose_bg_color(self):
         """Open color chooser for background color"""
@@ -3169,13 +3169,13 @@ class ModernWordCloudApp:
                 self.bg_color_btn.configure(state='normal')
                 self.update_bg_preview()
     
-    def update_contour_color_preview(self):
-        """Update the contour color preview"""
-        if hasattr(self, 'contour_color_preview') and hasattr(self, 'contour_color'):
+    def update_outline_color_preview(self):
+        """Update the outline color preview"""
+        if hasattr(self, 'outline_color_preview') and hasattr(self, 'outline_color'):
             style = ttk.Style()
-            style_name = f"ContourPreview{id(self)}.TFrame"
-            style.configure(style_name, background=self.contour_color)
-            self.contour_color_preview.configure(style=style_name)
+            style_name = f"OutlinePreview{id(self)}.TFrame"
+            style.configure(style_name, background=self.outline_color)
+            self.outline_color_preview.configure(style=style_name)
     
     def clear_canvas(self, clear_wordcloud=True, show_placeholder=True):
         """Clear the canvas completely"""
@@ -3341,8 +3341,8 @@ class ModernWordCloudApp:
         except Exception as e:
             self.print_debug(f"Error updating preview display: {str(e)}")
     
-    def update_contour_state(self, has_mask=None):
-        """Enable/disable contour options based on mask selection"""
+    def update_outline_state(self, has_mask=None):
+        """Enable/disable outline options based on mask selection"""
         if has_mask is None:
             # Check if any mask is selected based on radio button
             mask_type = self.mask_type.get()
@@ -3355,7 +3355,7 @@ class ModernWordCloudApp:
         
         state = NORMAL if has_mask else DISABLED
         
-        for widget in self.contour_widgets:
+        for widget in self.outline_widgets:
             try:
                 widget.configure(state=state)
             except:
@@ -3441,20 +3441,20 @@ class ModernWordCloudApp:
             if self.text_mask_input.get():
                 self.update_text_mask()
     
-    def update_contour_width_from_meter(self):
-        """Update contour width from meter widget"""
-        if self.contour_width_meter:
-            raw_val = self.contour_width_meter.amountusedvar.get()
-            self.print_debug(f"Contour width meter raw value: {raw_val}")
+    def update_outline_width_from_meter(self):
+        """Update outline width from meter widget"""
+        if self.outline_width_meter:
+            raw_val = self.outline_width_meter.amountusedvar.get()
+            self.print_debug(f"Outline width meter raw value: {raw_val}")
             val = int(raw_val)
             # Force to 0 if less than 1
             if raw_val < 1:
                 val = 0
                 # Workaround: set to near-zero then to actual zero
-                self.root.after(10, lambda: self.contour_width_meter.configure(amountused=0.001))
-                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
-                self.root.after(60, lambda: self.contour_width_meter.update_idletasks())
-            self.contour_width.set(val)
+                self.root.after(10, lambda: self.outline_width_meter.configure(amountused=0.001))
+                self.root.after(50, lambda: self.outline_width_meter.configure(amountused=0.0))
+                self.root.after(60, lambda: self.outline_width_meter.update_idletasks())
+            self.outline_width.set(val)
             if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
                 self.update_text_mask()
     
@@ -3505,27 +3505,27 @@ class ModernWordCloudApp:
             self.bg_label.configure(state=DISABLED)
             self.bg_color_btn.configure(state=DISABLED)
             
-            # Disable contour options in RGBA mode
-            if hasattr(self, 'contour_width_scale'):
-                self.contour_width_scale.configure(state=DISABLED)
-            if hasattr(self, 'contour_color_btn'):
-                self.contour_color_btn.configure(state=DISABLED)
+            # Disable outline options in RGBA mode
+            if hasattr(self, 'outline_width_scale'):
+                self.outline_width_scale.configure(state=DISABLED)
+            if hasattr(self, 'outline_color_btn'):
+                self.outline_color_btn.configure(state=DISABLED)
             
             if show_toast:
                 self.show_toast("RGBA mode enabled - background will be transparent", "info")
-                if self.contour_width.get() > 0:
-                    self.show_toast("Note: Contours disabled in RGBA mode", "warning")
+                if self.outline_width.get() > 0:
+                    self.show_toast("Note: Outlines disabled in RGBA mode", "warning")
         else:
             # RGB mode - enable background color
             self.bg_label.configure(state=NORMAL)
             self.bg_color_btn.configure(state=NORMAL)
             
-            # Re-enable contour options if mask is selected
+            # Re-enable outline options if mask is selected
             if hasattr(self, 'mask_image') and self.mask_image is not None:
-                if hasattr(self, 'contour_width_scale'):
-                    self.contour_width_scale.configure(state=NORMAL)
-                if hasattr(self, 'contour_color_btn'):
-                    self.contour_color_btn.configure(state=NORMAL)
+                if hasattr(self, 'outline_width_scale'):
+                    self.outline_width_scale.configure(state=NORMAL)
+                if hasattr(self, 'outline_color_btn'):
+                    self.outline_color_btn.configure(state=NORMAL)
             
             if show_toast:
                 self.show_toast("RGB mode enabled - solid background", "info")
@@ -3622,15 +3622,15 @@ class ModernWordCloudApp:
         if self.mask_type.get() == "image_mask" and (not hasattr(self, 'image_mask_image') or self.image_mask_image is None):
             issues.append(("error", "Image mask selected but no image loaded"))
         
-        # Check if using RGBA mode with contours
+        # Check if using RGBA mode with outlines
         has_mask = False
         if self.mask_type.get() == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
             has_mask = True
         elif self.mask_type.get() == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
             has_mask = True
             
-        if self.rgba_mode.get() and has_mask and self.contour_width.get() > 0:
-            issues.append(("error", "Contours are not supported in RGBA (transparent) mode. Please disable contours or switch to RGB mode"))
+        if self.rgba_mode.get() and has_mask and self.outline_width.get() > 0:
+            issues.append(("error", "Outlines are not supported in RGBA (transparent) mode. Please disable outlines or switch to RGB mode"))
         
         # Check max words
         if self.max_words.get() < 5:
@@ -3744,13 +3744,13 @@ class ModernWordCloudApp:
             
             if mask_to_use is not None:
                 wc_params['mask'] = mask_to_use
-                # Disable contours in RGBA mode due to wordcloud library bug
-                # (shape mismatch between RGBA image and RGB contour)
-                if self.contour_width.get() > 0 and not self.rgba_mode.get():
-                    wc_params['contour_width'] = self.contour_width.get()
-                    wc_params['contour_color'] = self.contour_color.get()
-                elif self.contour_width.get() > 0 and self.rgba_mode.get():
-                    self.print_warning("Contours disabled in RGBA mode due to library compatibility")
+                # Disable outlines in RGBA mode due to wordcloud library bug
+                # (shape mismatch between RGBA image and RGB outline)
+                if self.outline_width.get() > 0 and not self.rgba_mode.get():
+                    wc_params['outline_width'] = self.outline_width.get()
+                    wc_params['outline_color'] = self.outline_color.get()
+                elif self.outline_width.get() > 0 and self.rgba_mode.get():
+                    self.print_warning("Outlines disabled in RGBA mode due to library compatibility")
             
             # Use our forbidden words instead of default STOPWORDS
             wc_params['stopwords'] = self.forbidden_words
@@ -3793,8 +3793,8 @@ class ModernWordCloudApp:
             wc_image = self.wordcloud.to_image()
         except ValueError as e:
             if "broadcast together with shapes" in str(e):
-                self.print_fail("Error: RGBA mode with contours is not supported due to library limitations")
-                self.show_toast("Please disable contours or switch to RGB mode", "danger")
+                self.print_fail("Error: RGBA mode with outlines is not supported due to library limitations")
+                self.show_toast("Please disable outlines or switch to RGB mode", "danger")
                 return
             else:
                 raise
@@ -4354,15 +4354,15 @@ class ModernWordCloudApp:
                 if config['mask_type'] in mask_types:
                     self.mask_notebook.select(mask_types[config['mask_type']])
             
-            # Apply contour settings
-            if hasattr(self, 'contour_var'):
-                if 'contour_enabled' in config:
-                    self.contour_var.set(config['contour_enabled'])
-                if 'contour_width' in config:
-                    self.contour_width_var.set(config['contour_width'])
-                if 'contour_color' in config:
-                    self.contour_color = config['contour_color']
-                    self.update_contour_color_preview()
+            # Apply outline settings
+            if hasattr(self, 'outline_var'):
+                if 'outline_enabled' in config:
+                    self.outline_var.set(config['outline_enabled'])
+                if 'outline_width' in config:
+                    self.outline_width_var.set(config['outline_width'])
+                if 'outline_color' in config:
+                    self.outline_color = config['outline_color']
+                    self.update_outline_color_preview()
             
             # Apply text mask settings
             if hasattr(self, 'mask_text_var'):
@@ -4525,12 +4525,12 @@ class ModernWordCloudApp:
         # Image mask settings
         if hasattr(self, 'mask_path'):
             config['mask_path'] = self.mask_path.get()
-        if hasattr(self, 'contour_var'):
-            config['contour_enabled'] = self.contour_var.get()
-        if hasattr(self, 'contour_width_var'):
-            config['contour_width'] = self.contour_width_var.get()
-        if hasattr(self, 'contour_color'):
-            config['contour_color'] = self.contour_color
+        if hasattr(self, 'outline_var'):
+            config['outline_enabled'] = self.outline_var.get()
+        if hasattr(self, 'outline_width_var'):
+            config['outline_width'] = self.outline_width_var.get()
+        if hasattr(self, 'outline_color'):
+            config['outline_color'] = self.outline_color
         
         # Text mask settings
         if hasattr(self, 'mask_text_var'):
@@ -4675,21 +4675,21 @@ class ModernWordCloudApp:
             if hasattr(self, 'mask_label'):
                 self.mask_label.config(text="No mask selected")
             
-            # Reset contour settings
-            self.contour_width.set(0)
-            if hasattr(self, 'contour_width_meter') and self.contour_width_meter:
+            # Reset outline settings
+            self.outline_width.set(0)
+            if hasattr(self, 'outline_width_meter') and self.outline_width_meter:
                 # Use the workaround for resetting to 0
-                self.contour_width_meter.configure(amountused=0.001)
-                self.contour_width_meter.update_idletasks()
-                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
-                self.root.after(100, lambda: self.contour_width_meter.update_idletasks())
-            elif hasattr(self, 'contour_width_scale') and self.contour_width_scale:
-                self.contour_width_scale.set(0)
+                self.outline_width_meter.configure(amountused=0.001)
+                self.outline_width_meter.update_idletasks()
+                self.root.after(50, lambda: self.outline_width_meter.configure(amountused=0.0))
+                self.root.after(100, lambda: self.outline_width_meter.update_idletasks())
+            elif hasattr(self, 'outline_width_scale') and self.outline_width_scale:
+                self.outline_width_scale.set(0)
             
-            if hasattr(self, 'contour_var'):
-                self.contour_var.set(False)
-                self.contour_width_var.set(3)
-                self.contour_color = 'black'
+            if hasattr(self, 'outline_var'):
+                self.outline_var.set(False)
+                self.outline_width_var.set(3)
+                self.outline_color = 'black'
             
             # Reset text mask settings
             if hasattr(self, 'mask_text_var'):
