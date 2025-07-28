@@ -456,9 +456,6 @@ class ModernWordCloudApp:
         # Auto-load configuration if exists (after UI is created)
         self.root.after(100, self.auto_load_config)
         
-        # Ensure forbidden words are synced with GUI after config load
-        self.root.after(200, lambda: self.update_forbidden_words(show_toast=False))
-        
         # Validate available fonts after UI creation (in a thread to avoid blocking)
         threading.Thread(target=self.validate_fonts, daemon=True).start()
     
@@ -745,7 +742,7 @@ class ModernWordCloudApp:
                                           wrap=tk.WORD)
         self.forbidden_text.pack(fill=BOTH, expand=TRUE, padx=1, pady=1)
         
-        # Store default forbidden words for reset
+        # Store default forbidden words for reset - matches what's shown in GUI
         self.default_forbidden = """the
 and
 or
@@ -763,138 +760,10 @@ as
 is
 was
 are
-been
-be
-have
-has
-had
-do
-does
-did
-will
-would
-should
-could
-may
-might
-must
-can
-shall
-a
-an
-these
-those
-this
-that
-their
-there
-they
-them
-he
-she
-it
-we
-you
-i
-me
-my
-our
-your
-his
-her
-its
-their
-what
-which
-who
-when
-where
-why
-how
-all
-each
-every
-some
-any
-few
-more
-most
-other
-such
-no
-not
-only
-own
-same
-so
-than
-too
-very
-just
-also
-now
-then
-here
-there
-up
-down
-out
-off
-over
-under
-about
-into
-through
-during
-before
-after
-above
-below
-between
-under
-since
-without
-within
-along
-among
-around
-however
-therefore
-moreover
-furthermore
-otherwise
-nevertheless
-nonetheless
-still
-yet
-already
-always
-never
-often
-sometimes
-usually
-generally
-specifically
-particularly
-especially
-mainly
-mostly
-simply
-actually
-really
-indeed
-certainly
-definitely
-probably
-possibly
-perhaps
-maybe"""
+been"""
         
-        # Pre-populate with default forbidden words
-        self.forbidden_text.insert('1.0', self.default_forbidden)
-        
-        # Initialize forbidden words from the text area
-        self.root.after(50, lambda: self.update_forbidden_words(show_toast=False))
+        # Don't pre-populate here - let config loading handle it
+        # If no config is loaded, we'll insert defaults later
         
         ttk.Button(forbidden_frame,
                   text="Update Forbidden Words",
@@ -3859,6 +3728,7 @@ maybe"""
     
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
+        config_loaded = False
         config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
         if not os.path.exists(config_file):
             # Try configs directory
@@ -3873,6 +3743,7 @@ maybe"""
                         config = json.loads(content)
                         self.apply_config(config, show_message=False)
                         self.print_info(f"Auto-loaded configuration from {config_file}")
+                        config_loaded = True
                     else:
                         self.print_warning("Config file is empty, skipping auto-load")
             except json.JSONDecodeError as e:
@@ -3880,6 +3751,12 @@ maybe"""
                 self.print_warning("Consider deleting the config file or fixing the JSON syntax")
             except Exception as e:
                 self.print_fail(f"Failed to auto-load config: {e}")
+        
+        # If no config was loaded, populate forbidden words with defaults
+        if not config_loaded:
+            self.print_debug("No config loaded, using default forbidden words")
+            self.forbidden_text.insert('1.0', self.default_forbidden)
+            self.update_forbidden_words(show_toast=False)
     
     def get_current_config(self):
         """Get current configuration as dictionary"""
@@ -3891,7 +3768,9 @@ maybe"""
         if hasattr(self, 'max_word_length'):
             config['max_length'] = self.max_word_length.get()
         if hasattr(self, 'forbidden_text'):
-            config['forbidden_words'] = self.forbidden_text.get(1.0, tk.END).strip().split('\n')
+            # Get forbidden words and filter out empty lines
+            forbidden_text = self.forbidden_text.get(1.0, tk.END).strip()
+            config['forbidden_words'] = [word.strip() for word in forbidden_text.split('\n') if word.strip()]
         
         # Color settings
         if hasattr(self, 'color_mode'):
@@ -3959,9 +3838,7 @@ maybe"""
         if hasattr(self, 'working_folder'):
             config['working_directory'] = self.working_folder.get()
         
-        # Default forbidden words
-        if hasattr(self, 'default_forbidden'):
-            config['default_forbidden'] = self.default_forbidden
+        # Note: We don't save default_forbidden as it's only for reset functionality
         
         return config
     
