@@ -2106,12 +2106,58 @@ class ModernWordCloudApp:
         preview_wrapper = ttk.Frame(preview_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
-        # Word source mode indicator
-        self.source_mode_label = ttk.Label(preview_wrapper,
-                                          text="Mode: None",
-                                          font=('Segoe UI', 16, 'bold'),
-                                          bootstyle="primary")
-        self.source_mode_label.pack(pady=(0, 10))
+        # Modern header panel
+        header_frame = ttk.Frame(preview_wrapper)
+        header_frame.pack(fill=X, pady=(0, 15))
+        
+        # Create gradient-like background effect with nested frames
+        header_bg = ttk.Frame(header_frame, bootstyle="primary")
+        header_bg.pack(fill=BOTH, expand=TRUE)
+        
+        # Inner content frame with padding
+        header_content = ttk.Frame(header_bg)
+        header_content.pack(fill=BOTH, expand=TRUE, padx=20, pady=12)
+        
+        # Create two-column layout
+        left_frame = ttk.Frame(header_content)
+        left_frame.pack(side=LEFT, fill=Y, expand=TRUE)
+        
+        # Center divider
+        divider = ttk.Frame(header_content, bootstyle="secondary", width=2)
+        divider.pack(side=LEFT, fill=Y, padx=30)
+        
+        right_frame = ttk.Frame(header_content)
+        right_frame.pack(side=LEFT, fill=Y, expand=TRUE)
+        
+        # Source section
+        source_title = ttk.Label(left_frame, 
+                               text="SOURCE",
+                               font=('Segoe UI', 9, 'bold'),
+                               bootstyle="inverse-primary")
+        source_title.pack(anchor=W)
+        
+        self.source_label = ttk.Label(left_frame,
+                                    text="📄 None",
+                                    font=('Segoe UI', 14),
+                                    bootstyle="inverse-primary")
+        self.source_label.pack(anchor=W)
+        
+        # Mask section
+        mask_title = ttk.Label(right_frame,
+                             text="MASK",
+                             font=('Segoe UI', 9, 'bold'),
+                             bootstyle="inverse-primary")
+        mask_title.pack(anchor=W)
+        
+        self.mask_label = ttk.Label(right_frame,
+                                  text="⬜ No Mask",
+                                  font=('Segoe UI', 14),
+                                  bootstyle="inverse-primary")
+        self.mask_label.pack(anchor=W)
+        
+        # Add a subtle shadow effect by creating a bottom border
+        shadow_frame = ttk.Frame(header_frame, height=2, bootstyle="secondary")
+        shadow_frame.pack(fill=X, side=BOTTOM)
         
         # Scale indicator label (initially hidden)
         self.scale_indicator = ttk.Label(preview_wrapper, 
@@ -2422,7 +2468,7 @@ class ModernWordCloudApp:
     
     def update_mode_label(self, source=None):
         """Update the mode label with source and mask information"""
-        if not hasattr(self, 'source_mode_label'):
+        if not hasattr(self, 'source_label') or not hasattr(self, 'mask_label'):
             return
         
         # Determine source
@@ -2435,6 +2481,24 @@ class ModernWordCloudApp:
                     source = "Custom Text"
             else:
                 source = "None"
+        
+        # Source icons
+        source_icons = {
+            "None": "📄",
+            "Files": "📁",
+            "Custom Text": "✏️"
+        }
+        source_icon = source_icons.get(source, "📄")
+        
+        # Update source label
+        source_text = f"{source_icon} {source}"
+        
+        # Add word count if available
+        if self.text_content and source != "None":
+            word_count = len(self.text_content.split())
+            source_text += f" ({word_count:,} words)"
+        
+        self.source_label.config(text=source_text)
         
         # Determine mask type with icons
         mask_icons = {
@@ -2451,16 +2515,16 @@ class ModernWordCloudApp:
         
         # Build mask description
         if mask_type in ["none", "no_mask"]:
-            mask_desc = f"{mask_icon} No Mask"
+            mask_desc = "No Mask"
         elif mask_type in ["image", "image_mask"]:
-            mask_desc = f"{mask_icon} Image Mask"
+            mask_desc = "Image Mask"
         elif mask_type in ["text", "text_mask"]:
-            mask_desc = f"{mask_icon} Text Mask"
+            mask_desc = "Text Mask"
         else:
-            mask_desc = f"{mask_icon} No Mask"
+            mask_desc = "No Mask"
         
-        # Update label
-        self.source_mode_label.config(text=f"Source: {source} | Mask: {mask_desc}")
+        # Update mask label
+        self.mask_label.config(text=f"{mask_icon} {mask_desc}")
     
     def update_forbidden_words(self, show_toast=True):
         """Update forbidden words set"""
