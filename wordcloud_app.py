@@ -46,12 +46,31 @@ class ToastManager:
         self.base_y_offset = 50
         self.screen_width = root.winfo_screenwidth()
     
+    def wrap_text(self, text, max_width=50):
+        """Manually wrap text by inserting newlines"""
+        words = text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            if current_length + len(word) + 1 > max_width:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = len(word)
+            else:
+                current_line.append(word)
+                current_length += len(word) + 1
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return '\n'.join(lines)
+    
     def show_toast(self, message, style="info", duration=15000):
         """Show a stacked toast notification"""
-        # Truncate message if too long
-        max_chars = 50  # Reduced from 80 to 50
-        if len(message) > max_chars:
-            message = message[:max_chars-3] + "..."
+        # Wrap text for better display
+        wrapped_message = self.wrap_text(message)
         
         # Calculate Y position based on existing toasts
         y_position = self.base_y_offset
@@ -70,26 +89,13 @@ class ToastManager:
                     except:
                         y_position += 80 + self.toast_gap  # Fallback height
         
-        # Add status icon based on style
-        icon_map = {
-            "info": "ℹ️",
-            "success": "✅",
-            "warning": "⚠️",
-            "danger": "❌",
-            "error": "❌",
-            "primary": "🔵",
-            "secondary": "⚪"
-        }
-        icon = icon_map.get(style, "")
-        if icon:
-            message = f"{icon} {message}"
-        
-        # Create toast
+        # Create toast with proper icon
         toast = ToastNotification(
             title="WordCloud Magic",
-            message=message,
+            message=wrapped_message,
             duration=duration,
-            bootstyle=style
+            bootstyle=style,
+            icon="✅" if style == "success" else "⚠" if style == "warning" else "✗" if style in ["danger", "error"] else "ℹ"
         )
         
         # Calculate X position (right side of screen with margin)
@@ -417,6 +423,11 @@ class ModernWordCloudApp:
         self.root.geometry("1300x850")
         self.root.state('zoomed')  # Start maximized
         
+        # Asset paths
+        self.assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+        self.icons = {}
+        self.load_assets()
+        
         # Initialize debug mode from command line arguments
         import sys
         self.debug_mode = '--debug' in sys.argv
@@ -444,7 +455,9 @@ class ModernWordCloudApp:
         # Variables
         self.working_folder = tk.StringVar(value="No folder selected")
         self.text_content = ""
-        self.mask_image = None
+        self.mask_image = None  # For backward compatibility
+        self.image_mask_image = None  # Store image mask separately
+        self.text_mask_image = None   # Store text mask separately
         self.mask_path = tk.StringVar(value="No mask selected")
         self.min_word_length = tk.IntVar(value=3)
         self.max_word_length = tk.IntVar(value=20)
@@ -461,7 +474,6 @@ class ModernWordCloudApp:
         )
         
         # Text mask variables
-        self.mask_type = tk.StringVar(value="none")  # "none", "image" or "text"
         self.text_mask_input = tk.StringVar(value="")
         self.text_mask_font_size = tk.IntVar(value=200)
         self.text_mask_bold = tk.BooleanVar(value=True)
@@ -495,12 +507,15 @@ class ModernWordCloudApp:
         self.lock_aspect_ratio = tk.BooleanVar(value=False)
         self.aspect_ratio = 800 / 600  # Initial aspect ratio
         
+        # Preview scale setting
+        self.preview_scale = tk.IntVar(value=100)  # Default to 100%
+        
         # Bind canvas size changes to preview update
         self.canvas_width.trace('w', self.update_preview_size)
         self.canvas_height.trace('w', self.update_preview_size)
         
         # Contour settings
-        self.contour_width = tk.IntVar(value=2)
+        self.contour_width = tk.IntVar(value=0)
         self.contour_color = tk.StringVar(value="#000000")
         self.contour_widgets = []  # Keep track of contour widgets
         
@@ -568,7 +583,12 @@ class ModernWordCloudApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Auto-load configuration if exists (after UI is created)
-        self.root.after(100, self.auto_load_config)
+        def load_config_and_theme():
+            self.auto_load_config()
+            # Always load theme from theme.json after config to ensure it takes precedence
+            self.load_theme_preference()
+        
+        self.root.after(100, load_config_and_theme)
         
         # Validate available fonts after UI creation (in a thread to avoid blocking)
         threading.Thread(target=self.validate_fonts, daemon=True).start()
@@ -619,13 +639,13 @@ class ModernWordCloudApp:
         
         ttk.Label(theme_frame, text="Theme:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 5))
         
-        theme_dropdown = ttk.Combobox(theme_frame, 
+        self.theme_dropdown = ttk.Combobox(theme_frame, 
                                      textvariable=self.current_theme,
                                      values=self.themes,
                                      state="readonly",
                                      width=15)
-        theme_dropdown.pack(side=LEFT)
-        theme_dropdown.bind('<<ComboboxSelected>>', self.change_theme)
+        self.theme_dropdown.pack(side=LEFT)
+        self.theme_dropdown.bind('<<ComboboxSelected>>', self.change_theme)
         
         # Main container with padding
         main_container = ttk.Frame(self.root, padding="20")
@@ -1129,31 +1149,33 @@ class ModernWordCloudApp:
         
         # Radio buttons for mask selection
         radio_frame = ttk.Frame(mask_frame)
-        radio_frame.pack(fill=X, pady=(0, 15))
+        radio_frame.pack(fill=X, pady=(0, 10))
         
-        # Center the radio buttons
-        radio_center = ttk.Frame(radio_frame)
-        radio_center.pack()
+        # Radio button frame
+        mode_frame = ttk.Frame(radio_frame)
+        mode_frame.pack(anchor='w')
         
         self.mask_type = tk.StringVar(value="no_mask")
         
-        ttk.Radiobutton(radio_center, text="No Mask", 
+        ttk.Radiobutton(mode_frame, text="No Mask", 
                        variable=self.mask_type, 
                        value="no_mask",
                        command=self.on_mask_type_change,
-                       bootstyle="primary-outline-toolbutton").pack(side=LEFT, padx=5)
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
         
-        ttk.Radiobutton(radio_center, text="Image Mask", 
+        ttk.Radiobutton(mode_frame, text="Image Mask", 
                        variable=self.mask_type, 
                        value="image_mask",
                        command=self.on_mask_type_change,
-                       bootstyle="primary-outline-toolbutton").pack(side=LEFT, padx=5)
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
         
-        ttk.Radiobutton(radio_center, text="Text Mask", 
+        ttk.Radiobutton(mode_frame, text="Text Mask", 
                        variable=self.mask_type, 
                        value="text_mask",
                        command=self.on_mask_type_change,
-                       bootstyle="primary-outline-toolbutton").pack(side=LEFT, padx=5)
+                       bootstyle="primary").pack(side=LEFT)
+        
+        ttk.Separator(mask_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create notebook for mask options
         self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
@@ -1825,17 +1847,36 @@ class ModernWordCloudApp:
             self.contour_width_meter = Meter(
                 width_container,
                 metersize=100,
-                amountused=2,
+                amountused=0.0,
                 amounttotal=30,
                 metertype='semi',
                 textleft='',
                 textright=' px',
                 interactive=True,
                 bootstyle='primary',
-                stripethickness=10
+                stripethickness=10,
+                stepsize=1,
+                striped=False
             )
             self.contour_width_meter.pack()
             self.contour_width_meter.amountusedvar.trace('w', lambda *args: self.update_contour_width_from_meter())
+            
+            # Add zero button function
+            def set_contour_zero():
+                # Use the workaround approach
+                self.contour_width_meter.configure(amountused=0.001)
+                self.contour_width_meter.update_idletasks()
+                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
+                self.root.after(100, lambda: self.contour_width_meter.update_idletasks())
+                self.contour_width.set(0)
+            
+            # Add double-click to reset to 0
+            self.contour_width_meter.bind("<Double-Button-1>", lambda e: set_contour_zero())
+                
+            zero_btn = ttk.Button(width_container, text="0", width=3, 
+                                 command=set_contour_zero,
+                                 bootstyle="secondary-outline")
+            zero_btn.pack(pady=(5, 0))
             self.contour_width_scale = None
             self.contour_width_label = None
         except Exception as e:
@@ -1845,14 +1886,14 @@ class ModernWordCloudApp:
             width_label_frame.pack(fill=X)
             contour_width_lbl = ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 9))
             contour_width_lbl.pack(side=LEFT)
-            contour_width_label = ttk.Label(width_label_frame, text="2 px",
+            contour_width_label = ttk.Label(width_label_frame, text="0 px",
                                            bootstyle="primary", font=('Segoe UI', 9, 'bold'))
             contour_width_label.pack(side=RIGHT)
             
             contour_width_scale = ttk.Scale(width_container,
                                            from_=0,
                                            to=30,
-                                           value=2,
+                                           value=0,
                                            command=lambda v: self.update_contour_width(v, contour_width_label),
                                            bootstyle="primary")
             contour_width_scale.pack(fill=X, pady=(5, 0))
@@ -1885,65 +1926,42 @@ class ModernWordCloudApp:
     
     def on_mask_type_change(self):
         """Handle mask type radio button change"""
-        mask_type = self.mask_type.get()
+        # Clear canvas when mask type changes
+        self.clear_canvas()
         
-        # Sync with notebook
-        tab_map = {
-            "no_mask": 0,
-            "image_mask": 1,
-            "text_mask": 2
-        }
+        # Update the mode label to reflect the mask selection
+        self.update_mode_label()
         
-        if mask_type in tab_map:
-            self.mask_notebook.select(tab_map[mask_type])
+        # Update contour state based on new selection
+        self.update_contour_state()
     
     def on_mask_tab_changed(self, event):
         """Handle mask tab change"""
-        selected_tab = self.mask_notebook.index(self.mask_notebook.select())
-        
-        # Update radio button
-        tab_to_type = {
-            0: "no_mask",
-            1: "image_mask",
-            2: "text_mask"
-        }
-        
-        if selected_tab in tab_to_type:
-            self.mask_type.set(tab_to_type[selected_tab])
-        
-        # Update mask settings
-        if selected_tab == 0:  # No Mask
-            self.mask_image = None
-            self.mask_path.set("No mask")
-        elif selected_tab == 1:  # Image Mask
-            # Keep existing image mask if any
-            pass
-        elif selected_tab == 2:  # Text Mask
-            # Update text mask if text exists
-            if hasattr(self, 'text_mask_input') and self.text_mask_input.get():
-                self.update_text_mask()
-        
-        # Update the mode label
-        self.update_mode_label()
+        # Tab changes don't affect the radio button selection
+        # This allows users to explore different mask options without committing
+        pass
     
     
     def update_font_size(self, value):
         """Update font size label and regenerate text mask"""
         val = int(float(value))
         self.text_mask_font_size.set(val)
-        self.font_size_label.config(text=str(val))
-        if self.mask_type.get() == "text" and self.text_mask_input.get():
+        if hasattr(self, 'font_size_label'):
+            self.font_size_label.config(text=str(val))
+        # Update text mask if we're on the text mask tab and have text
+        if self.text_mask_input.get():
             self.update_text_mask()
     
     def update_words_per_line(self, value):
         """Update words per line label and regenerate text mask"""
         val = int(float(value))
         self.text_mask_words_per_line.set(val)
-        if val == 1:
-            self.words_per_line_label.config(text="1 word")
-        else:
-            self.words_per_line_label.config(text=f"{val} words")
-        if self.mask_type.get() == "text" and self.text_mask_input.get():
+        if hasattr(self, 'words_per_line_label'):
+            if val == 1:
+                self.words_per_line_label.config(text="1 word")
+            else:
+                self.words_per_line_label.config(text=f"{val} words")
+        if self.text_mask_input.get():
             self.update_text_mask()
     
     def get_ratio_text(self, width, height):
@@ -2082,21 +2100,29 @@ class ModernWordCloudApp:
         actual_width = self.canvas_width.get()
         actual_height = self.canvas_height.get()
         
+        # Apply user's preview scale preference
+        user_scale = self.preview_scale.get() / 100.0
+        scaled_width = actual_width * user_scale
+        scaled_height = actual_height * user_scale
+        
         # Define max constraints for preview
         max_preview_width = 600
         max_preview_height = 450  # Reasonable height limit
         
-        # Calculate scale factors for both dimensions
-        width_scale = max_preview_width / actual_width if actual_width > max_preview_width else 1.0
-        height_scale = max_preview_height / actual_height if actual_height > max_preview_height else 1.0
+        # Calculate scale factors for both dimensions after user scaling
+        width_scale = max_preview_width / scaled_width if scaled_width > max_preview_width else 1.0
+        height_scale = max_preview_height / scaled_height if scaled_height > max_preview_height else 1.0
         
         # Use the smaller scale to ensure it fits in both dimensions
-        scale = min(width_scale, height_scale, 1.0)  # Don't upscale
+        constraint_scale = min(width_scale, height_scale)
         
-        display_width = int(actual_width * scale)
-        display_height = int(actual_height * scale)
+        # Final scale is user scale * constraint scale
+        final_scale = user_scale * constraint_scale
         
-        self.print_debug(f"Preview size: {display_width}x{display_height} (scale: {scale:.2f})")
+        display_width = int(actual_width * final_scale)
+        display_height = int(actual_height * final_scale)
+        
+        self.print_debug(f"Preview size: {display_width}x{display_height} (user scale: {user_scale:.2f}, constraint scale: {constraint_scale:.2f}, final: {final_scale:.2f})")
         
         return display_width, display_height
     
@@ -2109,58 +2135,74 @@ class ModernWordCloudApp:
         preview_wrapper = ttk.Frame(preview_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
-        # Modern header panel
-        header_frame = ttk.Frame(preview_wrapper)
-        header_frame.pack(fill=X, pady=(0, 15))
+        # Modern status bar header
+        header_container = ttk.Frame(preview_wrapper)
+        header_container.pack(fill=X, pady=(0, 12))
         
-        # Create gradient-like background effect with nested frames
-        header_bg = ttk.Frame(header_frame, bootstyle="primary")
-        header_bg.pack(fill=BOTH, expand=TRUE)
+        # Create a custom styled frame for the status bar
+        self.status_bar = tk.Frame(header_container, bg='#F3F4F6', height=44)
+        self.status_bar.pack(fill=X)
+        self.status_bar.pack_propagate(False)
+        status_bar = self.status_bar  # Keep local reference for convenience
         
-        # Inner content frame with padding
-        header_content = ttk.Frame(header_bg)
-        header_content.pack(fill=BOTH, expand=TRUE, padx=20, pady=12)
+        # Add subtle top border
+        self.status_bar_top_border = tk.Frame(status_bar, bg='#E5E7EB', height=1)
+        self.status_bar_top_border.pack(fill=X, side=TOP)
         
-        # Create two-column layout
-        left_frame = ttk.Frame(header_content)
-        left_frame.pack(side=LEFT, fill=Y, expand=TRUE)
+        # Inner container with padding
+        self.status_bar_inner = tk.Frame(status_bar, bg='#F3F4F6')
+        self.status_bar_inner.pack(fill=BOTH, expand=True, padx=20)
+        inner_container = self.status_bar_inner
+        
+        # Left side - Source info
+        left_frame = tk.Frame(inner_container, bg='#F3F4F6')
+        left_frame.pack(side=LEFT, fill=Y)
+        
+        # Source container
+        source_container = tk.Frame(left_frame, bg='#F3F4F6')
+        source_container.pack(expand=True)
+        
+        # Source icon and label
+        source_row = tk.Frame(source_container, bg='#F3F4F6')
+        source_row.pack()
+        
+        tk.Label(source_row, text="📁", font=('Segoe UI', 14), bg='#F3F4F6', fg='#6B7280').pack(side=LEFT, padx=(0, 8))
+        
+        source_text_frame = tk.Frame(source_row, bg='#F3F4F6')
+        source_text_frame.pack(side=LEFT)
+        
+        tk.Label(source_text_frame, text="SOURCE", font=('Segoe UI', 8), bg='#F3F4F6', fg='#9CA3AF').pack(anchor='w')
+        self.source_label = tk.Label(source_text_frame, text="None", font=('Segoe UI', 11, 'bold'), bg='#F3F4F6', fg='#1F2937')
+        self.source_label.pack(anchor='w')
         
         # Center divider
-        divider = ttk.Frame(header_content, bootstyle="secondary", width=2)
+        divider = tk.Frame(inner_container, bg='#E5E7EB', width=1)
         divider.pack(side=LEFT, fill=Y, padx=30)
         
-        right_frame = ttk.Frame(header_content)
-        right_frame.pack(side=LEFT, fill=Y, expand=TRUE)
+        # Right side - Mask info
+        right_frame = tk.Frame(inner_container, bg='#F3F4F6')
+        right_frame.pack(side=LEFT, fill=Y)
         
-        # Source section
-        source_title = ttk.Label(left_frame, 
-                               text="SOURCE",
-                               font=('Segoe UI', 9, 'bold'),
-                               bootstyle="inverse-primary")
-        source_title.pack(anchor=W)
+        # Mask container
+        mask_container = tk.Frame(right_frame, bg='#F3F4F6')
+        mask_container.pack(expand=True)
         
-        self.source_label = ttk.Label(left_frame,
-                                    text="📄 None",
-                                    font=('Segoe UI', 14),
-                                    bootstyle="inverse-primary")
-        self.source_label.pack(anchor=W)
+        # Mask icon and label
+        mask_row = tk.Frame(mask_container, bg='#F3F4F6')
+        mask_row.pack()
         
-        # Mask section
-        mask_title = ttk.Label(right_frame,
-                             text="MASK",
-                             font=('Segoe UI', 9, 'bold'),
-                             bootstyle="inverse-primary")
-        mask_title.pack(anchor=W)
+        tk.Label(mask_row, text="🎭", font=('Segoe UI', 14), bg='#F3F4F6', fg='#6B7280').pack(side=LEFT, padx=(0, 8))
         
-        self.mask_label = ttk.Label(right_frame,
-                                  text="⬜ No Mask",
-                                  font=('Segoe UI', 14),
-                                  bootstyle="inverse-primary")
-        self.mask_label.pack(anchor=W)
+        mask_text_frame = tk.Frame(mask_row, bg='#F3F4F6')
+        mask_text_frame.pack(side=LEFT)
         
-        # Add a subtle shadow effect by creating a bottom border
-        shadow_frame = ttk.Frame(header_frame, height=2, bootstyle="secondary")
-        shadow_frame.pack(fill=X, side=BOTTOM)
+        tk.Label(mask_text_frame, text="MASK", font=('Segoe UI', 8), bg='#F3F4F6', fg='#9CA3AF').pack(anchor='w')
+        self.mask_label = tk.Label(mask_text_frame, text="No Mask", font=('Segoe UI', 11, 'bold'), bg='#F3F4F6', fg='#1F2937')
+        self.mask_label.pack(anchor='w')
+        
+        # Add bottom border
+        bottom_border = tk.Frame(status_bar, bg='#E5E7EB', height=1)
+        bottom_border.pack(fill=X, side=BOTTOM)
         
         # Scale indicator label (initially hidden)
         self.scale_indicator = ttk.Label(preview_wrapper, 
@@ -2173,8 +2215,13 @@ class ModernWordCloudApp:
         canvas_container = ttk.Frame(preview_wrapper)
         canvas_container.pack(expand=TRUE)  # Center it
         
-        canvas_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=0)
-        canvas_frame.pack(pady=(0, 15))
+        # Create border frame
+        border_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
+        border_frame.pack(pady=(0, 15))
+        
+        # Canvas frame inside border
+        canvas_frame = ttk.Frame(border_frame, bootstyle="light")
+        canvas_frame.pack()
         
         # Calculate initial display size
         display_width, display_height = self.calculate_preview_size()
@@ -2186,7 +2233,7 @@ class ModernWordCloudApp:
         
         # Initial empty plot with message
         ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, 'Generate a word cloud to see it here', 
+        ax.text(0.5, 0.5, '', 
                 horizontalalignment='center', verticalalignment='center',
                 transform=ax.transAxes, fontsize=14, color='gray')
         ax.axis('off')
@@ -2194,6 +2241,69 @@ class ModernWordCloudApp:
         
         # Store reference to preview canvas frame for theme updates
         self.preview_canvas_frame = canvas_frame
+        self.preview_border_frame = border_frame
+        
+        # Preview size control
+        size_control_frame = ttk.Frame(preview_wrapper)
+        size_control_frame.pack(fill=X, pady=(10, 20))
+        
+        # Center the controls
+        size_center = ttk.Frame(size_control_frame)
+        size_center.pack()
+        
+        ttk.Label(size_center, text="Preview Size:", 
+                 font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        
+        # Size percentage variable is already initialized in __init__
+        
+        # Smaller size for zoom out
+        ttk.Button(size_center, text="−", 
+                  command=lambda: self.adjust_preview_size(-10),
+                  bootstyle="secondary-outline",
+                  width=3).pack(side=LEFT, padx=2)
+        
+        # Size slider
+        self.preview_slider = ttk.Scale(size_center,
+                                      from_=25,
+                                      to=200,
+                                      value=100,
+                                      orient=HORIZONTAL,
+                                      length=200,
+                                      command=self.update_preview_size_from_slider,
+                                      bootstyle="info")
+        self.preview_slider.pack(side=LEFT, padx=10)
+        
+        # Size label
+        self.preview_size_label = ttk.Label(size_center,
+                                          text="100%",
+                                          font=('Segoe UI', 10, 'bold'),
+                                          bootstyle="info",
+                                          width=5)
+        self.preview_size_label.pack(side=LEFT, padx=(5, 10))
+        
+        # Larger size for zoom in
+        ttk.Button(size_center, text="+", 
+                  command=lambda: self.adjust_preview_size(10),
+                  bootstyle="secondary-outline",
+                  width=3).pack(side=LEFT, padx=2)
+        
+        # Reset button
+        ttk.Button(size_center, text="Reset",
+                  command=lambda: self.set_preview_size(100),
+                  bootstyle="secondary-link").pack(side=LEFT, padx=(10, 0))
+        
+        # Calculate and set the actual initial preview scale
+        actual_width = self.canvas_width.get()
+        actual_height = self.canvas_height.get()
+        if actual_width > 0:
+            # Check if preview is constrained
+            if display_width < actual_width or display_height < actual_height:
+                actual_scale = int((display_width / actual_width) * 100)
+                self.preview_scale.set(actual_scale)
+                self.preview_size_label.config(text=f"{actual_scale}%")
+                self.preview_slider.set(actual_scale)
+                # Update scale indicator
+                self.scale_indicator.config(text=f"Preview at {actual_scale}% (limited by screen size)")
         
         # Button frame (centered below preview)
         button_frame = ttk.Frame(preview_wrapper)
@@ -2494,12 +2604,11 @@ class ModernWordCloudApp:
         source_icon = source_icons.get(source, "📄")
         
         # Update source label
-        source_text = f"{source_icon} {source}"
-        
-        # Add word count if available
         if self.text_content and source != "None":
             word_count = len(self.text_content.split())
-            source_text += f" ({word_count:,} words)"
+            source_text = f"{source} ({word_count:,} words)"
+        else:
+            source_text = source
         
         self.source_label.config(text=source_text)
         
@@ -2513,12 +2622,8 @@ class ModernWordCloudApp:
             "text_mask": "🔤"
         }
         
-        # Get mask type from the current state
-        if hasattr(self, 'mask_notebook'):
-            selected_tab = self.mask_notebook.index(self.mask_notebook.select())
-            mask_type = ["no_mask", "image_mask", "text_mask"][selected_tab]
-        else:
-            mask_type = "no_mask"
+        # Get mask type from the radio button selection
+        mask_type = self.mask_type.get() if hasattr(self, 'mask_type') else "no_mask"
         mask_icon = mask_icons.get(mask_type, "⬜")
         
         # Build mask description
@@ -2532,7 +2637,61 @@ class ModernWordCloudApp:
             mask_desc = "No Mask"
         
         # Update mask label
-        self.mask_label.config(text=f"{mask_icon} {mask_desc}")
+        self.mask_label.config(text=mask_desc)
+    
+    def update_status_bar_colors(self, bg_color, border_color, text_color, label_color):
+        """Update status bar colors based on theme"""
+        # Update main container
+        self.status_bar.config(bg=bg_color)
+        self.status_bar_inner.config(bg=bg_color)
+        
+        # Update borders
+        self.status_bar_top_border.config(bg=border_color)
+        
+        # Find and update all child widgets
+        def update_widget_colors(widget):
+            try:
+                # Skip certain widget types
+                if isinstance(widget, (ttk.Label, ttk.Button, ttk.Frame)):
+                    return
+                    
+                # Update background
+                if hasattr(widget, 'config'):
+                    widget.config(bg=bg_color)
+                    
+                    # Update text colors for labels
+                    if isinstance(widget, tk.Label):
+                        current_font = widget.cget('font')
+                        if current_font and 'bold' in str(current_font):
+                            widget.config(fg=text_color)
+                        else:
+                            widget.config(fg=label_color)
+                    
+                # Update divider
+                if hasattr(widget, 'winfo_class') and widget.winfo_class() == 'Frame':
+                    # Check if it's the divider by its width
+                    try:
+                        if widget.cget('width') == 1:
+                            widget.config(bg=border_color)
+                    except:
+                        pass
+                        
+                # Recursively update children
+                for child in widget.winfo_children():
+                    update_widget_colors(child)
+            except:
+                pass
+        
+        update_widget_colors(self.status_bar)
+        
+        # Find and update bottom border
+        for child in self.status_bar.winfo_children():
+            try:
+                if hasattr(child, 'cget') and child.cget('height') == 1 and child != self.status_bar_top_border:
+                    child.config(bg=border_color)
+                    break
+            except:
+                pass
     
     def update_forbidden_words(self, show_toast=True):
         """Update forbidden words set"""
@@ -2745,7 +2904,8 @@ class ModernWordCloudApp:
         )
         if file_path:
             try:
-                self.mask_image = np.array(Image.open(file_path))
+                self.image_mask_image = np.array(Image.open(file_path))
+                self.mask_image = self.image_mask_image  # For backward compatibility
                 self.mask_path.set(os.path.basename(file_path))
                 
                 # Update the image mask label
@@ -2769,16 +2929,24 @@ class ModernWordCloudApp:
     
     def clear_mask(self):
         """Clear selected mask"""
-        self.mask_image = None
+        # Clear the appropriate mask based on current tab
+        current_tab = self.mask_notebook.index(self.mask_notebook.select())
+        
+        if current_tab == 1:  # Image mask tab
+            self.image_mask_image = None
+            self.image_mask_label.config(text="No image selected")
+        elif current_tab == 2:  # Text mask tab
+            self.text_mask_image = None
+            self.text_mask_input.set("")
+            
+        self.mask_image = None  # For backward compatibility
         self.mask_path.set("No mask selected")
         
         # Clear appropriate preview label
-        if self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+        if current_tab == 1 and hasattr(self, 'image_mask_preview_label'):
             self.image_mask_preview_label.config(image="", text="No mask selected")
-            self.image_mask_label.config(text="No image selected")
-        elif self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+        elif current_tab == 2 and hasattr(self, 'text_mask_preview_label'):
             self.text_mask_preview_label.config(image="", text="No mask selected")
-            self.text_mask_input.set("")
         
         # Disable contour options when mask is cleared
         self.update_contour_state(False)
@@ -2879,9 +3047,10 @@ class ModernWordCloudApp:
     
     def update_text_mask(self):
         """Update the text mask when text or settings change"""
-        if self.mask_type.get() == "text" and self.text_mask_input.get():
+        if self.text_mask_input.get():
             # Generate text mask
-            self.mask_image = self.create_text_mask(self.text_mask_input.get())
+            self.text_mask_image = self.create_text_mask(self.text_mask_input.get())
+            self.mask_image = self.text_mask_image  # For backward compatibility
             self.mask_path.set(f"Text: {self.text_mask_input.get()}")
             
             # Update preview
@@ -2895,22 +3064,38 @@ class ModernWordCloudApp:
     
     def update_mask_preview(self):
         """Update the mask preview display"""
-        # First clear any existing preview
-        if self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
+        # Determine which mask to preview based on context
+        mask_to_preview = None
+        preview_label = None
+        
+        # Check which tab is active
+        current_tab = self.mask_notebook.index(self.mask_notebook.select())
+        
+        if current_tab == 1 and self.image_mask_image is not None:  # Image mask tab
+            mask_to_preview = self.image_mask_image
+            if hasattr(self, 'image_mask_preview_label'):
+                preview_label = self.image_mask_preview_label
+        elif current_tab == 2 and self.text_mask_image is not None:  # Text mask tab
+            mask_to_preview = self.text_mask_image
+            if hasattr(self, 'text_mask_preview_label'):
+                preview_label = self.text_mask_preview_label
+                
+        # Clear all preview labels first
+        if hasattr(self, 'text_mask_preview_label'):
             self.text_mask_preview_label.config(image="", text="")
             if hasattr(self.text_mask_preview_label, 'image'):
                 self.text_mask_preview_label.image = None
-        elif self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
+        if hasattr(self, 'image_mask_preview_label'):
             self.image_mask_preview_label.config(image="", text="")
             if hasattr(self.image_mask_preview_label, 'image'):
                 self.image_mask_preview_label.image = None
                 
-        if self.mask_image is not None:
+        if mask_to_preview is not None and preview_label is not None:
             # Convert numpy array to PIL Image for preview
-            if len(self.mask_image.shape) == 3:
-                preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'RGB')
+            if len(mask_to_preview.shape) == 3:
+                preview_img = Image.fromarray(mask_to_preview.astype('uint8'), 'RGB')
             else:
-                preview_img = Image.fromarray(self.mask_image.astype('uint8'), 'L')
+                preview_img = Image.fromarray(mask_to_preview.astype('uint8'), 'L')
             
             # Calculate preview size based on canvas dimensions
             canvas_width = self.canvas_width.get()
@@ -2922,13 +3107,9 @@ class ModernWordCloudApp:
             preview_img.thumbnail((preview_width, preview_height), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(preview_img)
             
-            # Update appropriate preview label
-            if self.mask_type.get() == "text" and hasattr(self, 'text_mask_preview_label'):
-                self.text_mask_preview_label.config(image=photo, text="")
-                self.text_mask_preview_label.image = photo
-            elif self.mask_type.get() == "image" and hasattr(self, 'image_mask_preview_label'):
-                self.image_mask_preview_label.config(image=photo, text="")
-                self.image_mask_preview_label.image = photo
+            # Update the preview label
+            preview_label.config(image=photo, text="")
+            preview_label.image = photo
     
     def update_contour_width(self, value, label=None):
         """Update contour width label"""
@@ -2996,7 +3177,7 @@ class ModernWordCloudApp:
             style.configure(style_name, background=self.contour_color)
             self.contour_color_preview.configure(style=style_name)
     
-    def clear_canvas(self, clear_wordcloud=True):
+    def clear_canvas(self, clear_wordcloud=True, show_placeholder=True):
         """Clear the canvas completely"""
         self.print_debug("Clearing canvas...")
         
@@ -3018,6 +3199,10 @@ class ModernWordCloudApp:
         # Create fresh subplot
         ax = self.figure.add_subplot(111)
         ax.set_facecolor('white')
+        if show_placeholder:
+            ax.text(0.5, 0.5, '', 
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=ax.transAxes, fontsize=14, color='gray')
         ax.axis('off')
         
         # Reset figure properties based on theme
@@ -3058,14 +3243,26 @@ class ModernWordCloudApp:
             # Update the canvas widget size to match
             self.canvas_widget.config(width=display_width, height=display_height)
             
-            # Update scale indicator
+            # Update scale indicator and slider
             actual_width = self.canvas_width.get()
             actual_height = self.canvas_height.get()
-            if display_width < actual_width or display_height < actual_height:
-                reduction = 100 - int((display_width / actual_width) * 100)
-                self.scale_indicator.config(text=f"Preview reduced by {reduction}% to fit screen")
-            else:
-                self.scale_indicator.config(text="")
+            
+            # Calculate actual scale percentage
+            if actual_width > 0:
+                actual_scale = int((display_width / actual_width) * 100)
+                
+                # Update slider and label if they exist
+                if hasattr(self, 'preview_slider'):
+                    self.preview_scale.set(actual_scale)
+                    self.preview_slider.set(actual_scale)
+                if hasattr(self, 'preview_size_label'):
+                    self.preview_size_label.config(text=f"{actual_scale}%")
+                
+                # Update scale indicator
+                if display_width < actual_width or display_height < actual_height:
+                    self.scale_indicator.config(text=f"Preview at {actual_scale}% (limited by screen size)")
+                else:
+                    self.scale_indicator.config(text="")
             
             # Clear canvas when size changes
             self.clear_canvas()
@@ -3076,10 +3273,85 @@ class ModernWordCloudApp:
             if hasattr(self, 'print_debug'):
                 self.print_debug(f"Error updating preview size: {str(e)}")
     
+    def adjust_preview_size(self, delta):
+        """Adjust preview size by delta percent"""
+        current = self.preview_scale.get()
+        new_value = max(25, min(200, current + delta))
+        self.preview_scale.set(new_value)
+        self.update_preview_size_from_slider(new_value)
+    
+    def update_preview_size_from_slider(self, value):
+        """Update preview size from slider value"""
+        val = int(float(value))
+        self.preview_scale.set(val)
+        self.preview_size_label.config(text=f"{val}%")
+        
+        # Update the preview canvas
+        self.update_preview_display()
+    
+    def set_preview_size(self, percent):
+        """Set preview size to specific percentage"""
+        self.preview_scale.set(percent)
+        self.update_preview_size_from_slider(percent)
+    
+    def update_preview_display(self):
+        """Update the preview display based on current scale"""
+        try:
+            scale_factor = self.preview_scale.get() / 100.0
+            
+            # Get base dimensions
+            base_width = self.canvas_width.get()
+            base_height = self.canvas_height.get()
+            
+            # Calculate scaled dimensions
+            scaled_width = int(base_width * scale_factor)
+            scaled_height = int(base_height * scale_factor)
+            
+            # Update figure size
+            self.figure.set_size_inches(scaled_width/100, scaled_height/100)
+            
+            # Update canvas widget size
+            self.canvas_widget.config(width=scaled_width, height=scaled_height)
+            
+            # Update scale indicator
+            display_width, display_height = self.calculate_preview_size()
+            actual_width = self.canvas_width.get()
+            actual_height = self.canvas_height.get()
+            
+            # Check if constrained by screen size
+            user_scale = self.preview_scale.get() / 100.0
+            if display_width < actual_width * user_scale or display_height < actual_height * user_scale:
+                # Constrained by screen limits
+                actual_percent = int((display_width / actual_width) * 100)
+                self.scale_indicator.config(text=f"Preview at {actual_percent}% (limited by screen size)")
+            elif scale_factor < 1.0:
+                self.scale_indicator.config(text=f"Preview at {self.preview_scale.get()}% of actual size")
+            elif scale_factor > 1.0:
+                self.scale_indicator.config(text=f"Preview enlarged to {self.preview_scale.get()}%")
+            else:
+                self.scale_indicator.config(text="Preview at actual size")
+            
+            # Redraw canvas
+            self.canvas.draw()
+            
+            # If there's a wordcloud, regenerate it at the new size
+            if hasattr(self, 'current_wordcloud') and self.current_wordcloud:
+                self.display_wordcloud(self.current_wordcloud)
+                
+        except Exception as e:
+            self.print_debug(f"Error updating preview display: {str(e)}")
+    
     def update_contour_state(self, has_mask=None):
         """Enable/disable contour options based on mask selection"""
         if has_mask is None:
-            has_mask = self.mask_image is not None
+            # Check if any mask is selected based on radio button
+            mask_type = self.mask_type.get()
+            if mask_type == "image_mask":
+                has_mask = self.image_mask_image is not None
+            elif mask_type == "text_mask":
+                has_mask = self.text_mask_image is not None
+            else:
+                has_mask = False
         
         state = NORMAL if has_mask else DISABLED
         
@@ -3166,13 +3438,22 @@ class ModernWordCloudApp:
         if self.words_per_line_meter:
             val = int(self.words_per_line_meter.amountusedvar.get())
             self.text_mask_words_per_line.set(val)
-            if self.mask_type.get() == "text" and self.text_mask_input.get():
+            if self.text_mask_input.get():
                 self.update_text_mask()
     
     def update_contour_width_from_meter(self):
         """Update contour width from meter widget"""
         if self.contour_width_meter:
-            val = int(self.contour_width_meter.amountusedvar.get())
+            raw_val = self.contour_width_meter.amountusedvar.get()
+            self.print_debug(f"Contour width meter raw value: {raw_val}")
+            val = int(raw_val)
+            # Force to 0 if less than 1
+            if raw_val < 1:
+                val = 0
+                # Workaround: set to near-zero then to actual zero
+                self.root.after(10, lambda: self.contour_width_meter.configure(amountused=0.001))
+                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
+                self.root.after(60, lambda: self.contour_width_meter.update_idletasks())
             self.contour_width.set(val)
             if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
                 self.update_text_mask()
@@ -3182,7 +3463,7 @@ class ModernWordCloudApp:
         if self.font_size_meter:
             val = int(self.font_size_meter.amountusedvar.get())
             self.text_mask_font_size.set(val)
-            if self.mask_type.get() == "text" and self.text_mask_input.get():
+            if self.text_mask_input.get():
                 self.update_text_mask()
     
     def update_width_from_meter(self):
@@ -3334,11 +3615,21 @@ class ModernWordCloudApp:
             issues.append(("warning", "Large canvas size may cause slow generation"))
         
         # Check if using text mask with no text
-        if self.mask_type.get() == "text" and not self.text_mask_input.get():
+        if self.mask_type.get() == "text_mask" and (not hasattr(self, 'text_mask_image') or self.text_mask_image is None):
             issues.append(("error", "Text mask selected but no text provided"))
         
+        # Check if using image mask with no image
+        if self.mask_type.get() == "image_mask" and (not hasattr(self, 'image_mask_image') or self.image_mask_image is None):
+            issues.append(("error", "Image mask selected but no image loaded"))
+        
         # Check if using RGBA mode with contours
-        if self.rgba_mode.get() and self.mask_image is not None and self.contour_width.get() > 0:
+        has_mask = False
+        if self.mask_type.get() == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
+            has_mask = True
+        elif self.mask_type.get() == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
+            has_mask = True
+            
+        if self.rgba_mode.get() and has_mask and self.contour_width.get() > 0:
             issues.append(("error", "Contours are not supported in RGBA (transparent) mode. Please disable contours or switch to RGB mode"))
         
         # Check max words
@@ -3442,8 +3733,17 @@ class ModernWordCloudApp:
                 wc_params['mode'] = 'RGB'
                 wc_params['background_color'] = self.bg_color.get()
             
-            if self.mask_image is not None:
-                wc_params['mask'] = self.mask_image
+            # Apply mask based on radio button selection
+            mask_to_use = None
+            mask_type = self.mask_type.get()
+            
+            if mask_type == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
+                mask_to_use = self.image_mask_image
+            elif mask_type == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
+                mask_to_use = self.text_mask_image
+            
+            if mask_to_use is not None:
+                wc_params['mask'] = mask_to_use
                 # Disable contours in RGBA mode due to wordcloud library bug
                 # (shape mismatch between RGBA image and RGB contour)
                 if self.contour_width.get() > 0 and not self.rgba_mode.get():
@@ -3456,15 +3756,15 @@ class ModernWordCloudApp:
             wc_params['stopwords'] = self.forbidden_words
             
             # Log mask info if using one
-            if self.mask_image is not None:
-                mask_shape = self.mask_image.shape
+            if mask_to_use is not None:
+                mask_shape = mask_to_use.shape
                 self.print_debug(f"Using mask with shape: {mask_shape}")
                 # Count available pixels (black pixels in mask)
                 if len(mask_shape) == 3:
                     # Convert to grayscale if RGB
-                    gray_mask = np.mean(self.mask_image, axis=2)
+                    gray_mask = np.mean(mask_to_use, axis=2)
                 else:
-                    gray_mask = self.mask_image
+                    gray_mask = mask_to_use
                 available_pixels = np.sum(gray_mask < 128)  # Count dark pixels
                 total_pixels = mask_shape[0] * mask_shape[1]
                 self.print_debug(f"Mask available area: {available_pixels:,} pixels ({available_pixels/total_pixels*100:.1f}% of total)")
@@ -3506,8 +3806,8 @@ class ModernWordCloudApp:
         # Update canvas widget size
         self.canvas_widget.config(width=display_width, height=display_height)
         
-        # Clear canvas but keep the wordcloud object
-        self.clear_canvas(clear_wordcloud=False)
+        # Clear canvas but keep the wordcloud object, don't show placeholder
+        self.clear_canvas(clear_wordcloud=False, show_placeholder=False)
         
         # Get the current axes (created by clear_canvas)
         ax = self.figure.gca()
@@ -3828,18 +4128,8 @@ class ModernWordCloudApp:
                 self.current_theme.set(self.light_themes[0])
         
         # Update dropdown values
-        theme_dropdown = None
-        for widget in self.root.winfo_children():
-            if isinstance(widget, ttk.Frame):
-                for child in widget.winfo_children():
-                    if isinstance(child, ttk.Frame):
-                        for subchild in child.winfo_children():
-                            if isinstance(subchild, ttk.Combobox) and subchild.cget('textvariable') == str(self.current_theme):
-                                theme_dropdown = subchild
-                                break
-        
-        if theme_dropdown:
-            theme_dropdown['values'] = self.themes
+        if hasattr(self, 'theme_dropdown'):
+            self.theme_dropdown['values'] = self.themes
         
         # Apply the theme
         self.change_theme()
@@ -3859,9 +4149,23 @@ class ModernWordCloudApp:
         if new_theme in ["darkly", "superhero", "solar", "cyborg", "vapor"]:
             # Dark themes - adjust canvas
             self.figure.patch.set_facecolor('#2b2b2b')
+            # Update status bar colors for dark theme
+            if hasattr(self, 'status_bar'):
+                bg_color = '#1F2937'  # Dark gray
+                border_color = '#374151'  # Darker border
+                text_color = '#F9FAFB'  # Light text
+                label_color = '#9CA3AF'  # Gray labels
+                self.update_status_bar_colors(bg_color, border_color, text_color, label_color)
         else:
             # Light themes
             self.figure.patch.set_facecolor('white')
+            # Update status bar colors for light theme
+            if hasattr(self, 'status_bar'):
+                bg_color = '#F3F4F6'  # Light gray
+                border_color = '#E5E7EB'  # Light border
+                text_color = '#1F2937'  # Dark text
+                label_color = '#9CA3AF'  # Gray labels
+                self.update_status_bar_colors(bg_color, border_color, text_color, label_color)
         self.canvas.draw()
         
         # Autosave theme preference
@@ -3902,6 +4206,10 @@ class ModernWordCloudApp:
                         self.themes = self.dark_themes
                     else:
                         self.themes = self.light_themes
+                    
+                    # Update theme dropdown if it exists
+                    if hasattr(self, 'theme_dropdown'):
+                        self.theme_dropdown['values'] = self.themes
                 
                 # Apply theme
                 if 'theme' in theme_config and theme_config['theme'] in self.themes:
@@ -4038,10 +4346,7 @@ class ModernWordCloudApp:
                 elif self.scale_scale:
                     self.scale_scale.set(config['scale'])
             
-            # Apply theme
-            if 'theme' in config and config['theme'] in self.themes:
-                self.current_theme.set(config['theme'])
-                self.root.style.theme_use(config['theme'].lower().replace(" ", ""))
+            # Don't load theme from config - it's handled separately in theme.json
             
             # Apply mask settings
             if 'mask_type' in config:
@@ -4211,8 +4516,7 @@ class ModernWordCloudApp:
             config['max_words'] = self.max_words.get()
         if hasattr(self, 'scale'):
             config['scale'] = self.scale.get()
-        if hasattr(self, 'current_theme'):
-            config['theme'] = self.current_theme.get()
+        # Don't save theme in main config - it's handled separately in theme.json
         
         # Mask settings
         if hasattr(self, 'mask_notebook'):
@@ -4372,6 +4676,16 @@ class ModernWordCloudApp:
                 self.mask_label.config(text="No mask selected")
             
             # Reset contour settings
+            self.contour_width.set(0)
+            if hasattr(self, 'contour_width_meter') and self.contour_width_meter:
+                # Use the workaround for resetting to 0
+                self.contour_width_meter.configure(amountused=0.001)
+                self.contour_width_meter.update_idletasks()
+                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
+                self.root.after(100, lambda: self.contour_width_meter.update_idletasks())
+            elif hasattr(self, 'contour_width_scale') and self.contour_width_scale:
+                self.contour_width_scale.set(0)
+            
             if hasattr(self, 'contour_var'):
                 self.contour_var.set(False)
                 self.contour_width_var.set(3)
@@ -4413,6 +4727,23 @@ class ModernWordCloudApp:
             self.root.style.theme_use("cosmo")
             
             self.show_message("Application reset to defaults", "good")
+    
+    def load_assets(self):
+        """Load SVG assets as placeholder text for now"""
+        # For now, we'll just store the icon names
+        # In a real implementation, you would convert SVG to PhotoImage
+        self.icon_texts = {
+            'tab_input': '📁',
+            'tab_filter': '🔍',
+            'tab_style': '🎨',
+            'btn_generate': '🚀',
+            'btn_save': '💾',
+            'btn_clear': '🗑️',
+            'btn_folder': '📂',
+            'icon_image_mask': '🖼️',
+            'icon_text_mask': '🔤',
+            'icon_no_mask': '⬜'
+        }
     
     def show_help(self):
         """Show help in browser"""
@@ -4503,6 +4834,7 @@ class ModernWordCloudApp:
 def main():
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
+    root.iconbitmap("icons/icon_256.ico")
     app = ModernWordCloudApp(root)
     root.mainloop()
 
