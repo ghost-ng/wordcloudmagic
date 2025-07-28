@@ -37,6 +37,51 @@ from pptx import Presentation
 import re
 from io import BytesIO
 
+class ToastManager:
+    """Manages stacked toast notifications"""
+    def __init__(self):
+        self.active_toasts = []
+        self.toast_height = 60  # Approximate height of each toast
+        self.toast_gap = 10
+        self.base_y_offset = 50
+    
+    def show_toast(self, message, style="info", duration=15000):
+        """Show a stacked toast notification"""
+        # Calculate position for new toast
+        y_position = self.base_y_offset + len(self.active_toasts) * (self.toast_height + self.toast_gap)
+        
+        # Create custom toast that tracks its position
+        toast = ToastNotification(
+            title="WordCloud Magic",
+            message=message,
+            duration=duration,
+            bootstyle=style,
+            position=(50, y_position, 'ne')  # northeast position with offset
+        )
+        
+        # Track this toast
+        self.active_toasts.append(toast)
+        
+        # Show the toast
+        toast.show_toast()
+        
+        # Schedule removal from tracking after duration
+        def remove_toast():
+            if toast in self.active_toasts:
+                self.active_toasts.remove(toast)
+                self._reposition_toasts()
+        
+        # Schedule removal slightly after the toast duration
+        toast.toplevel.after(duration + 100, remove_toast)
+    
+    def _reposition_toasts(self):
+        """Reposition remaining toasts after one is removed"""
+        for i, toast in enumerate(self.active_toasts):
+            if hasattr(toast, 'toplevel') and toast.toplevel.winfo_exists():
+                new_y = self.base_y_offset + i * (self.toast_height + self.toast_gap)
+                x = toast.toplevel.winfo_x()
+                toast.toplevel.geometry(f"+{x}+{new_y}")
+
 class FontListbox(ttk.Frame):
     """Custom font selector that displays fonts in their actual style"""
     def __init__(self, master, font_dict, textvariable=None, width=35, height=6, **kwargs):
@@ -317,6 +362,9 @@ class ModernWordCloudApp:
         self.debug_mode = '--debug' in sys.argv
         if self.debug_mode:
             self.print_info("Debug mode enabled")
+        
+        # Initialize toast manager
+        self.toast_manager = ToastManager()
         
         # Flag to track UI readiness
         self.ui_ready = False
@@ -1931,6 +1979,13 @@ class ModernWordCloudApp:
         preview_wrapper = ttk.Frame(preview_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
+        # Word source mode indicator
+        self.source_mode_label = ttk.Label(preview_wrapper,
+                                          text="Mode: None",
+                                          font=('Segoe UI', 16, 'bold'),
+                                          bootstyle="primary")
+        self.source_mode_label.pack(pady=(0, 10))
+        
         # Scale indicator label (initially hidden)
         self.scale_indicator = ttk.Label(preview_wrapper, 
                                         text="",
@@ -2129,6 +2184,10 @@ class ModernWordCloudApp:
     def clear_file_selection(self):
         """Clear all file selections"""
         self.file_listbox.selection_clear(0, tk.END)
+        self.text_content = ""
+        # Update source mode label
+        if hasattr(self, 'source_mode_label'):
+            self.source_mode_label.config(text="Mode: None")
         self.show_message("File selection cleared", "info")
     
     def load_files(self):
@@ -2140,6 +2199,10 @@ class ModernWordCloudApp:
         
         self.text_content = ""
         folder = self.working_folder.get()
+        
+        # Update source mode label
+        if hasattr(self, 'source_mode_label'):
+            self.source_mode_label.config(text="Mode: Files")
         
         for idx in selected_indices:
             filename = self.file_listbox.get(idx).replace("📄 ", "")
@@ -2154,7 +2217,13 @@ class ModernWordCloudApp:
                     with open(filepath, 'rb') as f:
                         pdf_reader = PyPDF2.PdfReader(f)
                         for page in pdf_reader.pages:
-                            self.text_content += page.extract_text() + "\n"
+                            page_text = page.extract_text()
+                            # Fix common PDF extraction issues
+                            # Replace soft hyphens and rejoin split words
+                            page_text = page_text.replace('\u00AD', '')  # Remove soft hyphens
+                            page_text = page_text.replace('-\n', '')  # Rejoin hyphenated words
+                            page_text = page_text.replace('\n', ' ')  # Replace newlines with spaces
+                            self.text_content += page_text + " "
                 
                 elif filename.lower().endswith('.docx'):
                     doc = Document(filepath)
@@ -2181,6 +2250,9 @@ class ModernWordCloudApp:
         """Use text from text input widget"""
         self.text_content = self.text_input.get('1.0', tk.END).strip()
         if self.text_content:
+            # Update source mode label
+            if hasattr(self, 'source_mode_label'):
+                self.source_mode_label.config(text="Mode: Custom Text")
             word_count = len(self.text_content.split())
             self.show_message(f"Text loaded successfully with approximately {word_count:,} words", "good")
             self.show_toast("Text loaded successfully", "success")
@@ -2932,7 +3004,15 @@ class ModernWordCloudApp:
     
     def filter_words(self, text):
         """Filter words based on length and forbidden words"""
-        words = re.findall(r'\b\w+\b', text.lower())
+        # Clean up text first
+        # Remove extra spaces and normalize whitespace
+        text = ' '.join(text.split())
+        
+        # Extract words - include apostrophes for contractions
+        words = re.findall(r"\b[\w']+\b", text.lower())
+        
+        # Additional cleanup - remove standalone punctuation and numbers
+        words = [w for w in words if not w.isdigit() and len(w) > 0]
         
         # Update forbidden words (don't show toast during generation)
         self.update_forbidden_words(show_toast=False)
@@ -3465,13 +3545,8 @@ class ModernWordCloudApp:
         else:
             self.print_info(message)
             
-        toast = ToastNotification(
-            title="WordCloud Magic",
-            message=message,
-            duration=3000,
-            bootstyle=style
-        )
-        toast.show_toast()
+        # Use toast manager for stacked toasts with 15 second timeout
+        self.toast_manager.show_toast(message, style, duration=15000)
 
     def change_theme(self, event=None):
         """Change the application theme"""
