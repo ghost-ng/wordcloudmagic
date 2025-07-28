@@ -3210,7 +3210,7 @@ class ModernWordCloudApp:
                 'max_words': int(self.max_words.get()),
                 'scale': self.scale.get(),
                 'relative_scaling': 0.5,
-                'min_font_size': 10,
+                'min_font_size': 4,  # Reduced from 10 to allow smaller words in masks
                 'prefer_horizontal': self.prefer_horizontal.get(),
                 'margin': int(5 * self.letter_thickness.get())  # Margin affects letter thickness
             }
@@ -3248,6 +3248,20 @@ class ModernWordCloudApp:
             
             # Use our forbidden words instead of default STOPWORDS
             wc_params['stopwords'] = self.forbidden_words
+            
+            # Log mask info if using one
+            if self.mask_image is not None:
+                mask_shape = self.mask_image.shape
+                self.print_debug(f"Using mask with shape: {mask_shape}")
+                # Count available pixels (black pixels in mask)
+                if len(mask_shape) == 3:
+                    # Convert to grayscale if RGB
+                    gray_mask = np.mean(self.mask_image, axis=2)
+                else:
+                    gray_mask = self.mask_image
+                available_pixels = np.sum(gray_mask < 128)  # Count dark pixels
+                total_pixels = mask_shape[0] * mask_shape[1]
+                self.print_debug(f"Mask available area: {available_pixels:,} pixels ({available_pixels/total_pixels*100:.1f}% of total)")
             
             self.wordcloud = WordCloud(**wc_params).generate(filtered_text)
             
