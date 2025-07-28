@@ -1936,8 +1936,8 @@ class ModernWordCloudApp:
     
     def on_mask_type_change(self):
         """Handle mask type radio button change"""
-        # Clear canvas when mask type changes
-        self.clear_canvas()
+        # Don't clear canvas when mask type changes
+        # self.clear_canvas()
         
         # Update the mode label to reflect the mask selection
         self.update_mode_label()
@@ -2099,10 +2099,7 @@ class ModernWordCloudApp:
         ratio_text = self.get_ratio_text(width, height)
         self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
         
-        # Clear canvas when preset is selected
-        self.clear_canvas()
-        
-        # Clear canvas when preset is selected
+        # Clear canvas when preset is selected (canvas size change)
         self.clear_canvas()
         
     def calculate_preview_size(self):
@@ -3361,8 +3358,8 @@ class ModernWordCloudApp:
                 else:
                     self.scale_indicator.config(text="")
             
-            # Clear canvas when size changes
-            self.clear_canvas()
+            # Don't clear canvas when preview size changes
+            # self.clear_canvas()
             
             # Force canvas to redraw with new size
             self.canvas.draw()
@@ -3476,7 +3473,8 @@ class ModernWordCloudApp:
         self.horizontal_gauge.configure(value=90)
         self.prefer_horizontal.set(0.9)
         self.show_toast("Word orientation reset to 90% horizontal", "info")
-        self.clear_canvas()
+        # Don't clear canvas on orientation reset
+        # self.clear_canvas()
     
     def update_thickness_label(self, value):
         """Update letter thickness label"""
@@ -3495,34 +3493,38 @@ class ModernWordCloudApp:
         self.thickness_label.config(text=text)
     
     def update_max_words(self, value):
-        """Update max words label and clear canvas"""
+        """Update max words label"""
         val = int(float(value))
         self.max_words.set(val)
         if hasattr(self, 'max_words_label'):
             self.max_words_label.config(text=str(val))
-        self.clear_canvas()
+        # Don't clear canvas on max words change
+        # self.clear_canvas()
     
     def update_max_words_from_meter(self):
         """Update max words from meter widget"""
         if self.max_words_meter:
             val = int(self.max_words_meter.amountusedvar.get())
             self.max_words.set(val)
-            self.clear_canvas()
+            # Don't clear canvas on max words change
+            # self.clear_canvas()
     
     def update_scale(self, value):
-        """Update scale label and clear canvas"""
+        """Update scale label"""
         val = int(float(value))
         self.scale.set(val)
         if hasattr(self, 'scale_label'):
             self.scale_label.config(text=str(val))
-        self.clear_canvas()
+        # Don't clear canvas on scale change
+        # self.clear_canvas()
     
     def update_scale_from_meter(self):
         """Update scale from meter widget"""
         if self.scale_meter:
             val = int(self.scale_meter.amountusedvar.get())
             self.scale.set(val)
-            self.clear_canvas()
+            # Don't clear canvas on scale change
+            # self.clear_canvas()
     
     def update_thickness_from_meter(self):
         """Update letter thickness from meter widget"""
@@ -4816,8 +4818,8 @@ class ModernWordCloudApp:
             if hasattr(self, 'text_area'):
                 self.text_area.delete(1.0, tk.END)
             
-            # Clear canvas
-            self.clear_canvas()
+            # Don't clear canvas on reset
+            # self.clear_canvas()
             
             # Reset theme to default
             self.current_theme.set("cosmo")
