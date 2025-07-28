@@ -1684,12 +1684,25 @@ class ModernWordCloudApp:
         preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
         preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
         
-        # Create a label for this specific tab
-        preview_label = ttk.Label(preview_container,
-                                 text="No mask selected",
-                                 anchor=CENTER,
-                                 font=('Segoe UI', 10))
-        preview_label.pack(fill=BOTH, expand=TRUE)
+        # Create border frame for text mask preview
+        if "text" in str(parent).lower() or not ("image" in str(parent).lower()):
+            # Create frame with border for text mask
+            border_frame = ttk.Frame(preview_container, bootstyle="secondary", padding=2)
+            border_frame.pack(fill=BOTH, expand=TRUE, padx=5, pady=5)
+            
+            preview_label = ttk.Label(border_frame,
+                                     text="No mask selected",
+                                     anchor=CENTER,
+                                     font=('Segoe UI', 10),
+                                     background='white')
+            preview_label.pack(fill=BOTH, expand=TRUE)
+        else:
+            # Regular label for image mask
+            preview_label = ttk.Label(preview_container,
+                                     text="No mask selected",
+                                     anchor=CENTER,
+                                     font=('Segoe UI', 10))
+            preview_label.pack(fill=BOTH, expand=TRUE)
         
         # Store reference based on parent tab
         if "image" in str(parent):
