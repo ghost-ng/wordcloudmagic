@@ -430,12 +430,15 @@ class ModernWordCloudApp:
         self.ui_ready = False
         
         # Available themes
-        self.themes = [
+        self.light_themes = [
             "cosmo", "flatly", "litera", "minty", "lumen", 
             "sandstone", "yeti", "pulse", "united", "morph",
-            "journal", "darkly", "superhero", "solar", "cyborg",
-            "vapor", "simplex", "cerculean"
+            "journal", "simplex", "cerculean"
         ]
+        self.dark_themes = [
+            "darkly", "superhero", "solar", "cyborg", "vapor"
+        ]
+        self.themes = self.light_themes  # Start with light themes
         self.current_theme = tk.StringVar(value="cosmo")
         
         # Variables
@@ -553,6 +556,9 @@ class ModernWordCloudApp:
             "Navy": "navy"
         }
         
+        # Load theme preference before creating UI
+        self.load_theme_preference()
+        
         self.create_ui()
         
         # Mark UI as ready
@@ -601,6 +607,15 @@ class ModernWordCloudApp:
         # Theme selector on the right
         theme_frame = ttk.Frame(top_bar)
         theme_frame.pack(side=RIGHT)
+        
+        # Dark mode toggle
+        self.dark_mode = tk.BooleanVar(value=False)
+        dark_mode_check = ttk.Checkbutton(theme_frame, 
+                                         text="🌙 Dark Mode",
+                                         variable=self.dark_mode,
+                                         command=self.toggle_dark_mode,
+                                         bootstyle="round-toggle")
+        dark_mode_check.pack(side=LEFT, padx=(0, 15))
         
         ttk.Label(theme_frame, text="Theme:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 5))
         
@@ -3673,6 +3688,41 @@ class ModernWordCloudApp:
         # Use toast manager for stacked toasts with 15 second timeout
         self.toast_manager.show_toast(message, style, duration=15000)
 
+    def toggle_dark_mode(self):
+        """Toggle between dark and light themes"""
+        if self.dark_mode.get():
+            # Switch to dark themes
+            self.themes = self.dark_themes
+            # Set to first dark theme if current is light
+            if self.current_theme.get() not in self.dark_themes:
+                self.current_theme.set(self.dark_themes[0])
+        else:
+            # Switch to light themes
+            self.themes = self.light_themes
+            # Set to first light theme if current is dark
+            if self.current_theme.get() not in self.light_themes:
+                self.current_theme.set(self.light_themes[0])
+        
+        # Update dropdown values
+        theme_dropdown = None
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.Frame):
+                        for subchild in child.winfo_children():
+                            if isinstance(subchild, ttk.Combobox) and subchild.cget('textvariable') == str(self.current_theme):
+                                theme_dropdown = subchild
+                                break
+        
+        if theme_dropdown:
+            theme_dropdown['values'] = self.themes
+        
+        # Apply the theme
+        self.change_theme()
+        
+        # Autosave theme preference
+        self.autosave_theme()
+    
     def change_theme(self, event=None):
         """Change the application theme"""
         new_theme = self.current_theme.get()
@@ -3689,6 +3739,54 @@ class ModernWordCloudApp:
             # Light themes
             self.figure.patch.set_facecolor('white')
         self.canvas.draw()
+        
+        # Autosave theme preference
+        if hasattr(self, 'ui_ready') and self.ui_ready:
+            self.autosave_theme()
+    
+    def autosave_theme(self):
+        """Autosave only theme-related settings"""
+        try:
+            theme_config = {
+                'theme': self.current_theme.get(),
+                'dark_mode': self.dark_mode.get()
+            }
+            
+            # Save to a separate theme config file
+            theme_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'theme.json')
+            os.makedirs(os.path.dirname(theme_file), exist_ok=True)
+            
+            with open(theme_file, 'w') as f:
+                json.dump(theme_config, f, indent=2)
+            
+            self.print_debug(f"Theme autosaved: {theme_config}")
+        except Exception as e:
+            self.print_warning(f"Could not autosave theme: {e}")
+    
+    def load_theme_preference(self):
+        """Load theme preference from file"""
+        try:
+            theme_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'theme.json')
+            if os.path.exists(theme_file):
+                with open(theme_file, 'r') as f:
+                    theme_config = json.load(f)
+                
+                # Apply dark mode setting
+                if 'dark_mode' in theme_config:
+                    self.dark_mode.set(theme_config['dark_mode'])
+                    if theme_config['dark_mode']:
+                        self.themes = self.dark_themes
+                    else:
+                        self.themes = self.light_themes
+                
+                # Apply theme
+                if 'theme' in theme_config and theme_config['theme'] in self.themes:
+                    self.current_theme.set(theme_config['theme'])
+                    self.root.style.theme_use(theme_config['theme'])
+                
+                self.print_debug(f"Theme loaded: {theme_config}")
+        except Exception as e:
+            self.print_debug(f"Could not load theme preference: {e}")
     
     def apply_config(self, config, show_message=True):
         """Apply configuration from dictionary"""
