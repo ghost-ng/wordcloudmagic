@@ -8,6 +8,7 @@ from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
 import tkinter.font as tkFont
 import os
+import sys
 import threading
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import numpy as np
@@ -471,7 +472,6 @@ class ModernWordCloudApp:
         self.load_assets()
         
         # Initialize debug mode from command line arguments
-        import sys
         self.debug_mode = '--debug' in sys.argv
         if self.debug_mode:
             self.print_info("Debug mode enabled")
