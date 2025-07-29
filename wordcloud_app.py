@@ -179,6 +179,7 @@ class FontListbox(ttk.Frame):
         # Bind events
         self.canvas.bind('<Button-1>', self._on_click)
         self.canvas.bind('<Configure>', self._on_canvas_configure)
+        self.canvas.bind('<MouseWheel>', self._on_mousewheel)
         
         # Populate fonts
         self._populate_fonts()
@@ -295,6 +296,10 @@ class FontListbox(ttk.Frame):
             self.canvas.coords(item['rect_id'], 
                              2, item['y_start'], 
                              canvas_width - 2, item['y_end'])
+    
+    def _on_mousewheel(self, event):
+        """Handle mouse wheel scrolling"""
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
     
     def set_fonts(self, font_dict):
         """Update the available fonts"""
@@ -788,10 +793,6 @@ class ModernWordCloudApp:
             ttk.Label(min_container, text="Minimum Length", 
                      font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
             
-            # Add description
-            ttk.Label(min_container, text="Filter out words shorter than this", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.min_length_meter = Meter(
                 min_container,
                 metersize=180,
@@ -805,6 +806,10 @@ class ModernWordCloudApp:
                 stripethickness=2  # Smooth continuous line
             )
             self.min_length_meter.pack()
+            
+            # Add description
+            ttk.Label(min_container, text="Filter out words shorter than this", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(min_container, text="1 - 50", 
@@ -844,10 +849,6 @@ class ModernWordCloudApp:
             ttk.Label(max_container, text="Maximum Length", 
                      font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
             
-            # Add description
-            ttk.Label(max_container, text="Filter out words longer than this", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.max_length_meter = Meter(
                 max_container,
                 metersize=180,
@@ -861,6 +862,10 @@ class ModernWordCloudApp:
                 stripethickness=2  # Smooth continuous line
             )
             self.max_length_meter.pack()
+            
+            # Add description
+            ttk.Label(max_container, text="Filter out words longer than this", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(max_container, text="1 - 50", 
@@ -981,6 +986,10 @@ class ModernWordCloudApp:
         # Bind/unbind mousewheel when entering/leaving the canvas
         canvas.bind('<Enter>', _bind_style_mousewheel)
         canvas.bind('<Leave>', _unbind_style_mousewheel)
+        
+        # Also bind to the scrollable frame and its children
+        scrollable_frame.bind('<MouseWheel>', _on_style_mousewheel)
+        style_frame.bind('<MouseWheel>', _on_style_mousewheel)
         
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
@@ -1275,10 +1284,6 @@ class ModernWordCloudApp:
             ttk.Label(max_words_container, text="Max Words", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(max_words_container, text="Maximum words to display", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.max_words_meter = Meter(
                 max_words_container,
                 metersize=150,
@@ -1292,6 +1297,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.max_words_meter.pack()
+            
+            # Add description
+            ttk.Label(max_words_container, text="Maximum words to display", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(max_words_container, text="10 - 500", 
@@ -1327,10 +1336,6 @@ class ModernWordCloudApp:
             ttk.Label(scale_container, text="Computation Scale", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(scale_container, text="Higher = better quality, slower", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.scale_meter = Meter(
                 scale_container,
                 metersize=150,
@@ -1344,6 +1349,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.scale_meter.pack()
+            
+            # Add description
+            ttk.Label(scale_container, text="Higher = better quality, slower", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(scale_container, text="1 - 10", 
@@ -1378,10 +1387,6 @@ class ModernWordCloudApp:
             ttk.Label(words_container, text="Words per Line", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(words_container, text="Words per line in text masks", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.words_per_line_meter = Meter(
                 words_container,
                 metersize=150,
@@ -1395,6 +1400,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.words_per_line_meter.pack()
+            
+            # Add description
+            ttk.Label(words_container, text="Words per line in text masks", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(words_container, text="1 - 10", 
@@ -1463,10 +1472,6 @@ class ModernWordCloudApp:
             ttk.Label(width_container, text="Width", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(width_container, text="Canvas width in pixels", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.width_meter = Meter(
                 width_container,
                 metersize=120,
@@ -1480,6 +1485,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.width_meter.pack()
+            
+            # Add description
+            ttk.Label(width_container, text="Canvas width in pixels", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(width_container, text="100 - 4000", 
@@ -1517,10 +1526,6 @@ class ModernWordCloudApp:
             ttk.Label(height_container, text="Height", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(height_container, text="Canvas height in pixels", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.height_meter = Meter(
                 height_container,
                 metersize=120,
@@ -1534,6 +1539,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.height_meter.pack()
+            
+            # Add description
+            ttk.Label(height_container, text="Canvas height in pixels", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(height_container, text="100 - 4000", 
@@ -1743,10 +1752,8 @@ class ModernWordCloudApp:
         self.text_mask_entry.bind('<KeyRelease>', lambda e: self.update_text_mask())
         
         # Font selection
-        font_frame = ttk.Frame(text_input_frame)
+        font_frame = ttk.LabelFrame(text_input_frame, text="Font", padding=10)
         font_frame.pack(fill=X, pady=(0, 10))
-        
-        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
         
         self.font_listbox = FontListbox(font_frame,
                                        self.available_fonts,
@@ -1772,10 +1779,6 @@ class ModernWordCloudApp:
             ttk.Label(font_size_container, text="Size", 
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(font_size_container, text="Font size for text mask", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.font_size_meter = Meter(
                 font_size_container,
                 metersize=100,
@@ -1789,6 +1792,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.font_size_meter.pack()
+            
+            # Add description
+            ttk.Label(font_size_container, text="Font size for text mask", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(font_size_container, text="10 - 2000", 
@@ -1845,10 +1852,6 @@ class ModernWordCloudApp:
             ttk.Label(thickness_container, text="Thickness", 
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(thickness_container, text="Letter stroke thickness", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.thickness_meter = Meter(
                 thickness_container,
                 metersize=100,
@@ -1862,6 +1865,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.thickness_meter.pack()
+            
+            # Add description
+            ttk.Label(thickness_container, text="Letter stroke thickness", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(thickness_container, text="0 - 5", 
@@ -1893,10 +1900,6 @@ class ModernWordCloudApp:
             ttk.Label(spacing_container, text="Spacing", 
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(spacing_container, text="Space between letters", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.spacing_meter = Meter(
                 spacing_container,
                 metersize=100,
@@ -1910,6 +1913,10 @@ class ModernWordCloudApp:
                 stripethickness=0  # Smooth continuous line
             )
             self.spacing_meter.pack()
+            
+            # Add description
+            ttk.Label(spacing_container, text="Space between letters", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(spacing_container, text="0 - 5", 
@@ -1946,10 +1953,6 @@ class ModernWordCloudApp:
             ttk.Label(width_container, text="Width", 
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
-            # Add description
-            ttk.Label(width_container, text="Outline thickness around shape", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
             self.outline_width_meter = Meter(
                 width_container,
                 metersize=100,
@@ -1964,6 +1967,10 @@ class ModernWordCloudApp:
                 stepsize=1
             )
             self.outline_width_meter.pack()
+            
+            # Add description
+            ttk.Label(width_container, text="Outline thickness around shape", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Add min/max values below meter
             ttk.Label(width_container, text="0 - 30", 
@@ -3740,6 +3747,9 @@ class ModernWordCloudApp:
                     self.height_meter.amountusedvar.set(new_height)
             
             self.clear_canvas()
+            # Update text mask preview if active
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
     
     def update_height_from_meter(self):
         """Update height from meter widget"""
@@ -3756,6 +3766,9 @@ class ModernWordCloudApp:
                     self.width_meter.amountusedvar.set(new_width)
             
             self.clear_canvas()
+            # Update text mask preview if active
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
     
     def update_mode(self, show_toast=True):
         """Update mode between RGB and RGBA"""
