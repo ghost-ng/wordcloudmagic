@@ -163,7 +163,7 @@ class FontListbox(ttk.Frame):
         self.rowconfigure(0, weight=1)
         
         # Create scrollbar
-        scrollbar = ttk.Scrollbar(self, orient="vertical")
+        scrollbar = ttk.Scrollbar(self, orient="vertical", bootstyle="primary-round")
         scrollbar.grid(row=0, column=1, sticky=(N, S))
         
         # Create Canvas
@@ -611,6 +611,9 @@ class ModernWordCloudApp:
             "Monokai": "monokai"
         }
         
+        # Initialize dark_mode before loading theme preference
+        self.dark_mode = tk.BooleanVar(value=False)
+        
         # Load theme preference before creating UI
         self.load_theme_preference()
         
@@ -671,8 +674,7 @@ class ModernWordCloudApp:
         theme_frame = ttk.Frame(top_bar)
         theme_frame.pack(side=RIGHT)
         
-        # Dark mode toggle
-        self.dark_mode = tk.BooleanVar(value=False)
+        # Dark mode toggle (already initialized in __init__)
         dark_mode_check = ttk.Checkbutton(theme_frame, 
                                          text="🌙 Dark Mode",
                                          variable=self.dark_mode,
@@ -965,7 +967,7 @@ class ModernWordCloudApp:
         
         # Create scrollable frame
         canvas = tk.Canvas(style_tab, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(style_tab, orient="vertical", command=canvas.yview)
+        scrollbar = ttk.Scrollbar(style_tab, orient="vertical", command=canvas.yview, bootstyle="primary-round")
         scrollable_frame = ttk.Frame(canvas)
         
         scrollable_frame.bind(
@@ -1063,7 +1065,7 @@ class ModernWordCloudApp:
         
         # Create scrollable frame for preset color buttons
         preset_canvas = tk.Canvas(preset_tab, height=300)
-        preset_scrollbar = ttk.Scrollbar(preset_tab, orient="vertical", command=preset_canvas.yview)
+        preset_scrollbar = ttk.Scrollbar(preset_tab, orient="vertical", command=preset_canvas.yview, bootstyle="primary-round")
         preset_scrollable = ttk.Frame(preset_canvas)
         
         preset_scrollable.bind(
