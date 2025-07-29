@@ -4757,7 +4757,7 @@ class ModernWordCloudApp:
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
         config_loaded = False
-        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wordcloud_config.json')
+        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
         if not os.path.exists(config_file):
             # Try configs directory
             config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')

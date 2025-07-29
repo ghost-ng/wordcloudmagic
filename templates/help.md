@@ -227,9 +227,10 @@ Three color modes available via radio button selection:
 
 ### Command Line Options
 ```bash
+# Run with debug logging
 python wordcloud_app.py --debug
+# Creates log file: logs/wordcloud_debug_YYYYMMDD_HHMMSS.log
 ```
-Creates a debug log file in the logs directory for troubleshooting.
 
 ### Custom Fonts
 The app automatically detects system fonts. For best results with text masks:
@@ -245,7 +246,7 @@ The app automatically detects system fonts. For best results with text masks:
 
 Created by [@ghost-ng](https://github.com/ghost-ng)
 
-Version 1.0.0
+Version 1.1.0
 
 ---
 
