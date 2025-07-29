@@ -789,7 +789,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
             
             # Add description
-            ttk.Label(min_container, text="Filter out words shorter than this (1-50)", 
+            ttk.Label(min_container, text="Filter out words shorter than this", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.min_length_meter = Meter(
@@ -801,9 +801,14 @@ class ModernWordCloudApp:
                 textleft='',
                 textright='chars',
                 interactive=True,
-                bootstyle='primary'
+                bootstyle='primary',
+                stripethickness=2  # Smooth continuous line
             )
             self.min_length_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(min_container, text="1 - 50", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Bind the meter value change
             self.min_length_meter.amountusedvar.trace('w', lambda *args: self.update_min_from_meter())
@@ -840,7 +845,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 11, 'bold')).pack(pady=(0, 10))
             
             # Add description
-            ttk.Label(max_container, text="Filter out words longer than this (1-50)", 
+            ttk.Label(max_container, text="Filter out words longer than this", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.max_length_meter = Meter(
@@ -852,9 +857,14 @@ class ModernWordCloudApp:
                 textleft='',
                 textright='chars',
                 interactive=True,
-                bootstyle='info'
+                bootstyle='info',
+                stripethickness=2  # Smooth continuous line
             )
             self.max_length_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(max_container, text="1 - 50", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Bind the meter value change
             self.max_length_meter.amountusedvar.trace('w', lambda *args: self.update_max_from_meter())
@@ -1148,6 +1158,7 @@ class ModernWordCloudApp:
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
         
+        
         self.mask_type = tk.StringVar(value="no_mask")
         
         ttk.Separator(mask_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
@@ -1250,61 +1261,14 @@ class ModernWordCloudApp:
         meters_grid = ttk.Frame(center_container)
         meters_grid.pack()
         
-        # Letter thickness meter
+        # Letter thickness meter (moved to text mask tab)
         self.letter_thickness = tk.DoubleVar(value=1.0)
-        thickness_container = ttk.Frame(meters_grid)
-        thickness_container.grid(row=0, column=0, padx=10, pady=10)
-        
-        try:
-            ttk.Label(thickness_container, text="Letter Thickness", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            # Add description
-            ttk.Label(thickness_container, text="Line thickness for text masks (0.5-3)", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
-            
-            self.thickness_meter = Meter(
-                thickness_container,
-                metersize=150,
-                amountused=1,
-                amounttotal=3,
-                metertype='full',
-                textleft='',
-                textright='',
-                interactive=True,
-                bootstyle='warning',
-                stripethickness=10
-            )
-            self.thickness_meter.pack()
-            self.thickness_meter.amountusedvar.trace('w', lambda *args: self.update_thickness_from_meter())
-            self.thickness_scale = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Thickness meter failed: {e}")
-            thickness_label_frame = ttk.Frame(thickness_container)
-            thickness_label_frame.pack(fill=X)
-            ttk.Label(thickness_label_frame, text="Letter Thickness:", font=('Segoe UI', 10)).pack(side=LEFT)
-            self.thickness_label = ttk.Label(thickness_label_frame, text="Normal",
-                                            bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.thickness_label.pack(side=RIGHT)
-            
-            self.thickness_scale = ttk.Scale(thickness_container,
-                                            from_=0.1,
-                                            to=3.0,
-                                            value=1.0,
-                                            command=self.update_thickness_label,
-                                            bootstyle="primary")
-            self.thickness_scale.pack(fill=X, pady=(5, 0))
-            
-            ttk.Label(thickness_container, 
-                     text="Thin ← → Thick",
-                     font=('Segoe UI', 9),
-                     bootstyle="secondary").pack(pady=(2, 0))
-            self.thickness_meter = None
+        # Letter spacing variable
+        self.letter_spacing = tk.DoubleVar(value=0.0)
         
         # Max words meter
         max_words_container = ttk.Frame(meters_grid)
-        max_words_container.grid(row=0, column=1, padx=10, pady=10)
+        max_words_container.grid(row=0, column=0, padx=10, pady=10)
         
         try:
             # Add label above meter
@@ -1312,7 +1276,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(max_words_container, text="Maximum words to display (10-500)", 
+            ttk.Label(max_words_container, text="Maximum words to display", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.max_words_meter = Meter(
@@ -1320,13 +1284,18 @@ class ModernWordCloudApp:
                 metersize=150,
                 amountused=200,
                 amounttotal=500,
-                metertype='full',
+                metertype='semi',
                 textleft='',
-                textright='',
+                textright='words',
                 interactive=True,
-                bootstyle='success'
+                bootstyle='success',
+                stripethickness=0  # Smooth continuous line
             )
             self.max_words_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(max_words_container, text="10 - 500", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.max_words_meter.amountusedvar.trace('w', lambda *args: self.update_max_words_from_meter())
             self.max_words_scale = None
         except Exception as e:
@@ -1351,7 +1320,7 @@ class ModernWordCloudApp:
         
         # Scale meter
         scale_container = ttk.Frame(meters_grid)
-        scale_container.grid(row=1, column=0, padx=10, pady=10)
+        scale_container.grid(row=0, column=1, padx=10, pady=10)
         
         try:
             # Add label above meter
@@ -1359,7 +1328,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(scale_container, text="Higher = better quality, slower (1-10)", 
+            ttk.Label(scale_container, text="Higher = better quality, slower", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.scale_meter = Meter(
@@ -1367,14 +1336,18 @@ class ModernWordCloudApp:
                 metersize=150,
                 amountused=1,
                 amounttotal=10,
-                metertype='full',
+                metertype='semi',
                 textleft='',
-                textright='',
+                textright='scale',
                 interactive=True,
                 bootstyle='warning',
-                stripethickness=10
+                stripethickness=0  # Smooth continuous line
             )
             self.scale_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(scale_container, text="1 - 10", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.scale_meter.amountusedvar.trace('w', lambda *args: self.update_scale_from_meter())
             self.scale_scale = None
         except Exception as e:
@@ -1399,14 +1372,14 @@ class ModernWordCloudApp:
         
         # Words per line meter
         words_container = ttk.Frame(meters_grid)
-        words_container.grid(row=1, column=1, padx=10, pady=10)
+        words_container.grid(row=1, column=0, padx=10, pady=10)
         
         try:
             ttk.Label(words_container, text="Words per Line", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(words_container, text="Words per line in text masks (1-10)", 
+            ttk.Label(words_container, text="Words per line in text masks", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.words_per_line_meter = Meter(
@@ -1414,14 +1387,18 @@ class ModernWordCloudApp:
                 metersize=150,
                 amountused=1,
                 amounttotal=10,
-                metertype='full',
+                metertype='semi',
                 textleft='',
                 textright='words',
                 interactive=True,
                 bootstyle='info',
-                stripethickness=10
+                stripethickness=0  # Smooth continuous line
             )
             self.words_per_line_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(words_container, text="1 - 10", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.words_per_line_meter.amountusedvar.trace('w', lambda *args: self.update_words_per_line_from_meter())
             self.words_per_line_scale = None
         except Exception as e:
@@ -1452,6 +1429,7 @@ class ModernWordCloudApp:
         canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
         canvas_frame.pack(fill=X, pady=(0, 10))
         
+        
         # Center container
         canvas_center = ttk.Frame(canvas_frame)
         canvas_center.pack(expand=True)
@@ -1480,12 +1458,13 @@ class ModernWordCloudApp:
         width_container = ttk.Frame(dimensions_container)
         width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
         
+        
         try:
             ttk.Label(width_container, text="Width", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(width_container, text="Canvas width in pixels (100-4000)", 
+            ttk.Label(width_container, text="Canvas width in pixels", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.width_meter = Meter(
@@ -1497,10 +1476,17 @@ class ModernWordCloudApp:
                 textleft='',
                 textright='px',
                 interactive=True,
-                bootstyle='primary'
+                bootstyle='primary',
+                stripethickness=0  # Smooth continuous line
             )
             self.width_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(width_container, text="100 - 4000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.width_meter.amountusedvar.trace('w', lambda *args: self.update_width_from_meter())
+            
+            
             self.width_scale = None
             self.width_label = None
         except Exception as e:
@@ -1526,12 +1512,13 @@ class ModernWordCloudApp:
         height_container = ttk.Frame(dimensions_container)
         height_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
         
+        
         try:
             ttk.Label(height_container, text="Height", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(height_container, text="Canvas height in pixels (100-4000)", 
+            ttk.Label(height_container, text="Canvas height in pixels", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.height_meter = Meter(
@@ -1543,10 +1530,17 @@ class ModernWordCloudApp:
                 textleft='',
                 textright='px',
                 interactive=True,
-                bootstyle='primary'
+                bootstyle='primary',
+                stripethickness=0  # Smooth continuous line
             )
             self.height_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(height_container, text="100 - 4000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.height_meter.amountusedvar.trace('w', lambda *args: self.update_height_from_meter())
+            
+            
             self.height_scale = None
             self.height_label = None
         except Exception as e:
@@ -1779,7 +1773,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(font_size_container, text="Font size for text mask (10-2000)", 
+            ttk.Label(font_size_container, text="Font size for text mask", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.font_size_meter = Meter(
@@ -1789,11 +1783,16 @@ class ModernWordCloudApp:
                 amounttotal=2000,
                 metertype='semi',
                 textleft='',
-                textright='',
+                textright='pt',
                 interactive=True,
-                bootstyle='info'
+                bootstyle='info',
+                stripethickness=0  # Smooth continuous line
             )
             self.font_size_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(font_size_container, text="10 - 2000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.font_size_meter.amountusedvar.trace('w', lambda *args: self.update_font_size_from_meter())
             self.font_size_scale = None
         except Exception as e:
@@ -1834,6 +1833,103 @@ class ModernWordCloudApp:
                        command=self.update_text_mask,
                        bootstyle="primary").pack(anchor=W)
         
+        # Text Appearance frame (middle)
+        text_appearance_frame = ttk.LabelFrame(meters_container, text="Text Appearance", padding=10)
+        text_appearance_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
+        
+        # Letter thickness meter
+        thickness_container = ttk.Frame(text_appearance_frame)
+        thickness_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
+        
+        try:
+            ttk.Label(thickness_container, text="Thickness", 
+                     font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+            
+            # Add description
+            ttk.Label(thickness_container, text="Letter stroke thickness", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
+            
+            self.thickness_meter = Meter(
+                thickness_container,
+                metersize=100,
+                amountused=1,
+                amounttotal=5,
+                metertype='semi',
+                textleft='',
+                textright='px',
+                interactive=True,
+                bootstyle='warning',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.thickness_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(thickness_container, text="0 - 5", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.thickness_meter.amountusedvar.trace('w', lambda *args: self.update_thickness_from_meter())
+            
+            # Add zero button for thickness
+            def set_thickness_zero():
+                # Directly set to 0
+                if hasattr(self, 'thickness_meter') and self.thickness_meter:
+                    self.thickness_meter.configure(amountused=0)
+                self.letter_thickness.set(0)
+                self.update_text_mask()
+            
+            zero_btn = ttk.Button(thickness_container, text="Reset", width=6, 
+                                 command=set_thickness_zero,
+                                 bootstyle="secondary-outline")
+            zero_btn.pack(pady=(5, 0))
+        except Exception as e:
+            print(f"[ERROR] Thickness meter creation failed: {e}")
+            debug_print(f"Thickness meter creation failed: {e}")
+            self.thickness_meter = None
+        
+        # Letter spacing meter
+        spacing_container = ttk.Frame(text_appearance_frame)
+        spacing_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
+        
+        try:
+            ttk.Label(spacing_container, text="Spacing", 
+                     font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+            
+            # Add description
+            ttk.Label(spacing_container, text="Space between letters", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
+            
+            self.spacing_meter = Meter(
+                spacing_container,
+                metersize=100,
+                amountused=0,
+                amounttotal=5,
+                metertype='semi',
+                textleft='',
+                textright='px',
+                interactive=True,
+                bootstyle='info',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.spacing_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(spacing_container, text="0 - 5", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.spacing_meter.amountusedvar.trace('w', lambda *args: self.update_spacing_from_meter())
+            
+            # Add zero button for spacing
+            def set_spacing_zero():
+                # Directly set to 0
+                self.spacing_meter.configure(amountused=0)
+                self.letter_spacing.set(0)
+            
+            zero_btn = ttk.Button(spacing_container, text="Reset", width=6, 
+                                 command=set_spacing_zero,
+                                 bootstyle="secondary-outline")
+            zero_btn.pack(pady=(5, 0))
+        except Exception as e:
+            debug_print(f"Spacing meter creation failed: {e}")
+            self.spacing_meter = None
+        
         # Outline settings frame (right side)
         outline_frame = ttk.LabelFrame(meters_container, text="Outline Settings", padding=10)
         outline_frame.pack(side=LEFT, fill=BOTH, expand=True)
@@ -1851,7 +1947,7 @@ class ModernWordCloudApp:
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
             # Add description
-            ttk.Label(width_container, text="Outline thickness around shape (0-30)", 
+            ttk.Label(width_container, text="Outline thickness around shape", 
                      font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5))
             
             self.outline_width_meter = Meter(
@@ -1864,28 +1960,29 @@ class ModernWordCloudApp:
                 textright='px',
                 interactive=True,
                 bootstyle='primary',
-                stripethickness=10,
-                stepsize=1,
-                striped=False
+                stripethickness=0,  # Smooth continuous line
+                stepsize=1
             )
             self.outline_width_meter.pack()
+            
+            # Add min/max values below meter
+            ttk.Label(width_container, text="0 - 30", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.outline_width_meter.amountusedvar.trace('w', lambda *args: self.update_outline_width_from_meter())
             
             # Add zero button function
             def set_outline_zero():
-                # Use the workaround approach
-                self.outline_width_meter.configure(amountused=0.001)
-                self.outline_width_meter.update_idletasks()
-                self.root.after(50, lambda: self.outline_width_meter.configure(amountused=0.0))
-                self.root.after(100, lambda: self.outline_width_meter.update_idletasks())
+                # Directly set to 0
+                self.outline_width_meter.configure(amountused=0)
                 self.outline_width.set(0)
             
             # Add double-click to reset to 0
             self.outline_width_meter.bind("<Double-Button-1>", lambda e: set_outline_zero())
-                
-            zero_btn = ttk.Button(width_container, text="0", width=3, 
-                                 command=set_outline_zero,
-                                 bootstyle="secondary-outline")
+            
+
+            zero_btn = ttk.Button(width_container, text="Reset",
+                                command=set_outline_zero,
+                                bootstyle="secondary-outline")
             zero_btn.pack(pady=(5, 0))
             self.outline_width_scale = None
             self.outline_width_label = None
@@ -3114,8 +3211,57 @@ class ModernWordCloudApp:
         x = (width - text_width) // 2
         y = (height - text_height) // 2
         
-        # Draw text in black (multiline will be handled automatically)
-        draw.text((x, y), text_to_draw, fill='black', font=font, align='center')
+        # Draw text in black with stroke thickness and letter spacing
+        # Map thickness value (0-5) to stroke width (0-15 pixels for more visible effect)
+        thickness_val = self.letter_thickness.get()
+        stroke_width = int(thickness_val * 3) if thickness_val > 0 else 0
+        spacing = int(self.letter_spacing.get() * 10)  # Convert 0-5 to 0-50 pixels
+        
+        # If no spacing needed, use normal drawing
+        if spacing == 0:
+            try:
+                # Try using stroke_width (requires PIL 6.2.0+)
+                draw.text((x, y), text_to_draw, fill='black', font=font, align='center', 
+                          stroke_width=stroke_width, stroke_fill='black')
+            except TypeError:
+                # Fallback for older PIL versions - just draw without stroke
+                draw.text((x, y), text_to_draw, fill='black', font=font, align='center')
+        else:
+            # Draw text with letter spacing - handle each line separately
+            lines = text_to_draw.split('\n')
+            current_y = y
+            
+            for line in lines:
+                # Calculate line width with spacing
+                line_width = 0
+                for char in line:
+                    bbox = draw.textbbox((0, 0), char, font=font)
+                    char_width = bbox[2] - bbox[0]
+                    line_width += char_width + spacing
+                line_width -= spacing  # Remove last spacing
+                
+                # Start position for this line (centered)
+                current_x = x + (text_width - line_width) // 2
+                
+                # Draw each character with spacing
+                for char in line:
+                    try:
+                        # Try with stroke
+                        draw.text((current_x, current_y), char, fill='black', font=font,
+                                  stroke_width=stroke_width, stroke_fill='black')
+                    except TypeError:
+                        # Fallback without stroke
+                        draw.text((current_x, current_y), char, fill='black', font=font)
+                    
+                    # Move to next character position
+                    bbox = draw.textbbox((0, 0), char, font=font)
+                    char_width = bbox[2] - bbox[0]
+                    current_x += char_width + spacing
+                
+                # Move to next line
+                bbox = draw.textbbox((0, 0), 'Ay', font=font)  # Sample for line height
+                line_height = bbox[3] - bbox[1]
+                current_y += line_height
         
         # Convert to numpy array
         return np.array(img)
@@ -3491,6 +3637,9 @@ class ModernWordCloudApp:
         else:
             text = "Very Thick"
         self.thickness_label.config(text=text)
+        # Update text mask if it's currently selected
+        if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+            self.update_text_mask()
     
     def update_max_words(self, value):
         """Update max words label"""
@@ -3528,9 +3677,21 @@ class ModernWordCloudApp:
     
     def update_thickness_from_meter(self):
         """Update letter thickness from meter widget"""
-        if self.thickness_meter:
+        if hasattr(self, 'thickness_meter') and self.thickness_meter:
             val = self.thickness_meter.amountusedvar.get()
             self.letter_thickness.set(val)
+            # Update text mask if it's currently selected
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
+    
+    def update_spacing_from_meter(self):
+        """Update letter spacing from meter widget"""
+        if hasattr(self, 'spacing_meter') and self.spacing_meter:
+            val = self.spacing_meter.amountusedvar.get()
+            self.letter_spacing.set(val)
+            # Update text mask if it's currently selected
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
     
     def update_words_per_line_from_meter(self):
         """Update words per line from meter widget"""
@@ -3543,19 +3704,18 @@ class ModernWordCloudApp:
     def update_outline_width_from_meter(self):
         """Update outline width from meter widget"""
         if self.outline_width_meter:
-            raw_val = self.outline_width_meter.amountusedvar.get()
-            self.print_debug(f"Outline width meter raw value: {raw_val}")
-            val = int(raw_val)
-            # Force to 0 if less than 1
-            if raw_val < 1:
-                val = 0
-                # Workaround: set to near-zero then to actual zero
-                self.root.after(10, lambda: self.outline_width_meter.configure(amountused=0.001))
-                self.root.after(50, lambda: self.outline_width_meter.configure(amountused=0.0))
-                self.root.after(60, lambda: self.outline_width_meter.update_idletasks())
-            self.outline_width.set(val)
-            if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
-                self.update_text_mask()
+            try:
+                raw_val = self.outline_width_meter.amountusedvar.get()
+                val = int(raw_val)
+                # Force to 0 if less than 1
+                if raw_val < 1:
+                    val = 0
+                self.outline_width.set(val)
+                if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
+                    self.update_text_mask()
+            except Exception as e:
+                # Silently ignore errors during rapid updates
+                pass
     
     def update_font_size_from_meter(self):
         """Update font size from meter widget"""
@@ -4377,11 +4537,20 @@ class ModernWordCloudApp:
                 self.horizontal_gauge.configure(value=pref_val)
             if 'letter_thickness' in config:
                 thickness_val = config.get('letter_thickness', 1.0)
+                # Clamp to new range (0-5)
+                thickness_val = max(0, min(5, thickness_val))
                 self.letter_thickness.set(thickness_val)
                 if hasattr(self, 'thickness_meter') and self.thickness_meter:
                     self.thickness_meter.amountusedvar.set(thickness_val)
                 elif hasattr(self, 'thickness_scale') and self.thickness_scale:
                     self.thickness_scale.set(thickness_val)
+            if 'letter_spacing' in config:
+                spacing_val = config.get('letter_spacing', 0.0)
+                # Clamp to range (0-5)
+                spacing_val = max(0, min(5, spacing_val))
+                self.letter_spacing.set(spacing_val)
+                if hasattr(self, 'spacing_meter') and self.spacing_meter:
+                    self.spacing_meter.amountusedvar.set(spacing_val)
             # Canvas settings
             if 'canvas_width' in config:
                 self.print_debug(f"Setting canvas width to: {config['canvas_width']}")
@@ -4601,6 +4770,8 @@ class ModernWordCloudApp:
             config['prefer_horizontal'] = self.horizontal_scale.get() / 100.0  # Convert percentage to 0-1
         if hasattr(self, 'letter_thickness'):
             config['letter_thickness'] = self.letter_thickness.get()
+        if hasattr(self, 'letter_spacing'):
+            config['letter_spacing'] = self.letter_spacing.get()
         if hasattr(self, 'canvas_width'):
             config['canvas_width'] = self.canvas_width.get()
         if hasattr(self, 'canvas_height'):
