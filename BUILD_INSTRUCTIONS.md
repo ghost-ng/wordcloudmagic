@@ -121,6 +121,29 @@ Some packages require explicit imports:
 
 ## Troubleshooting
 
+### Windows Taskbar Icon Not Updating
+
+If the taskbar shows the default Python/Tkinter icon instead of the WordCloud Magic icon:
+
+1. **Run the icon cache cleaner**:
+   ```batch
+   clear_icon_cache.bat
+   ```
+   This will clear Windows' icon cache and restart Explorer.
+
+2. **Manually refresh the icon cache**:
+   - Close all instances of WordCloud Magic
+   - Open Task Manager and end all Python processes
+   - Delete `%localappdata%\IconCache.db`
+   - Restart Windows Explorer or reboot
+
+3. **Pin to taskbar method**:
+   - Right-click the exe and select "Pin to taskbar"
+   - The pinned icon should show correctly
+   - Launch from the pinned icon
+
+This is a Windows limitation where it aggressively caches taskbar icons, especially for Python applications.
+
 ### Common Issues
 
 1. **Missing modules at runtime**

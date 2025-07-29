@@ -96,6 +96,7 @@ exe = EXE(
     icon='icons/icon_256.ico',  # Use the icon file
     version_file=None,  # You can add version info later if needed
     windowed=True,
+    manifest='wordcloudmagic.manifest',
 )
 
 # Optional: Create a directory distribution instead of single file
