@@ -5187,23 +5187,33 @@ def main():
         if os.path.exists(icon_path):
             root.iconbitmap(icon_path)
             
-            # Additional Windows-specific icon handling
+            # Additional Windows-specific icon handling for taskbar
             if platform.system() == 'Windows':
                 try:
                     # Update the window to ensure it's fully created
                     root.update_idletasks()
                     
-                    # Get window handle and set icon
-                    hwnd = windll.user32.GetParent(root.winfo_id())
-                    
-                    # Load icon and set it
+                    # For PyInstaller executables, we need to handle the taskbar icon differently
                     if hasattr(sys, '_MEIPASS'):
-                        icon_handle = windll.shell32.ExtractIconW(0, icon_path, 0)
-                        if icon_handle:
-                            windll.user32.SendMessageW(hwnd, 0x0080, 0, icon_handle)  # WM_SETICON ICON_SMALL
-                            windll.user32.SendMessageW(hwnd, 0x0080, 1, icon_handle)  # WM_SETICON ICON_BIG
+                        # Get the actual window handle
+                        hwnd = windll.user32.GetParent(root.winfo_id())
+                        
+                        # Load the icon from the exe itself (not from file)
+                        # This ensures Windows uses the embedded icon
+                        exe_path = sys.executable
+                        large_icon = windll.shell32.ExtractIconW(0, exe_path, 0)
+                        small_icon = windll.shell32.ExtractIconW(0, exe_path, 0)
+                        
+                        if large_icon and small_icon:
+                            # Set both large and small icons
+                            windll.user32.SendMessageW(hwnd, 0x0080, 1, large_icon)  # WM_SETICON, ICON_BIG
+                            windll.user32.SendMessageW(hwnd, 0x0080, 0, small_icon)  # WM_SETICON, ICON_SMALL
+                            
+                            # Force taskbar to update by hiding and showing window
+                            windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+                            windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
                 except Exception as e:
-                    print(f"Could not set Windows icon: {e}")
+                    print(f"Could not set Windows taskbar icon: {e}")
                     
     except Exception as e:
         # If icon fails to load, continue without it

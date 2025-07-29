@@ -19,7 +19,7 @@ a = Analysis(
         # Include help/template files
         ('templates', 'templates'),
         # Include the icon
-        ('icon.png', '.'),
+        ('icons/icon_256.ico', '.'),
         # Include default config if it exists
         ('configs/default.json', 'configs'),
         ('icons', 'icons')
@@ -58,7 +58,8 @@ a = Analysis(
         're',
         'random',
         'colorsys',
-        'ctypes'
+        'ctypes',
+        'ctypes.wintypes'
     ],
     hookspath=[],
     hooksconfig={},
@@ -92,8 +93,9 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.png',  # Use the icon file
+    icon='icons/icon_256.ico',  # Use the icon file
     version_file=None,  # You can add version info later if needed
+    windowed=True,
 )
 
 # Optional: Create a directory distribution instead of single file
