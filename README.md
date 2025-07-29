@@ -185,7 +185,6 @@ Debug logs are saved to `logs/wordcloud_debug_YYYYMMDD_HHMMSS.log`
 
 WordCloud Magic includes comprehensive built-in help documentation. Access it through:
 - **File menu → Help** - Opens the help documentation in your web browser
-- **F1 key** - Quick keyboard shortcut for help
 
 The help system features:
 - Interactive HTML documentation with smooth navigation

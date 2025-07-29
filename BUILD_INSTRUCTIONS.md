@@ -57,10 +57,11 @@ pyinstaller wordcloud_app.spec
 pyinstaller --name=WordCloudMagic \
             --onefile \
             --windowed \
-            --icon=icon.png \
+            --icon=icons/icon_256.ico \
+            --add-data="assets;assets" \
             --add-data="configs;configs" \
             --add-data="templates;templates" \
-            --add-data="icon.png;." \
+            --add-data="icons/icon_256.ico;." \
             --hidden-import=ttkbootstrap \
             --hidden-import=matplotlib.backends.backend_tkagg \
             --hidden-import=PIL._tkinter_finder \
@@ -74,12 +75,18 @@ pyinstaller --name=WordCloudMagic \
 The application expects the following structure:
 ```
 WordCloudMagic.exe (or WordCloudMagic/)
+├── assets/
+│   ├── btn_*.svg (button icons)
+│   └── tab_*.svg (tab icons)
 ├── configs/
-│   └── default.json
+│   ├── default.json (default configuration)
+│   ├── wordcloud_config.json (auto-saved user config)
+│   └── theme.json (theme preferences)
 ├── templates/
 │   ├── help.md
 │   └── help_template.html
-└── icon.png
+└── icons/
+    └── icon_256.ico
 ```
 
 ### Data Files
@@ -182,12 +189,26 @@ Update version information in:
 
 ## Continuous Integration
 
-For automated builds, consider:
-- GitHub Actions with PyInstaller
-- GitLab CI/CD
-- Travis CI or CircleCI
+### GitHub Actions Workflows
 
-Example GitHub Action workflow available in `.github/workflows/build.yml`
+The project includes automated build workflows:
+
+1. **Build Release** (`.github/workflows/build-release.yml`)
+   - Triggers on version tags (e.g., `v1.1.0`)
+   - Creates Windows executable
+   - Generates ZIP archive with SHA256 checksums
+   - Creates draft GitHub release
+
+2. **Test Build** (`.github/workflows/test-build.yml`)
+   - Triggers on pushes to main branches
+   - Validates build process
+   - No artifacts produced
+
+To trigger a release:
+```bash
+git tag -a v1.1.0 -m "Release version 1.1.0"
+git push origin v1.1.0
+```
 
 ## Support
 
