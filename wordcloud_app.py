@@ -163,7 +163,7 @@ class FontListbox(ttk.Frame):
         self.rowconfigure(0, weight=1)
         
         # Create scrollbar
-        scrollbar = ttk.Scrollbar(self, orient="vertical")
+        scrollbar = ttk.Scrollbar(self, orient="vertical", bootstyle="primary-round")
         scrollbar.grid(row=0, column=1, sticky=(N, S))
         
         # Create Canvas
@@ -179,6 +179,7 @@ class FontListbox(ttk.Frame):
         # Bind events
         self.canvas.bind('<Button-1>', self._on_click)
         self.canvas.bind('<Configure>', self._on_canvas_configure)
+        self.canvas.bind('<MouseWheel>', self._on_mousewheel)
         
         # Populate fonts
         self._populate_fonts()
@@ -296,6 +297,10 @@ class FontListbox(ttk.Frame):
                              2, item['y_start'], 
                              canvas_width - 2, item['y_end'])
     
+    def _on_mousewheel(self, event):
+        """Handle mouse wheel scrolling"""
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    
     def set_fonts(self, font_dict):
         """Update the available fonts"""
         self.font_dict = font_dict
@@ -411,6 +416,30 @@ class ModernWordCloudApp:
         navy_colors = ['#000080', '#002FA7', '#003F87', '#1560BD', '#4682B4']
         gradients['navy'] = LinearSegmentedColormap.from_list('navy', navy_colors)
         
+        # Volcano - Fiery reds, oranges, yellows
+        volcano_colors = ['#310600', '#950a11', '#f06625', '#f5b91d', '#f7f002']
+        gradients['volcano'] = LinearSegmentedColormap.from_list('volcano', volcano_colors)
+        
+        # Lilac - Soft purples and pinks
+        lilac_colors = ['#896790', '#B69CCF', '#D7ABE6', '#E7D1FF', '#F9EDFD']
+        gradients['lilac'] = LinearSegmentedColormap.from_list('lilac', lilac_colors)
+        
+        # Cyberpunk - Neon pink, blue, purple
+        cyberpunk_colors = ['#091833', '#133e7c', '#711c91', '#ea00d9', '#0abdc6']
+        gradients['cyberpunk'] = LinearSegmentedColormap.from_list('cyberpunk', cyberpunk_colors)
+        
+        # Tron - Blue, cyan, orange
+        tron_colors = ['#030504', '#062474', '#0EF8F8', '#7DFDFE', '#F4AF2D']
+        gradients['tron'] = LinearSegmentedColormap.from_list('tron', tron_colors)
+        
+        # The Grid - Dark grey, neon green, blue
+        grid_colors = ['#1A1A1A', '#333333', '#39FF14', '#03D8F3', '#00FFFF']
+        gradients['grid'] = LinearSegmentedColormap.from_list('grid', grid_colors)
+        
+        # Fiber - Bright blue, magenta, cyan, purple
+        fiber_colors = ['#0000FF', '#0080FF', '#00FFFF', '#8080FF', '#FF00FF']
+        gradients['fiber'] = LinearSegmentedColormap.from_list('fiber', fiber_colors)
+        
         # Register all custom colormaps with matplotlib
         for name, cmap in gradients.items():
             matplotlib.colormaps.register(cmap, name=name)
@@ -514,10 +543,10 @@ class ModernWordCloudApp:
         self.canvas_width.trace('w', self.update_preview_size)
         self.canvas_height.trace('w', self.update_preview_size)
         
-        # Contour settings
-        self.contour_width = tk.IntVar(value=0)
-        self.contour_color = tk.StringVar(value="#000000")
-        self.contour_widgets = []  # Keep track of contour widgets
+        # Outline settings
+        self.outline_width = tk.IntVar(value=0)
+        self.outline_color = tk.StringVar(value="#000000")
+        self.outline_widgets = []  # Keep track of outline widgets
         
         # Word orientation and mode
         self.prefer_horizontal = tk.DoubleVar(value=0.9)
@@ -530,6 +559,19 @@ class ModernWordCloudApp:
         
         # Color schemes with descriptions
         self.color_schemes = {
+            # Military/Service themes first
+            "Army": "army",
+            "Air Force": "airforce",
+            "Navy": "navy",
+            "Cyber": "cyber",
+            # New colorful themes
+            "Volcano": "volcano",
+            "Lilac": "lilac", 
+            "Cyberpunk": "cyberpunk",
+            "Tron": "tron",
+            "The Grid": "grid",
+            "Fiber": "fiber",
+            # Standard colormaps
             "Viridis": "viridis",
             "Plasma": "plasma",
             "Inferno": "inferno",
@@ -557,6 +599,8 @@ class ModernWordCloudApp:
             "Mint": "mint",
             "Volcano": "volcano",
             "Aurora": "aurora",
+            "Neon": "neon",
+            "Mystic": "mystic",
             "Hacker": "hacker",
             "SolarizedDk": "solarized_dark",
             "SolarizedLt": "solarized_light",
@@ -564,12 +608,11 @@ class ModernWordCloudApp:
             "Grape": "grape",
             "Dracula": "dracula",
             "Gruvbox": "gruvbox",
-            "Monokai": "monokai",
-            "Army": "army",
-            "Air Force": "airforce",
-            "Cyber": "cyber",
-            "Navy": "navy"
+            "Monokai": "monokai"
         }
+        
+        # Initialize dark_mode before loading theme preference
+        self.dark_mode = tk.BooleanVar(value=False)
         
         # Load theme preference before creating UI
         self.load_theme_preference()
@@ -578,6 +621,9 @@ class ModernWordCloudApp:
         
         # Mark UI as ready
         self.ui_ready = True
+        
+        # Initialize status bar labels
+        self.update_color_scheme_label()
         
         # Bind window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -628,8 +674,7 @@ class ModernWordCloudApp:
         theme_frame = ttk.Frame(top_bar)
         theme_frame.pack(side=RIGHT)
         
-        # Dark mode toggle
-        self.dark_mode = tk.BooleanVar(value=False)
+        # Dark mode toggle (already initialized in __init__)
         dark_mode_check = ttk.Checkbutton(theme_frame, 
                                          text="🌙 Dark Mode",
                                          variable=self.dark_mode,
@@ -788,11 +833,20 @@ class ModernWordCloudApp:
                 amounttotal=50,
                 metertype='semi',
                 textleft='',
-                textright=' chars',
+                textright='chars',
                 interactive=True,
-                bootstyle='primary'
+                bootstyle='primary',
+                stripethickness=2  # Smooth continuous line
             )
             self.min_length_meter.pack()
+            
+            # Add description
+            ttk.Label(min_container, text="Filter out words shorter than this", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(min_container, text="1 - 50", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Bind the meter value change
             self.min_length_meter.amountusedvar.trace('w', lambda *args: self.update_min_from_meter())
@@ -835,11 +889,20 @@ class ModernWordCloudApp:
                 amounttotal=50,
                 metertype='semi',
                 textleft='',
-                textright=' chars',
+                textright='chars',
                 interactive=True,
-                bootstyle='info'
+                bootstyle='info',
+                stripethickness=2  # Smooth continuous line
             )
             self.max_length_meter.pack()
+            
+            # Add description
+            ttk.Label(max_container, text="Filter out words longer than this", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(max_container, text="1 - 50", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             
             # Bind the meter value change
             self.max_length_meter.amountusedvar.trace('w', lambda *args: self.update_max_from_meter())
@@ -904,7 +967,7 @@ class ModernWordCloudApp:
         
         # Create scrollable frame
         canvas = tk.Canvas(style_tab, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(style_tab, orient="vertical", command=canvas.yview)
+        scrollbar = ttk.Scrollbar(style_tab, orient="vertical", command=canvas.yview, bootstyle="primary-round")
         scrollable_frame = ttk.Frame(canvas)
         
         scrollable_frame.bind(
@@ -957,30 +1020,20 @@ class ModernWordCloudApp:
         canvas.bind('<Enter>', _bind_style_mousewheel)
         canvas.bind('<Leave>', _unbind_style_mousewheel)
         
+        # Also bind to the scrollable frame and its children
+        scrollable_frame.bind('<MouseWheel>', _on_style_mousewheel)
+        style_frame.bind('<MouseWheel>', _on_style_mousewheel)
+        
         # Color scheme selection
         color_frame = self.create_section(style_frame, "Color Scheme")
         
-        # Color mode selection
-        mode_frame = ttk.Frame(color_frame)
-        mode_frame.pack(fill=X, pady=(0, 10))
-        
-        ttk.Radiobutton(mode_frame, text="Single Color", variable=self.color_mode, 
-                       value="single", command=self.on_color_mode_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Preset Gradients", variable=self.color_mode,
-                       value="preset", command=self.on_color_mode_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Custom Gradient", variable=self.color_mode,
-                       value="custom", command=self.on_color_mode_change,
-                       bootstyle="primary").pack(side=LEFT)
-        
-        ttk.Separator(color_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create notebook for different color modes
-        self.color_notebook = ttk.Notebook(color_frame)
+        self.color_notebook = ttk.Notebook(color_frame, bootstyle="primary")
         self.color_notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Bind tab change event
+        self.color_notebook.bind("<<NotebookTabChanged>>", self.on_color_tab_changed)
         
         # Single color tab
         single_tab = ttk.Frame(self.color_notebook)
@@ -1012,7 +1065,7 @@ class ModernWordCloudApp:
         
         # Create scrollable frame for preset color buttons
         preset_canvas = tk.Canvas(preset_tab, height=300)
-        preset_scrollbar = ttk.Scrollbar(preset_tab, orient="vertical", command=preset_canvas.yview)
+        preset_scrollbar = ttk.Scrollbar(preset_tab, orient="vertical", command=preset_canvas.yview, bootstyle="primary-round")
         preset_scrollable = ttk.Frame(preset_canvas)
         
         preset_scrollable.bind(
@@ -1146,40 +1199,19 @@ class ModernWordCloudApp:
         
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
-        
-        # Radio buttons for mask selection
-        radio_frame = ttk.Frame(mask_frame)
-        radio_frame.pack(fill=X, pady=(0, 10))
-        
-        # Radio button frame
-        mode_frame = ttk.Frame(radio_frame)
-        mode_frame.pack(anchor='w')
+        # add a scroll bind
+        mask_frame.bind("<MouseWheel>", _on_style_mousewheel)
         
         self.mask_type = tk.StringVar(value="no_mask")
-        
-        ttk.Radiobutton(mode_frame, text="No Mask", 
-                       variable=self.mask_type, 
-                       value="no_mask",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Image Mask", 
-                       variable=self.mask_type, 
-                       value="image_mask",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame, text="Text Mask", 
-                       variable=self.mask_type, 
-                       value="text_mask",
-                       command=self.on_mask_type_change,
-                       bootstyle="primary").pack(side=LEFT)
         
         ttk.Separator(mask_frame, orient='horizontal').pack(fill=X, pady=(5, 10))
         
         # Create notebook for mask options
-        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="secondary")
+        self.mask_notebook = ttk.Notebook(mask_frame, bootstyle="primary")
         self.mask_notebook.pack(fill=BOTH, expand=TRUE)
+        
+        # Bind tab change event
+        self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
         # Create tabs
         self.create_no_mask_tab()
@@ -1189,274 +1221,10 @@ class ModernWordCloudApp:
         # Bind tab change event
         self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
-        # Word Orientation
-        orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
-        orientation_frame.pack(fill=X, pady=(0, 10))
-        
-        # Center container for all content
-        center_container = ttk.Frame(orientation_frame)
-        center_container.pack(expand=True)
-        
-        # Prefer horizontal with Floodgauge
-        horizontal_container = ttk.Frame(center_container)
-        horizontal_container.pack()
-        
-        ttk.Label(horizontal_container, text="Word Orientation", 
-                 font=('Segoe UI', 11, 'bold')).pack()
-        
-        ttk.Label(horizontal_container, 
-                 text="Control the ratio of horizontal to vertical words in your cloud",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(5, 0))
-        
-        # Create a frame to hold the gauge and labels
-        gauge_container = ttk.Frame(horizontal_container)
-        gauge_container.pack(pady=10)
-        
-        gauge_frame = ttk.Frame(gauge_container)
-        gauge_frame.pack()
-        
-        # Left label
-        ttk.Label(gauge_frame, text="Vertical", 
-                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(0, 10))
-        
-        # Create Floodgauge for orientation
-        self.horizontal_gauge = Floodgauge(
-            gauge_frame,
-            length=200,
-            maximum=100,
-            value=90,
-            mask="{}%",
-            font=('Segoe UI', 10, 'bold'),
-            bootstyle="primary",
-            mode='determinate',
-            orient='horizontal'
-        )
-        self.horizontal_gauge.pack(side=LEFT)
-        
-        # Right label
-        ttk.Label(gauge_frame, text="Horizontal", 
-                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(10, 0))
-        
-        # Add interactive control
-        control_frame = ttk.Frame(horizontal_container)
-        control_frame.pack()
-        
-        scale_container = ttk.Frame(control_frame)
-        scale_container.pack()
-        
-        self.horizontal_scale = ttk.Scale(scale_container,
-                                        from_=0,
-                                        to=100,
-                                        value=90,
-                                        command=self.update_horizontal_gauge,
-                                        bootstyle="primary",
-                                        length=250)
-        self.horizontal_scale.pack(pady=(5, 10))
-        
-        # Reset button
-        ttk.Button(control_frame,
-                  text="Reset to Default (90%)",
-                  command=lambda: self.reset_orientation(),
-                  bootstyle="secondary-outline").pack()
-        
-        # Other Settings
-        other_frame = ttk.LabelFrame(mask_frame, text="Other Settings", padding=10)
-        other_frame.pack(fill=X, pady=(0, 10))
-        
-        # Center container
-        center_container = ttk.Frame(other_frame)
-        center_container.pack(expand=True)
-        
-        # Create a grid layout for meters
-        meters_grid = ttk.Frame(center_container)
-        meters_grid.pack()
-        
-        # Letter thickness meter
-        self.letter_thickness = tk.DoubleVar(value=1.0)
-        thickness_container = ttk.Frame(meters_grid)
-        thickness_container.grid(row=0, column=0, padx=10, pady=10)
-        
-        try:
-            ttk.Label(thickness_container, text="Letter Thickness", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            self.thickness_meter = Meter(
-                thickness_container,
-                metersize=150,
-                amountused=1,
-                amounttotal=3,
-                metertype='full',
-                textleft='',
-                textright='',
-                interactive=True,
-                bootstyle='warning',
-                stripethickness=10
-            )
-            self.thickness_meter.pack()
-            self.thickness_meter.amountusedvar.trace('w', lambda *args: self.update_thickness_from_meter())
-            self.thickness_scale = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Thickness meter failed: {e}")
-            thickness_label_frame = ttk.Frame(thickness_container)
-            thickness_label_frame.pack(fill=X)
-            ttk.Label(thickness_label_frame, text="Letter Thickness:", font=('Segoe UI', 10)).pack(side=LEFT)
-            self.thickness_label = ttk.Label(thickness_label_frame, text="Normal",
-                                            bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.thickness_label.pack(side=RIGHT)
-            
-            self.thickness_scale = ttk.Scale(thickness_container,
-                                            from_=0.1,
-                                            to=3.0,
-                                            value=1.0,
-                                            command=self.update_thickness_label,
-                                            bootstyle="primary")
-            self.thickness_scale.pack(fill=X, pady=(5, 0))
-            
-            ttk.Label(thickness_container, 
-                     text="Thin ← → Thick",
-                     font=('Segoe UI', 9),
-                     bootstyle="secondary").pack(pady=(2, 0))
-            self.thickness_meter = None
-        
-        # Max words meter
-        max_words_container = ttk.Frame(meters_grid)
-        max_words_container.grid(row=0, column=1, padx=10, pady=10)
-        
-        try:
-            # Add label above meter
-            ttk.Label(max_words_container, text="Max Words", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            self.max_words_meter = Meter(
-                max_words_container,
-                metersize=150,
-                amountused=200,
-                amounttotal=500,
-                metertype='full',
-                textleft='',
-                textright='',
-                interactive=True,
-                bootstyle='success'
-            )
-            self.max_words_meter.pack()
-            self.max_words_meter.amountusedvar.trace('w', lambda *args: self.update_max_words_from_meter())
-            self.max_words_scale = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Max words meter failed: {e}")
-            self.max_words_label = ttk.Label(max_words_container, text="200",
-                                            bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.max_words_label.pack()
-            self.max_words_scale = ttk.Scale(max_words_container,
-                                            from_=10,
-                                            to=500,
-                                            value=200,
-                                            command=self.update_max_words,
-                                            bootstyle="primary")
-            self.max_words_scale.pack(fill=X, pady=(5, 0))
-            self.max_words_meter = None
-        
-        ttk.Label(max_words_container, 
-                 text="More words = denser cloud, fewer words = cleaner look",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(5, 0))
-        
-        # Scale meter
-        scale_container = ttk.Frame(meters_grid)
-        scale_container.grid(row=1, column=0, padx=10, pady=10)
-        
-        try:
-            # Add label above meter
-            ttk.Label(scale_container, text="Computation Scale", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            self.scale_meter = Meter(
-                scale_container,
-                metersize=150,
-                amountused=1,
-                amounttotal=10,
-                metertype='full',
-                textleft='',
-                textright='',
-                interactive=True,
-                bootstyle='warning',
-                stripethickness=10
-            )
-            self.scale_meter.pack()
-            self.scale_meter.amountusedvar.trace('w', lambda *args: self.update_scale_from_meter())
-            self.scale_scale = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Scale meter failed: {e}")
-            self.scale_label = ttk.Label(scale_container, text="1",
-                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.scale_label.pack()
-            self.scale_scale = ttk.Scale(scale_container,
-                                        from_=1,
-                                        to=10,
-                                        value=1,
-                                        command=self.update_scale,
-                                        bootstyle="primary")
-            self.scale_scale.pack(fill=X, pady=(5, 0))
-            self.scale_meter = None
-        
-        ttk.Label(scale_container, 
-                 text="Higher = faster generation but coarser word placement",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(5, 0))
-        
-        # Words per line meter
-        words_container = ttk.Frame(meters_grid)
-        words_container.grid(row=1, column=1, padx=10, pady=10)
-        
-        try:
-            ttk.Label(words_container, text="Words per Line", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            self.words_per_line_meter = Meter(
-                words_container,
-                metersize=150,
-                amountused=1,
-                amounttotal=10,
-                metertype='full',
-                textleft='',
-                textright=' words',
-                interactive=True,
-                bootstyle='info',
-                stripethickness=10
-            )
-            self.words_per_line_meter.pack()
-            self.words_per_line_meter.amountusedvar.trace('w', lambda *args: self.update_words_per_line_from_meter())
-            self.words_per_line_scale = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Words per line meter failed: {e}")
-            words_label_frame = ttk.Frame(words_container)
-            words_label_frame.pack(fill=X)
-            ttk.Label(words_label_frame, text="Words per line:", font=('Segoe UI', 10)).pack(side=LEFT)
-            self.words_per_line_label = ttk.Label(words_label_frame, text="1 word",
-                                                 bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.words_per_line_label.pack(side=RIGHT)
-            
-            self.words_per_line_scale = ttk.Scale(words_container,
-                                                  from_=1,
-                                                  to=10,
-                                                  value=1,
-                                                  command=self.update_words_per_line,
-                                                  bootstyle="primary")
-            self.words_per_line_scale.pack(fill=X, pady=(5, 0))
-            self.words_per_line_meter = None
-        
-        ttk.Label(words_container, 
-                 text="Words per line for text masks",
-                 font=('Segoe UI', 9),
-                 bootstyle="secondary").pack(pady=(5, 0))
-        
         # Canvas options
         canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
         canvas_frame.pack(fill=X, pady=(0, 10))
+        
         
         # Center container
         canvas_center = ttk.Frame(canvas_frame)
@@ -1486,6 +1254,7 @@ class ModernWordCloudApp:
         width_container = ttk.Frame(dimensions_container)
         width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
         
+        
         try:
             ttk.Label(width_container, text="Width", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
@@ -1497,12 +1266,23 @@ class ModernWordCloudApp:
                 amounttotal=4000,
                 metertype='semi',
                 textleft='',
-                textright=' px',
+                textright='px',
                 interactive=True,
-                bootstyle='primary'
+                bootstyle='primary',
+                stripethickness=0  # Smooth continuous line
             )
             self.width_meter.pack()
+            
+            # Add description
+            ttk.Label(width_container, text="Canvas width in pixels", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(width_container, text="100 - 4000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.width_meter.amountusedvar.trace('w', lambda *args: self.update_width_from_meter())
+            
+            
             self.width_scale = None
             self.width_label = None
         except Exception as e:
@@ -1528,6 +1308,7 @@ class ModernWordCloudApp:
         height_container = ttk.Frame(dimensions_container)
         height_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
         
+        
         try:
             ttk.Label(height_container, text="Height", 
                      font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
@@ -1539,12 +1320,23 @@ class ModernWordCloudApp:
                 amounttotal=4000,
                 metertype='semi',
                 textleft='',
-                textright=' px',
+                textright='px',
                 interactive=True,
-                bootstyle='primary'
+                bootstyle='primary',
+                stripethickness=0  # Smooth continuous line
             )
             self.height_meter.pack()
+            
+            # Add description
+            ttk.Label(height_container, text="Canvas height in pixels", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(height_container, text="100 - 4000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.height_meter.amountusedvar.trace('w', lambda *args: self.update_height_from_meter())
+            
+            
             self.height_scale = None
             self.height_label = None
         except Exception as e:
@@ -1632,18 +1424,265 @@ class ModernWordCloudApp:
                                       width=15)
         self.bg_color_btn.pack(side=RIGHT)
         
+        # Word Orientation
+        orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
+        orientation_frame.pack(fill=X, pady=(0, 10))
+        
+        # Center container for all content
+        center_container = ttk.Frame(orientation_frame)
+        center_container.pack(expand=True)
+        
+        # Prefer horizontal with Floodgauge
+        horizontal_container = ttk.Frame(center_container)
+        horizontal_container.pack()
+        
+        ttk.Label(horizontal_container, text="Word Orientation", 
+                 font=('Segoe UI', 11, 'bold')).pack()
+        
+        ttk.Label(horizontal_container, 
+                 text="Control the ratio of horizontal to vertical words in your cloud",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Create a frame to hold the gauge and labels
+        gauge_container = ttk.Frame(horizontal_container)
+        gauge_container.pack(pady=10)
+        
+        gauge_frame = ttk.Frame(gauge_container)
+        gauge_frame.pack()
+        
+        # Left label
+        ttk.Label(gauge_frame, text="Vertical", 
+                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(0, 10))
+        
+        # Create Floodgauge for orientation
+        self.horizontal_gauge = Floodgauge(
+            gauge_frame,
+            length=200,
+            maximum=100,
+            value=90,
+            mask="{}%",
+            font=('Segoe UI', 10, 'bold'),
+            bootstyle="primary",
+            mode='determinate',
+            orient='horizontal'
+        )
+        self.horizontal_gauge.pack(side=LEFT)
+        
+        # Right label
+        ttk.Label(gauge_frame, text="Horizontal", 
+                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(10, 0))
+        
+        # Add interactive control
+        control_frame = ttk.Frame(horizontal_container)
+        control_frame.pack()
+        
+        scale_container = ttk.Frame(control_frame)
+        scale_container.pack()
+        
+        self.horizontal_scale = ttk.Scale(scale_container,
+                                        from_=0,
+                                        to=100,
+                                        value=90,
+                                        command=self.update_horizontal_gauge,
+                                        bootstyle="primary",
+                                        length=250)
+        self.horizontal_scale.pack(pady=(5, 10))
+        
+        # Reset button
+        ttk.Button(control_frame,
+                  text="Reset to Default (90%)",
+                  command=lambda: self.reset_orientation(),
+                  bootstyle="secondary-outline").pack()
+        
+        # Other Settings
+        other_frame = ttk.LabelFrame(mask_frame, text="Other Settings", padding=10)
+        other_frame.pack(fill=X, pady=(0, 10))
+        
+        # Center container
+        center_container = ttk.Frame(other_frame)
+        center_container.pack(expand=True)
+        
+        # Create a grid layout for meters
+        meters_grid = ttk.Frame(center_container)
+        meters_grid.pack()
+        
+        # Letter thickness meter (moved to text mask tab)
+        self.letter_thickness = tk.DoubleVar(value=1.0)
+        # Letter spacing variable
+        self.letter_spacing = tk.DoubleVar(value=0.0)
+        
+        # Max words meter
+        max_words_container = ttk.Frame(meters_grid)
+        max_words_container.grid(row=0, column=0, padx=10, pady=10)
+        
+        try:
+            # Add label above meter
+            ttk.Label(max_words_container, text="Max Words", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.max_words_meter = Meter(
+                max_words_container,
+                metersize=150,
+                amountused=200,
+                amounttotal=500,
+                metertype='semi',
+                textleft='',
+                textright='words',
+                interactive=True,
+                bootstyle='success',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.max_words_meter.pack()
+            
+            # Add description
+            ttk.Label(max_words_container, text="Maximum words to display", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(max_words_container, text="10 - 500", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.max_words_meter.amountusedvar.trace('w', lambda *args: self.update_max_words_from_meter())
+            self.max_words_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Max words meter failed: {e}")
+            self.max_words_label = ttk.Label(max_words_container, text="200",
+                                            bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.max_words_label.pack()
+            self.max_words_scale = ttk.Scale(max_words_container,
+                                            from_=10,
+                                            to=500,
+                                            value=200,
+                                            command=self.update_max_words,
+                                            bootstyle="primary")
+            self.max_words_scale.pack(fill=X, pady=(5, 0))
+            self.max_words_meter = None
+        
+        ttk.Label(max_words_container, 
+                 text="More words = denser cloud, fewer words = cleaner look",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Scale meter
+        scale_container = ttk.Frame(meters_grid)
+        scale_container.grid(row=0, column=1, padx=10, pady=10)
+        
+        try:
+            # Add label above meter
+            ttk.Label(scale_container, text="Computation Scale", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.scale_meter = Meter(
+                scale_container,
+                metersize=150,
+                amountused=1,
+                amounttotal=10,
+                metertype='semi',
+                textleft='',
+                textright='scale',
+                interactive=True,
+                bootstyle='warning',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.scale_meter.pack()
+            
+            # Add description
+            ttk.Label(scale_container, text="Higher = better quality, slower", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(scale_container, text="1 - 10", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.scale_meter.amountusedvar.trace('w', lambda *args: self.update_scale_from_meter())
+            self.scale_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Scale meter failed: {e}")
+            self.scale_label = ttk.Label(scale_container, text="1",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.scale_label.pack()
+            self.scale_scale = ttk.Scale(scale_container,
+                                        from_=1,
+                                        to=10,
+                                        value=1,
+                                        command=self.update_scale,
+                                        bootstyle="primary")
+            self.scale_scale.pack(fill=X, pady=(5, 0))
+            self.scale_meter = None
+        
+        ttk.Label(scale_container, 
+                 text="Higher = faster generation but coarser word placement",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
+        # Words per line meter
+        words_container = ttk.Frame(meters_grid)
+        words_container.grid(row=1, column=0, padx=10, pady=10)
+        
+        try:
+            ttk.Label(words_container, text="Words per Line", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.words_per_line_meter = Meter(
+                words_container,
+                metersize=150,
+                amountused=1,
+                amounttotal=10,
+                metertype='semi',
+                textleft='',
+                textright='words',
+                interactive=True,
+                bootstyle='info',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.words_per_line_meter.pack()
+            
+            # Add description
+            ttk.Label(words_container, text="Words per line in text masks", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(words_container, text="1 - 10", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.words_per_line_meter.amountusedvar.trace('w', lambda *args: self.update_words_per_line_from_meter())
+            self.words_per_line_scale = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Words per line meter failed: {e}")
+            words_label_frame = ttk.Frame(words_container)
+            words_label_frame.pack(fill=X)
+            ttk.Label(words_label_frame, text="Words per line:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.words_per_line_label = ttk.Label(words_label_frame, text="1 word",
+                                                 bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.words_per_line_label.pack(side=RIGHT)
+            
+            self.words_per_line_scale = ttk.Scale(words_container,
+                                                  from_=1,
+                                                  to=10,
+                                                  value=1,
+                                                  command=self.update_words_per_line,
+                                                  bootstyle="primary")
+            self.words_per_line_scale.pack(fill=X, pady=(5, 0))
+            self.words_per_line_meter = None
+        
+        ttk.Label(words_container, 
+                 text="Words per line for text masks",
+                 font=('Segoe UI', 9),
+                 bootstyle="secondary").pack(pady=(5, 0))
+        
     def create_no_mask_tab(self):
         """Create the no mask tab"""
         no_mask_frame = ttk.Frame(self.mask_notebook)
         self.mask_notebook.add(no_mask_frame, text="No Mask")
-        
+
         # Info frame with border
         info_frame = ttk.LabelFrame(no_mask_frame, text="Information", padding=15)
         info_frame.pack(fill=X, padx=20, pady=20)
         
         # Info label
         info_label = ttk.Label(info_frame, 
-                              text="Word cloud will be generated in a rectangular shape.\nNo special shape or contours will be applied.",
+                              text="Word cloud will be generated in a rectangular shape.\nNo special shape or outlines will be applied.",
                               font=('Segoe UI', 10),
                               bootstyle="secondary")
         info_label.pack()
@@ -1662,8 +1701,8 @@ class ModernWordCloudApp:
         # Create the image mask frame content
         self.create_image_mask_frame(image_mask_frame)
         
-        # Add contour options to this tab
-        self.create_contour_options(image_mask_frame)
+        # Add outline options to this tab
+        self.create_outline_options(image_mask_frame)
         
         # Add mask preview to this tab
         self.create_mask_preview(image_mask_frame)
@@ -1679,9 +1718,9 @@ class ModernWordCloudApp:
         # Add mask preview to this tab
         self.create_mask_preview(text_mask_frame)
     
-    def create_contour_options(self, parent):
-        """Create contour options frame"""
-        # This function is now empty as contour options are moved to text_mask_frame
+    def create_outline_options(self, parent):
+        """Create outline options frame"""
+        # This function is now empty as outline options are moved to text_mask_frame
         pass
     
     def create_mask_preview(self, parent):
@@ -1734,6 +1773,7 @@ class ModernWordCloudApp:
     def create_text_mask_frame(self, parent):
         """Create the text mask options frame"""
         text_input_frame = ttk.LabelFrame(parent, text="Text Input", padding=10)
+        
         text_input_frame.pack(fill=X)
         
         # Text input
@@ -1747,10 +1787,8 @@ class ModernWordCloudApp:
         self.text_mask_entry.bind('<KeyRelease>', lambda e: self.update_text_mask())
         
         # Font selection
-        font_frame = ttk.Frame(text_input_frame)
+        font_frame = ttk.LabelFrame(text_input_frame, text="Font", padding=10)
         font_frame.pack(fill=X, pady=(0, 10))
-        
-        ttk.Label(font_frame, text="Font:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 5))
         
         self.font_listbox = FontListbox(font_frame,
                                        self.available_fonts,
@@ -1760,7 +1798,7 @@ class ModernWordCloudApp:
         self.font_listbox.pack(fill=X)
         self.font_listbox.bind('<<FontSelected>>', lambda e: self.update_text_mask())
         
-        # Create horizontal container for font settings and contour settings
+        # Create horizontal container for font settings and outline settings
         meters_container = ttk.Frame(text_input_frame)
         meters_container.pack(fill=X, pady=(15, 0))
         
@@ -1783,11 +1821,20 @@ class ModernWordCloudApp:
                 amounttotal=2000,
                 metertype='semi',
                 textleft='',
-                textright='',
+                textright='pt',
                 interactive=True,
-                bootstyle='info'
+                bootstyle='info',
+                stripethickness=0  # Smooth continuous line
             )
             self.font_size_meter.pack()
+            
+            # Add description
+            ttk.Label(font_size_container, text="Font size for text mask", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(font_size_container, text="10 - 2000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
             self.font_size_meter.amountusedvar.trace('w', lambda *args: self.update_font_size_from_meter())
             self.font_size_scale = None
         except Exception as e:
@@ -1828,81 +1875,180 @@ class ModernWordCloudApp:
                        command=self.update_text_mask,
                        bootstyle="primary").pack(anchor=W)
         
-        # Contour settings frame (right side)
-        contour_frame = ttk.LabelFrame(meters_container, text="Contour Settings", padding=10)
-        contour_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        # Text Appearance frame (middle)
+        text_appearance_frame = ttk.LabelFrame(meters_container, text="Text Appearance", padding=10)
+        text_appearance_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
         
-        # Create horizontal layout inside contour frame
-        contour_layout = ttk.Frame(contour_frame)
-        contour_layout.pack(fill=X)
+        # Letter thickness meter
+        thickness_container = ttk.Frame(text_appearance_frame)
+        thickness_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
         
-        # Contour width meter
-        width_container = ttk.Frame(contour_layout)
+        try:
+            ttk.Label(thickness_container, text="Thickness", 
+                     font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+            
+            self.thickness_meter = Meter(
+                thickness_container,
+                metersize=100,
+                amountused=1,
+                amounttotal=5,
+                metertype='semi',
+                textleft='',
+                textright='px',
+                interactive=True,
+                bootstyle='warning',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.thickness_meter.pack()
+            
+            # Add description
+            ttk.Label(thickness_container, text="Letter stroke thickness", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(thickness_container, text="0 - 5", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.thickness_meter.amountusedvar.trace('w', lambda *args: self.update_thickness_from_meter())
+            
+            # Add zero button for thickness
+            def set_thickness_zero():
+                # Directly set to 0
+                if hasattr(self, 'thickness_meter') and self.thickness_meter:
+                    self.thickness_meter.configure(amountused=0)
+                self.letter_thickness.set(0)
+                self.update_text_mask()
+            
+            zero_btn = ttk.Button(thickness_container, text="Reset", width=6, 
+                                 command=set_thickness_zero,
+                                 bootstyle="secondary-outline")
+            zero_btn.pack(pady=(5, 0))
+        except Exception as e:
+            print(f"[ERROR] Thickness meter creation failed: {e}")
+            debug_print(f"Thickness meter creation failed: {e}")
+            self.thickness_meter = None
+        
+        # Letter spacing meter
+        spacing_container = ttk.Frame(text_appearance_frame)
+        spacing_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
+        
+        try:
+            ttk.Label(spacing_container, text="Spacing", 
+                     font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
+            
+            self.spacing_meter = Meter(
+                spacing_container,
+                metersize=100,
+                amountused=0,
+                amounttotal=5,
+                metertype='semi',
+                textleft='',
+                textright='px',
+                interactive=True,
+                bootstyle='info',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.spacing_meter.pack()
+            
+            # Add description
+            ttk.Label(spacing_container, text="Space between letters", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(spacing_container, text="0 - 5", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.spacing_meter.amountusedvar.trace('w', lambda *args: self.update_spacing_from_meter())
+            
+            # Add zero button for spacing
+            def set_spacing_zero():
+                # Directly set to 0
+                self.spacing_meter.configure(amountused=0)
+                self.letter_spacing.set(0)
+            
+            zero_btn = ttk.Button(spacing_container, text="Reset", width=6, 
+                                 command=set_spacing_zero,
+                                 bootstyle="secondary-outline")
+            zero_btn.pack(pady=(5, 0))
+        except Exception as e:
+            debug_print(f"Spacing meter creation failed: {e}")
+            self.spacing_meter = None
+        
+        # Outline settings frame (right side)
+        outline_frame = ttk.LabelFrame(meters_container, text="Outline Settings", padding=10)
+        outline_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        
+        # Create horizontal layout inside outline frame
+        outline_layout = ttk.Frame(outline_frame)
+        outline_layout.pack(fill=X)
+        
+        # Outline width meter
+        width_container = ttk.Frame(outline_layout)
         width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 15))
         
         try:
             ttk.Label(width_container, text="Width", 
                      font=('Segoe UI', 9, 'bold')).pack(pady=(0, 5))
             
-            self.contour_width_meter = Meter(
+            self.outline_width_meter = Meter(
                 width_container,
                 metersize=100,
                 amountused=0.0,
                 amounttotal=30,
                 metertype='semi',
                 textleft='',
-                textright=' px',
+                textright='px',
                 interactive=True,
                 bootstyle='primary',
-                stripethickness=10,
-                stepsize=1,
-                striped=False
+                stripethickness=0,  # Smooth continuous line
+                stepsize=1
             )
-            self.contour_width_meter.pack()
-            self.contour_width_meter.amountusedvar.trace('w', lambda *args: self.update_contour_width_from_meter())
+            self.outline_width_meter.pack()
+            
+            # Add description
+            ttk.Label(width_container, text="Outline thickness around shape", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(width_container, text="0 - 30", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.outline_width_meter.amountusedvar.trace('w', lambda *args: self.update_outline_width_from_meter())
             
             # Add zero button function
-            def set_contour_zero():
-                # Use the workaround approach
-                self.contour_width_meter.configure(amountused=0.001)
-                self.contour_width_meter.update_idletasks()
-                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
-                self.root.after(100, lambda: self.contour_width_meter.update_idletasks())
-                self.contour_width.set(0)
+            def set_outline_zero():
+                # Directly set to 0
+                self.outline_width_meter.configure(amountused=0)
+                self.outline_width.set(0)
             
-            # Add double-click to reset to 0
-            self.contour_width_meter.bind("<Double-Button-1>", lambda e: set_contour_zero())
-                
-            zero_btn = ttk.Button(width_container, text="0", width=3, 
-                                 command=set_contour_zero,
-                                 bootstyle="secondary-outline")
+
+            zero_btn = ttk.Button(width_container, text="Reset",
+                                command=set_outline_zero,
+                                bootstyle="secondary-outline")
             zero_btn.pack(pady=(5, 0))
-            self.contour_width_scale = None
-            self.contour_width_label = None
+            self.outline_width_scale = None
+            self.outline_width_label = None
         except Exception as e:
             # Fallback to scale
-            debug_print(f"Contour width meter failed: {e}")
+            debug_print(f"Outline width meter failed: {e}")
             width_label_frame = ttk.Frame(width_container)
             width_label_frame.pack(fill=X)
-            contour_width_lbl = ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 9))
-            contour_width_lbl.pack(side=LEFT)
-            contour_width_label = ttk.Label(width_label_frame, text="0 px",
+            outline_width_lbl = ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 9))
+            outline_width_lbl.pack(side=LEFT)
+            outline_width_label = ttk.Label(width_label_frame, text="0 px",
                                            bootstyle="primary", font=('Segoe UI', 9, 'bold'))
-            contour_width_label.pack(side=RIGHT)
+            outline_width_label.pack(side=RIGHT)
             
-            contour_width_scale = ttk.Scale(width_container,
+            outline_width_scale = ttk.Scale(width_container,
                                            from_=0,
                                            to=30,
                                            value=0,
-                                           command=lambda v: self.update_contour_width(v, contour_width_label),
+                                           command=lambda v: self.update_outline_width(v, outline_width_label),
                                            bootstyle="primary")
-            contour_width_scale.pack(fill=X, pady=(5, 0))
-            self.contour_width_label = contour_width_label
-            self.contour_width_scale = contour_width_scale
-            self.contour_width_meter = None
+            outline_width_scale.pack(fill=X, pady=(5, 0))
+            self.outline_width_label = outline_width_label
+            self.outline_width_scale = outline_width_scale
+            self.outline_width_meter = None
         
-        # Contour color
-        color_container = ttk.Frame(contour_layout)
+        # Outline color
+        color_container = ttk.Frame(outline_layout)
         color_container.pack(side=LEFT, fill=X)
         
         ttk.Label(color_container, text="Color", 
@@ -1911,29 +2057,29 @@ class ModernWordCloudApp:
         color_frame = ttk.Frame(color_container)
         color_frame.pack()
         
-        contour_color_preview = ttk.Frame(color_frame, width=25, height=25, bootstyle="dark")
-        contour_color_preview.pack(side=LEFT, padx=(0, 8))
+        outline_color_preview = ttk.Frame(color_frame, width=25, height=25, bootstyle="dark")
+        outline_color_preview.pack(side=LEFT, padx=(0, 8))
         
-        contour_color_btn = ttk.Button(color_frame,
+        outline_color_btn = ttk.Button(color_frame,
                                       text="Choose",
-                                      command=lambda: self.choose_contour_color(contour_color_preview),
+                                      command=lambda: self.choose_outline_color(outline_color_preview),
                                       bootstyle="primary-outline",
                                       width=10)
-        contour_color_btn.pack(side=LEFT)
+        outline_color_btn.pack(side=LEFT)
         
         # Store reference
-        self.contour_color_preview = contour_color_preview
+        self.outline_color_preview = outline_color_preview
     
     def on_mask_type_change(self):
         """Handle mask type radio button change"""
-        # Clear canvas when mask type changes
-        self.clear_canvas()
+        # Don't clear canvas when mask type changes
+        # self.clear_canvas()
         
         # Update the mode label to reflect the mask selection
         self.update_mode_label()
         
-        # Update contour state based on new selection
-        self.update_contour_state()
+        # Update outline state based on new selection
+        self.update_outline_state()
     
     def on_mask_tab_changed(self, event):
         """Handle mask tab change"""
@@ -2089,10 +2235,7 @@ class ModernWordCloudApp:
         ratio_text = self.get_ratio_text(width, height)
         self.show_toast(f"Canvas size set to {width}×{height} ({ratio_text})", "info")
         
-        # Clear canvas when preset is selected
-        self.clear_canvas()
-        
-        # Clear canvas when preset is selected
+        # Clear canvas when preset is selected (canvas size change)
         self.clear_canvas()
         
     def calculate_preview_size(self):
@@ -2199,6 +2342,31 @@ class ModernWordCloudApp:
         tk.Label(mask_text_frame, text="MASK", font=('Segoe UI', 8), bg='#F3F4F6', fg='#9CA3AF').pack(anchor='w')
         self.mask_label = tk.Label(mask_text_frame, text="No Mask", font=('Segoe UI', 11, 'bold'), bg='#F3F4F6', fg='#1F2937')
         self.mask_label.pack(anchor='w')
+        
+        # Second divider
+        divider2 = tk.Frame(inner_container, bg='#E5E7EB', width=1)
+        divider2.pack(side=LEFT, fill=Y, padx=30)
+        
+        # Color scheme info
+        color_frame = tk.Frame(inner_container, bg='#F3F4F6')
+        color_frame.pack(side=LEFT, fill=Y)
+        
+        # Color container
+        color_container = tk.Frame(color_frame, bg='#F3F4F6')
+        color_container.pack(expand=True)
+        
+        # Color icon and label
+        color_row = tk.Frame(color_container, bg='#F3F4F6')
+        color_row.pack()
+        
+        tk.Label(color_row, text="🎨", font=('Segoe UI', 14), bg='#F3F4F6', fg='#6B7280').pack(side=LEFT, padx=(0, 8))
+        
+        color_text_frame = tk.Frame(color_row, bg='#F3F4F6')
+        color_text_frame.pack(side=LEFT)
+        
+        tk.Label(color_text_frame, text="COLOR SCHEME", font=('Segoe UI', 8), bg='#F3F4F6', fg='#9CA3AF').pack(anchor='w')
+        self.color_scheme_label = tk.Label(color_text_frame, text="Single Color", font=('Segoe UI', 11, 'bold'), bg='#F3F4F6', fg='#1F2937')
+        self.color_scheme_label.pack(anchor='w')
         
         # Add bottom border
         bottom_border = tk.Frame(status_bar, bg='#E5E7EB', height=1)
@@ -2639,6 +2807,22 @@ class ModernWordCloudApp:
         # Update mask label
         self.mask_label.config(text=mask_desc)
     
+    def update_color_scheme_label(self):
+        """Update the color scheme label based on current selection"""
+        if not hasattr(self, 'color_scheme_label'):
+            return
+            
+        mode = self.color_mode.get()
+        
+        if mode == "single":
+            self.color_scheme_label.config(text="Single Color")
+        elif mode == "preset":
+            # Get the selected preset name
+            preset_name = self.color_var.get()
+            self.color_scheme_label.config(text=preset_name)
+        elif mode == "custom":
+            self.color_scheme_label.config(text="Custom Gradient")
+    
     def update_status_bar_colors(self, bg_color, border_color, text_color, label_color):
         """Update status bar colors based on theme"""
         # Update main container
@@ -2714,7 +2898,31 @@ class ModernWordCloudApp:
         # Update combined preview if in preset mode
         if self.color_mode.get() == "preset":
             self.update_combined_color_preview()
+        # Update color scheme label
+        self.update_color_scheme_label()
         
+    def on_color_tab_changed(self, event):
+        """Handle color notebook tab change"""
+        selected_tab = event.widget.index('current')
+        if selected_tab == 0:  # Single Color
+            self.color_mode.set("single")
+        elif selected_tab == 1:  # Preset Gradients
+            self.color_mode.set("preset")
+        elif selected_tab == 2:  # Custom Gradient
+            self.color_mode.set("custom")
+        self.on_color_mode_change()
+    
+    def on_mask_tab_changed(self, event):
+        """Handle mask notebook tab change"""
+        selected_tab = event.widget.index('current')
+        if selected_tab == 0:  # No Mask
+            self.mask_type.set("no_mask")
+        elif selected_tab == 1:  # Image Mask
+            self.mask_type.set("image_mask")
+        elif selected_tab == 2:  # Text Mask
+            self.mask_type.set("text_mask")
+        self.on_mask_type_change()
+    
     def on_color_mode_change(self):
         """Handle color mode radio button change"""
         mode = self.color_mode.get()
@@ -2728,6 +2936,9 @@ class ModernWordCloudApp:
         
         # Update the combined preview
         self.update_combined_color_preview()
+        
+        # Update color scheme label
+        self.update_color_scheme_label()
     
     def choose_custom_color(self, index):
         """Choose a color for custom gradient"""
@@ -2919,8 +3130,8 @@ class ModernWordCloudApp:
                     self.image_mask_preview_label.config(image=photo, text="")
                     self.image_mask_preview_label.image = photo  # Keep a reference
                 
-                # Enable contour options when mask is selected
-                self.update_contour_state(True)
+                # Enable outline options when mask is selected
+                self.update_outline_state(True)
                 
                 # Update mode label
                 self.update_mode_label()
@@ -2948,8 +3159,8 @@ class ModernWordCloudApp:
         elif current_tab == 2 and hasattr(self, 'text_mask_preview_label'):
             self.text_mask_preview_label.config(image="", text="No mask selected")
         
-        # Disable contour options when mask is cleared
-        self.update_contour_state(False)
+        # Disable outline options when mask is cleared
+        self.update_outline_state(False)
         
         # Update mode label
         self.update_mode_label()
@@ -3039,8 +3250,57 @@ class ModernWordCloudApp:
         x = (width - text_width) // 2
         y = (height - text_height) // 2
         
-        # Draw text in black (multiline will be handled automatically)
-        draw.text((x, y), text_to_draw, fill='black', font=font, align='center')
+        # Draw text in black with stroke thickness and letter spacing
+        # Map thickness value (0-5) to stroke width (0-15 pixels for more visible effect)
+        thickness_val = self.letter_thickness.get()
+        stroke_width = int(thickness_val * 3) if thickness_val > 0 else 0
+        spacing = int(self.letter_spacing.get() * 10)  # Convert 0-5 to 0-50 pixels
+        
+        # If no spacing needed, use normal drawing
+        if spacing == 0:
+            try:
+                # Try using stroke_width (requires PIL 6.2.0+)
+                draw.text((x, y), text_to_draw, fill='black', font=font, align='center', 
+                          stroke_width=stroke_width, stroke_fill='black')
+            except TypeError:
+                # Fallback for older PIL versions - just draw without stroke
+                draw.text((x, y), text_to_draw, fill='black', font=font, align='center')
+        else:
+            # Draw text with letter spacing - handle each line separately
+            lines = text_to_draw.split('\n')
+            current_y = y
+            
+            for line in lines:
+                # Calculate line width with spacing
+                line_width = 0
+                for char in line:
+                    bbox = draw.textbbox((0, 0), char, font=font)
+                    char_width = bbox[2] - bbox[0]
+                    line_width += char_width + spacing
+                line_width -= spacing  # Remove last spacing
+                
+                # Start position for this line (centered)
+                current_x = x + (text_width - line_width) // 2
+                
+                # Draw each character with spacing
+                for char in line:
+                    try:
+                        # Try with stroke
+                        draw.text((current_x, current_y), char, fill='black', font=font,
+                                  stroke_width=stroke_width, stroke_fill='black')
+                    except TypeError:
+                        # Fallback without stroke
+                        draw.text((current_x, current_y), char, fill='black', font=font)
+                    
+                    # Move to next character position
+                    bbox = draw.textbbox((0, 0), char, font=font)
+                    char_width = bbox[2] - bbox[0]
+                    current_x += char_width + spacing
+                
+                # Move to next line
+                bbox = draw.textbbox((0, 0), 'Ay', font=font)  # Sample for line height
+                line_height = bbox[3] - bbox[1]
+                current_y += line_height
         
         # Convert to numpy array
         return np.array(img)
@@ -3056,8 +3316,8 @@ class ModernWordCloudApp:
             # Update preview
             self.update_mask_preview()
             
-            # Enable contour options
-            self.update_contour_state(True)
+            # Enable outline options
+            self.update_outline_state(True)
             
             # Update mode label
             self.update_mode_label()
@@ -3105,37 +3365,56 @@ class ModernWordCloudApp:
             
             # Resize for preview maintaining aspect ratio
             preview_img.thumbnail((preview_width, preview_height), Image.Resampling.LANCZOS)
+            
+            # Add border to text mask preview
+            if current_tab == 2:  # Text mask tab
+                # Create a new image with border
+                border_width = 2
+                border_color = '#6B7280'  # Gray border
+                
+                # Get the size after thumbnail
+                img_width, img_height = preview_img.size
+                
+                # Create new image with border
+                bordered_img = Image.new('RGB', 
+                                       (img_width + 2*border_width, img_height + 2*border_width), 
+                                       border_color)
+                
+                # Paste the preview image in the center
+                bordered_img.paste(preview_img, (border_width, border_width))
+                preview_img = bordered_img
+            
             photo = ImageTk.PhotoImage(preview_img)
             
             # Update the preview label
             preview_label.config(image=photo, text="")
             preview_label.image = photo
     
-    def update_contour_width(self, value, label=None):
-        """Update contour width label"""
+    def update_outline_width(self, value, label=None):
+        """Update outline width label"""
         val = int(float(value))
-        self.contour_width.set(val)
+        self.outline_width.set(val)
         if label:
             label.config(text=f"{val} pixels")
-        elif hasattr(self, 'contour_width_label'):
-            self.contour_width_label.config(text=f"{val} pixels")
+        elif hasattr(self, 'outline_width_label'):
+            self.outline_width_label.config(text=f"{val} pixels")
     
-    def choose_contour_color(self, preview_frame=None):
-        """Open color chooser for contour color"""
+    def choose_outline_color(self, preview_frame=None):
+        """Open color chooser for outline color"""
         dialog = ColorChooserDialog()
         dialog.show()
         color = dialog.result
         if color:
             hex_color = color.hex
-            self.contour_color.set(hex_color)
+            self.outline_color.set(hex_color)
             # Update preview - ttk frames don't support background, use style instead
             style = ttk.Style()
-            style_name = f"ContourPreview.TFrame"
+            style_name = f"OutlinePreview.TFrame"
             style.configure(style_name, background=hex_color)
             if preview_frame:
                 preview_frame.configure(style=style_name)
-            elif hasattr(self, 'contour_color_preview'):
-                self.contour_color_preview.configure(style=style_name)
+            elif hasattr(self, 'outline_color_preview'):
+                self.outline_color_preview.configure(style=style_name)
     
     def choose_bg_color(self):
         """Open color chooser for background color"""
@@ -3169,13 +3448,13 @@ class ModernWordCloudApp:
                 self.bg_color_btn.configure(state='normal')
                 self.update_bg_preview()
     
-    def update_contour_color_preview(self):
-        """Update the contour color preview"""
-        if hasattr(self, 'contour_color_preview') and hasattr(self, 'contour_color'):
+    def update_outline_color_preview(self):
+        """Update the outline color preview"""
+        if hasattr(self, 'outline_color_preview') and hasattr(self, 'outline_color'):
             style = ttk.Style()
-            style_name = f"ContourPreview{id(self)}.TFrame"
-            style.configure(style_name, background=self.contour_color)
-            self.contour_color_preview.configure(style=style_name)
+            style_name = f"OutlinePreview{id(self)}.TFrame"
+            style.configure(style_name, background=self.outline_color)
+            self.outline_color_preview.configure(style=style_name)
     
     def clear_canvas(self, clear_wordcloud=True, show_placeholder=True):
         """Clear the canvas completely"""
@@ -3264,8 +3543,8 @@ class ModernWordCloudApp:
                 else:
                     self.scale_indicator.config(text="")
             
-            # Clear canvas when size changes
-            self.clear_canvas()
+            # Don't clear canvas when preview size changes
+            # self.clear_canvas()
             
             # Force canvas to redraw with new size
             self.canvas.draw()
@@ -3341,8 +3620,8 @@ class ModernWordCloudApp:
         except Exception as e:
             self.print_debug(f"Error updating preview display: {str(e)}")
     
-    def update_contour_state(self, has_mask=None):
-        """Enable/disable contour options based on mask selection"""
+    def update_outline_state(self, has_mask=None):
+        """Enable/disable outline options based on mask selection"""
         if has_mask is None:
             # Check if any mask is selected based on radio button
             mask_type = self.mask_type.get()
@@ -3355,7 +3634,7 @@ class ModernWordCloudApp:
         
         state = NORMAL if has_mask else DISABLED
         
-        for widget in self.contour_widgets:
+        for widget in self.outline_widgets:
             try:
                 widget.configure(state=state)
             except:
@@ -3379,7 +3658,8 @@ class ModernWordCloudApp:
         self.horizontal_gauge.configure(value=90)
         self.prefer_horizontal.set(0.9)
         self.show_toast("Word orientation reset to 90% horizontal", "info")
-        self.clear_canvas()
+        # Don't clear canvas on orientation reset
+        # self.clear_canvas()
     
     def update_thickness_label(self, value):
         """Update letter thickness label"""
@@ -3396,42 +3676,61 @@ class ModernWordCloudApp:
         else:
             text = "Very Thick"
         self.thickness_label.config(text=text)
+        # Update text mask if it's currently selected
+        if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+            self.update_text_mask()
     
     def update_max_words(self, value):
-        """Update max words label and clear canvas"""
+        """Update max words label"""
         val = int(float(value))
         self.max_words.set(val)
         if hasattr(self, 'max_words_label'):
             self.max_words_label.config(text=str(val))
-        self.clear_canvas()
+        # Don't clear canvas on max words change
+        # self.clear_canvas()
     
     def update_max_words_from_meter(self):
         """Update max words from meter widget"""
         if self.max_words_meter:
             val = int(self.max_words_meter.amountusedvar.get())
             self.max_words.set(val)
-            self.clear_canvas()
+            # Don't clear canvas on max words change
+            # self.clear_canvas()
     
     def update_scale(self, value):
-        """Update scale label and clear canvas"""
+        """Update scale label"""
         val = int(float(value))
         self.scale.set(val)
         if hasattr(self, 'scale_label'):
             self.scale_label.config(text=str(val))
-        self.clear_canvas()
+        # Don't clear canvas on scale change
+        # self.clear_canvas()
     
     def update_scale_from_meter(self):
         """Update scale from meter widget"""
         if self.scale_meter:
             val = int(self.scale_meter.amountusedvar.get())
             self.scale.set(val)
-            self.clear_canvas()
+            # Don't clear canvas on scale change
+            # self.clear_canvas()
     
     def update_thickness_from_meter(self):
         """Update letter thickness from meter widget"""
-        if self.thickness_meter:
+        if hasattr(self, 'thickness_meter') and self.thickness_meter:
             val = self.thickness_meter.amountusedvar.get()
             self.letter_thickness.set(val)
+            # Update text mask if it's currently selected
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
+    
+    def update_spacing_from_meter(self):
+        """Update letter spacing from meter widget"""
+        if hasattr(self, 'spacing_meter') and self.spacing_meter:
+            val = self.spacing_meter.amountusedvar.get()
+            self.letter_spacing.set(val)
+            # Update text mask if it's currently selected
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
     
     def update_words_per_line_from_meter(self):
         """Update words per line from meter widget"""
@@ -3441,22 +3740,21 @@ class ModernWordCloudApp:
             if self.text_mask_input.get():
                 self.update_text_mask()
     
-    def update_contour_width_from_meter(self):
-        """Update contour width from meter widget"""
-        if self.contour_width_meter:
-            raw_val = self.contour_width_meter.amountusedvar.get()
-            self.print_debug(f"Contour width meter raw value: {raw_val}")
-            val = int(raw_val)
-            # Force to 0 if less than 1
-            if raw_val < 1:
-                val = 0
-                # Workaround: set to near-zero then to actual zero
-                self.root.after(10, lambda: self.contour_width_meter.configure(amountused=0.001))
-                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
-                self.root.after(60, lambda: self.contour_width_meter.update_idletasks())
-            self.contour_width.set(val)
-            if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
-                self.update_text_mask()
+    def update_outline_width_from_meter(self):
+        """Update outline width from meter widget"""
+        if self.outline_width_meter:
+            try:
+                raw_val = self.outline_width_meter.amountusedvar.get()
+                val = int(raw_val)
+                # Force to 0 if less than 1
+                if raw_val < 1:
+                    val = 0
+                self.outline_width.set(val)
+                if self.text_mask_preview_label and hasattr(self.text_mask_preview_label, 'original_image'):
+                    self.update_text_mask()
+            except Exception as e:
+                # Silently ignore errors during rapid updates
+                pass
     
     def update_font_size_from_meter(self):
         """Update font size from meter widget"""
@@ -3481,6 +3779,9 @@ class ModernWordCloudApp:
                     self.height_meter.amountusedvar.set(new_height)
             
             self.clear_canvas()
+            # Update text mask preview if active
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
     
     def update_height_from_meter(self):
         """Update height from meter widget"""
@@ -3497,6 +3798,9 @@ class ModernWordCloudApp:
                     self.width_meter.amountusedvar.set(new_width)
             
             self.clear_canvas()
+            # Update text mask preview if active
+            if hasattr(self, 'mask_type') and self.mask_type.get() == "text_mask":
+                self.update_text_mask()
     
     def update_mode(self, show_toast=True):
         """Update mode between RGB and RGBA"""
@@ -3505,27 +3809,27 @@ class ModernWordCloudApp:
             self.bg_label.configure(state=DISABLED)
             self.bg_color_btn.configure(state=DISABLED)
             
-            # Disable contour options in RGBA mode
-            if hasattr(self, 'contour_width_scale'):
-                self.contour_width_scale.configure(state=DISABLED)
-            if hasattr(self, 'contour_color_btn'):
-                self.contour_color_btn.configure(state=DISABLED)
+            # Disable outline options in RGBA mode
+            if hasattr(self, 'outline_width_scale'):
+                self.outline_width_scale.configure(state=DISABLED)
+            if hasattr(self, 'outline_color_btn'):
+                self.outline_color_btn.configure(state=DISABLED)
             
             if show_toast:
                 self.show_toast("RGBA mode enabled - background will be transparent", "info")
-                if self.contour_width.get() > 0:
-                    self.show_toast("Note: Contours disabled in RGBA mode", "warning")
+                if self.outline_width.get() > 0:
+                    self.show_toast("Note: Outlines disabled in RGBA mode", "warning")
         else:
             # RGB mode - enable background color
             self.bg_label.configure(state=NORMAL)
             self.bg_color_btn.configure(state=NORMAL)
             
-            # Re-enable contour options if mask is selected
+            # Re-enable outline options if mask is selected
             if hasattr(self, 'mask_image') and self.mask_image is not None:
-                if hasattr(self, 'contour_width_scale'):
-                    self.contour_width_scale.configure(state=NORMAL)
-                if hasattr(self, 'contour_color_btn'):
-                    self.contour_color_btn.configure(state=NORMAL)
+                if hasattr(self, 'outline_width_scale'):
+                    self.outline_width_scale.configure(state=NORMAL)
+                if hasattr(self, 'outline_color_btn'):
+                    self.outline_color_btn.configure(state=NORMAL)
             
             if show_toast:
                 self.show_toast("RGB mode enabled - solid background", "info")
@@ -3622,15 +3926,15 @@ class ModernWordCloudApp:
         if self.mask_type.get() == "image_mask" and (not hasattr(self, 'image_mask_image') or self.image_mask_image is None):
             issues.append(("error", "Image mask selected but no image loaded"))
         
-        # Check if using RGBA mode with contours
+        # Check if using RGBA mode with outlines
         has_mask = False
         if self.mask_type.get() == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
             has_mask = True
         elif self.mask_type.get() == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
             has_mask = True
             
-        if self.rgba_mode.get() and has_mask and self.contour_width.get() > 0:
-            issues.append(("error", "Contours are not supported in RGBA (transparent) mode. Please disable contours or switch to RGB mode"))
+        if self.rgba_mode.get() and has_mask and self.outline_width.get() > 0:
+            issues.append(("error", "Outlines are not supported in RGBA (transparent) mode. Please disable outlines or switch to RGB mode"))
         
         # Check max words
         if self.max_words.get() < 5:
@@ -3744,13 +4048,13 @@ class ModernWordCloudApp:
             
             if mask_to_use is not None:
                 wc_params['mask'] = mask_to_use
-                # Disable contours in RGBA mode due to wordcloud library bug
-                # (shape mismatch between RGBA image and RGB contour)
-                if self.contour_width.get() > 0 and not self.rgba_mode.get():
-                    wc_params['contour_width'] = self.contour_width.get()
-                    wc_params['contour_color'] = self.contour_color.get()
-                elif self.contour_width.get() > 0 and self.rgba_mode.get():
-                    self.print_warning("Contours disabled in RGBA mode due to library compatibility")
+                # Disable outlines in RGBA mode due to wordcloud library bug
+                # (shape mismatch between RGBA image and RGB outline)
+                if self.outline_width.get() > 0 and not self.rgba_mode.get():
+                    wc_params['contour_width'] = self.outline_width.get()
+                    wc_params['contour_color'] = self.outline_color.get()
+                elif self.outline_width.get() > 0 and self.rgba_mode.get():
+                    self.print_warning("Outlines disabled in RGBA mode due to library compatibility")
             
             # Use our forbidden words instead of default STOPWORDS
             wc_params['stopwords'] = self.forbidden_words
@@ -3793,8 +4097,8 @@ class ModernWordCloudApp:
             wc_image = self.wordcloud.to_image()
         except ValueError as e:
             if "broadcast together with shapes" in str(e):
-                self.print_fail("Error: RGBA mode with contours is not supported due to library limitations")
-                self.show_toast("Please disable contours or switch to RGB mode", "danger")
+                self.print_fail("Error: RGBA mode with outlines is not supported due to library limitations")
+                self.show_toast("Please disable outlines or switch to RGB mode", "danger")
                 return
             else:
                 raise
@@ -4278,11 +4582,20 @@ class ModernWordCloudApp:
                 self.horizontal_gauge.configure(value=pref_val)
             if 'letter_thickness' in config:
                 thickness_val = config.get('letter_thickness', 1.0)
+                # Clamp to new range (0-5)
+                thickness_val = max(0, min(5, thickness_val))
                 self.letter_thickness.set(thickness_val)
                 if hasattr(self, 'thickness_meter') and self.thickness_meter:
                     self.thickness_meter.amountusedvar.set(thickness_val)
                 elif hasattr(self, 'thickness_scale') and self.thickness_scale:
                     self.thickness_scale.set(thickness_val)
+            if 'letter_spacing' in config:
+                spacing_val = config.get('letter_spacing', 0.0)
+                # Clamp to range (0-5)
+                spacing_val = max(0, min(5, spacing_val))
+                self.letter_spacing.set(spacing_val)
+                if hasattr(self, 'spacing_meter') and self.spacing_meter:
+                    self.spacing_meter.amountusedvar.set(spacing_val)
             # Canvas settings
             if 'canvas_width' in config:
                 self.print_debug(f"Setting canvas width to: {config['canvas_width']}")
@@ -4354,15 +4667,15 @@ class ModernWordCloudApp:
                 if config['mask_type'] in mask_types:
                     self.mask_notebook.select(mask_types[config['mask_type']])
             
-            # Apply contour settings
-            if hasattr(self, 'contour_var'):
-                if 'contour_enabled' in config:
-                    self.contour_var.set(config['contour_enabled'])
-                if 'contour_width' in config:
-                    self.contour_width_var.set(config['contour_width'])
-                if 'contour_color' in config:
-                    self.contour_color = config['contour_color']
-                    self.update_contour_color_preview()
+            # Apply outline settings
+            if hasattr(self, 'outline_var'):
+                if 'outline_enabled' in config:
+                    self.outline_var.set(config['outline_enabled'])
+                if 'outline_width' in config:
+                    self.outline_width_var.set(config['outline_width'])
+                if 'outline_color' in config:
+                    self.outline_color = config['outline_color']
+                    self.update_outline_color_preview()
             
             # Apply text mask settings
             if hasattr(self, 'mask_text_var'):
@@ -4502,6 +4815,8 @@ class ModernWordCloudApp:
             config['prefer_horizontal'] = self.horizontal_scale.get() / 100.0  # Convert percentage to 0-1
         if hasattr(self, 'letter_thickness'):
             config['letter_thickness'] = self.letter_thickness.get()
+        if hasattr(self, 'letter_spacing'):
+            config['letter_spacing'] = self.letter_spacing.get()
         if hasattr(self, 'canvas_width'):
             config['canvas_width'] = self.canvas_width.get()
         if hasattr(self, 'canvas_height'):
@@ -4525,12 +4840,12 @@ class ModernWordCloudApp:
         # Image mask settings
         if hasattr(self, 'mask_path'):
             config['mask_path'] = self.mask_path.get()
-        if hasattr(self, 'contour_var'):
-            config['contour_enabled'] = self.contour_var.get()
-        if hasattr(self, 'contour_width_var'):
-            config['contour_width'] = self.contour_width_var.get()
-        if hasattr(self, 'contour_color'):
-            config['contour_color'] = self.contour_color
+        if hasattr(self, 'outline_var'):
+            config['outline_enabled'] = self.outline_var.get()
+        if hasattr(self, 'outline_width_var'):
+            config['outline_width'] = self.outline_width_var.get()
+        if hasattr(self, 'outline_color'):
+            config['outline_color'] = self.outline_color
         
         # Text mask settings
         if hasattr(self, 'mask_text_var'):
@@ -4675,21 +4990,21 @@ class ModernWordCloudApp:
             if hasattr(self, 'mask_label'):
                 self.mask_label.config(text="No mask selected")
             
-            # Reset contour settings
-            self.contour_width.set(0)
-            if hasattr(self, 'contour_width_meter') and self.contour_width_meter:
+            # Reset outline settings
+            self.outline_width.set(0)
+            if hasattr(self, 'outline_width_meter') and self.outline_width_meter:
                 # Use the workaround for resetting to 0
-                self.contour_width_meter.configure(amountused=0.001)
-                self.contour_width_meter.update_idletasks()
-                self.root.after(50, lambda: self.contour_width_meter.configure(amountused=0.0))
-                self.root.after(100, lambda: self.contour_width_meter.update_idletasks())
-            elif hasattr(self, 'contour_width_scale') and self.contour_width_scale:
-                self.contour_width_scale.set(0)
+                self.outline_width_meter.configure(amountused=0.001)
+                self.outline_width_meter.update_idletasks()
+                self.root.after(50, lambda: self.outline_width_meter.configure(amountused=0.0))
+                self.root.after(100, lambda: self.outline_width_meter.update_idletasks())
+            elif hasattr(self, 'outline_width_scale') and self.outline_width_scale:
+                self.outline_width_scale.set(0)
             
-            if hasattr(self, 'contour_var'):
-                self.contour_var.set(False)
-                self.contour_width_var.set(3)
-                self.contour_color = 'black'
+            if hasattr(self, 'outline_var'):
+                self.outline_var.set(False)
+                self.outline_width_var.set(3)
+                self.outline_color = 'black'
             
             # Reset text mask settings
             if hasattr(self, 'mask_text_var'):
@@ -4719,8 +5034,8 @@ class ModernWordCloudApp:
             if hasattr(self, 'text_area'):
                 self.text_area.delete(1.0, tk.END)
             
-            # Clear canvas
-            self.clear_canvas()
+            # Don't clear canvas on reset
+            # self.clear_canvas()
             
             # Reset theme to default
             self.current_theme.set("cosmo")

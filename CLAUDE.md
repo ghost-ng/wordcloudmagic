@@ -50,19 +50,37 @@ The project is a single-file Tkinter application (`wordcloud_app.py`) that creat
 - `python-pptx`: PowerPoint parsing
 
 ### Configuration Schema
-The `configs/wordcloud_config.json` file stores:
-- forbidden_words: List of words to exclude
-- color settings: mode, scheme, custom colors
-- UI preferences: theme, working directory
-- Style settings: mask, contour, orientation
+The application uses two configuration files:
+1. `configs/wordcloud_config.json` - Main settings:
+   - forbidden_words: List of words to exclude
+   - color settings: mode, scheme, custom colors
+   - UI preferences: working directory
+   - Style settings: mask, outline, orientation
+   - Canvas settings: width, height, background
+
+2. `configs/theme.json` - Theme preferences:
+   - theme: Current UI theme name
+   - dark_mode: Dark mode toggle state
 
 ### Threading Model
 Long-running operations (word cloud generation) run in separate threads to keep the UI responsive. Look for `threading.Thread` usage in the generate methods.
 
-### TODO Items
-The codebase has several incomplete methods marked with TODO comments:
-- `update_bg_preview()` (line 2740)
-- `on_color_mode_change_canvas()` (line 2743)
-- `update_contour_color_preview()` (line 2768)
+### Recent UI/UX Improvements
+- Toast messages with automatic text wrapping
+- Fixed outline width parameter (use `contour_width` for WordCloud library)
+- Added 6 new color presets: Volcano, Lilac, Cyberpunk, Tron, The Grid, Fiber
+- Improved font selection with LabelFrame
+- Fixed scrolling in font listbox and style tab
+- Moved Canvas Settings above Word Orientation
+- All scrollbars use ttkbootstrap primary-round style
+- Fixed dark_mode initialization order
+- Letter thickness functionality for text masks using stroke_width
+- All meter descriptions positioned below meters for consistency
 
-These relate to preview functionality for background and contour color changes.
+### Building Executable
+Use `build_exe.py` to create a standalone executable:
+```bash
+python build_exe.py --clean  # Clean and build
+python build_exe.py --onedir # Create directory distribution
+python build_exe.py --debug  # Build with debug info
+```

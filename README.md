@@ -15,11 +15,12 @@ A beautiful, modern word cloud generator built with Python and ttkbootstrap, fea
   - Pre-populated with common stop words
 
 - **Style Customization**:
-  - 16 different color schemes with live preview
-  - Support for custom shape masks (PNG, JPG, etc.)
-  - Contour options with adjustable width and color (when using masks)
+  - 22+ color schemes including new themes: Volcano, Lilac, Cyberpunk, Tron, The Grid, Fiber
+  - Support for image masks (PNG, JPG, etc.) and text masks with custom fonts
+  - Outline options with adjustable width and color (when using masks)
+  - Letter thickness and spacing controls for text masks
   - Word orientation control (0-100% horizontal preference)
-  - Visual mask preview
+  - Visual mask preview with borders
 
 - **Canvas Options**:
   - Adjustable canvas size (width and height)
@@ -30,12 +31,14 @@ A beautiful, modern word cloud generator built with Python and ttkbootstrap, fea
 
 - **Modern UI**:
   - Clean, light theme with Bootstrap-inspired design
-  - Dynamic theme selector with 18 different themes
+  - Dynamic theme selector with 18 different themes and dark mode toggle
   - Organized tabbed interface with icons
   - Message system with success/info/warning/error notifications
-  - Toast notifications for quick feedback
+  - Toast notifications with text wrapping for long messages
   - Progress indicators during generation
-  - Responsive, resizable layout with scrollable sections
+  - Responsive, resizable layout with improved scrollable sections
+  - All meters standardized with descriptions below
+  - Improved font selection with visual preview
 
 ## Installation
 
@@ -50,6 +53,9 @@ A beautiful, modern word cloud generator built with Python and ttkbootstrap, fea
 1. Run the application:
    ```bash
    python wordcloud_app.py
+   
+   # Run with debug mode for detailed logging
+   python wordcloud_app.py --debug
    ```
 
 2. **Message System**:
@@ -102,7 +108,11 @@ A beautiful, modern word cloud generator built with Python and ttkbootstrap, fea
 
 ## Configuration & Settings
 
-WordCloud Magic saves and loads settings automatically from `configs/wordcloud_config.json`. All settings are preserved between sessions.
+WordCloud Magic saves and loads settings automatically:
+- Main settings: `configs/wordcloud_config.json`
+- Theme preferences: `configs/theme.json`
+
+All settings are preserved between sessions.
 
 ### Complete Settings Reference
 
@@ -136,11 +146,14 @@ WordCloud Magic saves and loads settings automatically from `configs/wordcloud_c
 - `image_mask_file_path` - Full path to mask image file
 - `text_mask_text` - Text to use for text mask
 - `text_mask_font` - Font family name for text mask
-- `text_mask_size` (10-500) - Font size for text mask
+- `text_mask_font_size` (10-2000) - Font size for text mask
 - `text_mask_bold` - Bold text mask (true/false)
 - `text_mask_italic` - Italic text mask (true/false)
-- `contour_width` (0-10) - Mask outline thickness in pixels
-- `contour_color` - Mask outline color in hex format
+- `text_mask_words_per_line` (1-10) - Words per line in text masks
+- `letter_thickness` (0-5) - Stroke thickness for text mask letters
+- `letter_spacing` (0-5) - Space between letters in text mask
+- `outline_width` (0-30) - Mask outline thickness in pixels
+- `outline_color` - Mask outline color in hex format
 
 **UI SETTINGS:**
 - `theme` - UI theme name (e.g., "cosmo", "darkly", "superhero")
@@ -189,13 +202,26 @@ The help system features:
 
 ## Theme Options
 
-The app uses ttkbootstrap's "cosmo" theme by default. You can change the theme by modifying the `themename` parameter in `main()`. Available themes include:
-- cosmo (default) - Clean and modern
-- flatly - Minimalist design
-- litera - Literary and elegant  
-- minty - Fresh green accents
-- lumen - Light and airy
-- sandstone - Warm earth tones
-- yeti - Cool blue theme
-- pulse - Purple accents
-- united - Orange highlights
+The app uses ttkbootstrap themes with a theme selector in the UI. Available themes include:
+
+**Light Themes:**
+- Cosmo (default) - Clean and modern
+- Flatly - Minimalist design
+- Litera - Literary and elegant  
+- Minty - Fresh green accents
+- Lumen - Light and airy
+- Sandstone - Warm earth tones
+- Yeti - Cool blue theme
+- Pulse - Purple accents
+- United - Orange highlights
+
+**Dark Themes:**
+- Darkly - Dark and elegant
+- Cyborg - High-tech cyberpunk
+- Vapor - Vaporwave aesthetic
+- Superhero - Bold and dramatic
+- Solar - Solarized dark
+- Rose Pine - Soft dark theme
+- Gruvbox - Retro warm dark
+- Dracula - Classic dark purple
+- Monokai - Developer favorite
