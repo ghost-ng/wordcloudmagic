@@ -91,6 +91,8 @@ jobs:
                 'PIL._tkinter_finder',
                 'markdown2',
                 'numpy',
+                'ctypes',
+                'ctypes.wintypes',
             ],
             hookspath=[],
             hooksconfig={},

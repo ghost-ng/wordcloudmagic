@@ -125,6 +125,8 @@ def build_executable(debug=False, onefile=True):
             'PIL._tkinter_finder',
             'markdown2',
             'numpy',
+            'ctypes',
+            'ctypes.wintypes',
         ]
         for imp in hidden_imports:
             cmd.extend(['--hidden-import', imp])

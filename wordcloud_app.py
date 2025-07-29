@@ -5177,6 +5177,25 @@ def main():
         
         if os.path.exists(icon_path):
             root.iconbitmap(icon_path)
+            
+            # Force Windows taskbar icon update using ctypes
+            if platform.system() == 'Windows':
+                try:
+                    import ctypes
+                    # Set the app user model ID to force Windows to use our icon
+                    myappid = 'com.wordcloudmagic.app.1.1.0'
+                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                    
+                    # Also try to set the icon through Windows API
+                    if hasattr(sys, '_MEIPASS'):
+                        # When bundled, use the absolute path
+                        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                        # Force icon refresh
+                        hwnd = root.winfo_id()
+                        ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, 0)  # WM_SETICON
+                except Exception as e:
+                    print(f"Could not set Windows taskbar icon: {e}")
+                    
     except Exception as e:
         # If icon fails to load, continue without it
         print(f"Could not load icon: {e}")
