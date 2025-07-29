@@ -52,12 +52,19 @@ jobs:
     
     - name: Update version in build script
       run: |
-        $content = Get-Content build_exe.py
-        $content = $content -replace 'filevers=\(1, 0, 0, 0\)', 'filevers=(${{ steps.get_version.outputs.VERSION }}.0)' -replace '\d+,', ','
-        $content = $content -replace 'prodvers=\(1, 0, 0, 0\)', 'prodvers=(${{ steps.get_version.outputs.VERSION }}.0)' -replace '\d+,', ','
-        $content = $content -replace 'FileVersion", u"1.0.0.0"', 'FileVersion", u"${{ steps.get_version.outputs.VERSION }}.0"'
-        $content = $content -replace 'ProductVersion", u"1.0.0.0"', 'ProductVersion", u"${{ steps.get_version.outputs.VERSION }}.0"'
-        Set-Content build_exe.py $content
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $versionParts = $version.Split('.')
+        while ($versionParts.Count -lt 4) {
+          $versionParts += "0"
+        }
+        $fileVersion = $versionParts -join ', '
+        
+        $content = Get-Content build_exe.py -Raw
+        $content = $content -replace 'filevers=\(1, 0, 0, 0\)', "filevers=($fileVersion)"
+        $content = $content -replace 'prodvers=\(1, 0, 0, 0\)', "prodvers=($fileVersion)"
+        $content = $content -replace 'FileVersion", u"1\.0\.0\.0"', "FileVersion`", u`"$version.0`""
+        $content = $content -replace 'ProductVersion", u"1\.0\.0\.0"', "ProductVersion`", u`"$version.0`""
+        Set-Content build_exe.py $content -NoNewline
     
     - name: Create PyInstaller spec file
       run: |
@@ -82,8 +89,6 @@ jobs:
                 'PIL._tkinter_finder',
                 'markdown2',
                 'numpy',
-                'scipy',
-                'scipy.spatial',
             ],
             hookspath=[],
             hooksconfig={},
@@ -119,7 +124,14 @@ jobs:
     
     - name: Build executable
       run: |
-        pyinstaller wordcloud_app.spec --clean
+        # Ensure the spec file exists
+        if (Test-Path wordcloud_app.spec) {
+          Write-Host "Using generated spec file"
+        } else {
+          Write-Host "ERROR: wordcloud_app.spec not found!"
+          exit 1
+        }
+        pyinstaller wordcloud_app.spec --clean --noconfirm
     
     - name: Create portable archive
       run: |
