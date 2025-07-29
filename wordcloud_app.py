@@ -307,6 +307,16 @@ class FontListbox(ttk.Frame):
         self._populate_fonts()
 
 class ModernWordCloudApp:
+    def get_resource_path(self, relative_path):
+        """Get absolute path to resource, works for dev and PyInstaller"""
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        return os.path.join(base_path, relative_path)
+    
     def print_debug(self, message):
         """Print debug message if in debug mode"""
         if hasattr(self, 'debug_mode') and self.debug_mode:
@@ -452,8 +462,11 @@ class ModernWordCloudApp:
         self.root.geometry("1300x850")
         self.root.state('zoomed')  # Start maximized
         
-        # Asset paths
-        self.assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+        # Asset paths - handle PyInstaller bundle
+        if hasattr(sys, '_MEIPASS'):
+            self.assets_dir = os.path.join(sys._MEIPASS, 'assets')
+        else:
+            self.assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
         self.icons = {}
         self.load_assets()
         
@@ -4485,7 +4498,7 @@ class ModernWordCloudApp:
             }
             
             # Save to a separate theme config file
-            theme_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'theme.json')
+            theme_file = self.get_resource_path(os.path.join('configs', 'theme.json'))
             os.makedirs(os.path.dirname(theme_file), exist_ok=True)
             
             with open(theme_file, 'w') as f:
@@ -4498,7 +4511,7 @@ class ModernWordCloudApp:
     def load_theme_preference(self):
         """Load theme preference from file"""
         try:
-            theme_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'theme.json')
+            theme_file = self.get_resource_path(os.path.join('configs', 'theme.json'))
             if os.path.exists(theme_file):
                 with open(theme_file, 'r') as f:
                     theme_config = json.load(f)
@@ -4757,10 +4770,10 @@ class ModernWordCloudApp:
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
         config_loaded = False
-        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
+        config_file = self.get_resource_path(os.path.join('configs', 'default.json'))
         if not os.path.exists(config_file):
             # Try configs directory
-            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
+            config_file = self.get_resource_path(os.path.join('configs', 'default.json'))
             
         if os.path.exists(config_file):
             try:
@@ -4932,7 +4945,7 @@ class ModernWordCloudApp:
     
     def save_config_locally(self):
         """Save configuration to local file with user feedback"""
-        config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs', 'default.json')
+        config_file = self.get_resource_path(os.path.join('configs', 'default.json'))
         if self.save_config_to_file(config_file):
             self.show_message(f"Configuration saved to {os.path.basename(config_file)}", "good")
         else:
@@ -5072,8 +5085,11 @@ class ModernWordCloudApp:
             return
         
         try:
-            # Get base directory
-            base_dir = os.path.dirname(os.path.abspath(__file__))
+            # Get base directory - handle PyInstaller bundle
+            if hasattr(sys, '_MEIPASS'):
+                base_dir = sys._MEIPASS
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
             
             # Read the help.md file from templates folder
             help_md_path = os.path.join(base_dir, 'templates', 'help.md')
@@ -5149,7 +5165,22 @@ class ModernWordCloudApp:
 def main():
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
-    root.iconbitmap("icons/icon_256.ico")
+    
+    # Handle icon path for both development and PyInstaller bundle
+    try:
+        # When running as a PyInstaller bundle
+        if hasattr(sys, '_MEIPASS'):
+            icon_path = os.path.join(sys._MEIPASS, 'icon_256.ico')
+        else:
+            # When running in development
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icons', 'icon_256.ico')
+        
+        if os.path.exists(icon_path):
+            root.iconbitmap(icon_path)
+    except Exception as e:
+        # If icon fails to load, continue without it
+        print(f"Could not load icon: {e}")
+    
     app = ModernWordCloudApp(root)
     root.mainloop()
 
