@@ -16,7 +16,7 @@ import platform
 import subprocess
 import json
 from wordcloud import WordCloud, STOPWORDS
-from ctypes import windll
+from ctypes import windll, get_last_error, WinError
 
 # Set matplotlib backend BEFORE importing pyplot
 import matplotlib
@@ -5163,7 +5163,51 @@ class ModernWordCloudApp:
             print(traceback.format_exc())
             self.show_toast(error_msg, "danger")
 
+def set_taskbar_icon(hwnd, icon_path):
+    """
+    Set both window and taskbar icon using ctypes and WM_SETICON.
+    """
+    if platform.system() != 'Windows':
+        return
+        
+    try:
+        WM_SETICON = 0x0080
+        ICON_SMALL = 0  # 16x16
+        ICON_BIG = 1    # 32x32
+        IMAGE_ICON = 1
+        LR_LOADFROMFILE = 0x00000010
+        
+        # Load the icon from file
+        hicon = windll.user32.LoadImageW(
+            0,  # No HINSTANCE, load from file
+            icon_path,
+            IMAGE_ICON,
+            0, 0,  # Default size from the ICO file
+            LR_LOADFROMFILE
+        )
+        
+        if hicon:
+            # Send the icon to the window (both small and big)
+            windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
+            windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon)
+            
+            # Also set the class icon
+            GCL_HICON = -14
+            GCL_HICONSM = -34
+            windll.user32.SetClassLongPtrW(hwnd, GCL_HICON, hicon)
+            windll.user32.SetClassLongPtrW(hwnd, GCL_HICONSM, hicon)
+    except Exception as e:
+        print(f"set_taskbar_icon error: {e}")
+
 def main():
+    # For Windows, set app ID before creating window
+    if platform.system() == 'Windows':
+        try:
+            myappid = 'com.wordcloudmagic.app.1.1.0'
+            windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except:
+            pass
+    
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
     
@@ -5180,37 +5224,14 @@ def main():
             # Set window icon
             root.iconbitmap(icon_path)
             
-            # For Windows, ensure taskbar uses the correct icon
-            if platform.system() == 'Windows' and hasattr(sys, '_MEIPASS'):
-                try:
-                    # Ensure window is mapped
-                    root.update_idletasks()
-                    
-                    # Set app ID if not already set by runtime hook
-                    myappid = 'com.wordcloudmagic.app.1.1.0'
-                    windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-                    
-                    # Get window handle and force icon update
-                    hwnd = windll.user32.GetParent(root.winfo_id())
-                    
-                    # Use shell notify icon to update taskbar
-                    # This is more reliable than WM_SETICON for taskbar
-                    import struct
-                    
-                    # NOTIFYICONDATA structure
-                    NIF_ICON = 0x00000002
-                    NIM_MODIFY = 0x00000001
-                    
-                    # Load icon from executable
-                    hicon = windll.shell32.ExtractIconW(0, sys.executable, 0)
-                    
-                    if hicon:
-                        # Try to update via SendMessage first
-                        windll.user32.SendMessageW(hwnd, 0x0080, 0, hicon)  # WM_SETICON ICON_SMALL
-                        windll.user32.SendMessageW(hwnd, 0x0080, 1, hicon)  # WM_SETICON ICON_BIG
-                        
-                except Exception as e:
-                    print(f"Could not update taskbar icon: {e}")
+            # Update window to ensure it's fully created
+            root.update_idletasks()
+            
+            # Get the actual window handle and set taskbar icon
+            hwnd = windll.user32.GetParent(root.winfo_id())
+            set_taskbar_icon(hwnd, icon_path)
+        else:
+            print(f"Icon file not found: {icon_path}")
                     
     except Exception as e:
         # If icon fails to load, continue without it
