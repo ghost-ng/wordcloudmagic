@@ -416,6 +416,30 @@ class ModernWordCloudApp:
         navy_colors = ['#000080', '#002FA7', '#003F87', '#1560BD', '#4682B4']
         gradients['navy'] = LinearSegmentedColormap.from_list('navy', navy_colors)
         
+        # Volcano - Fiery reds, oranges, yellows
+        volcano_colors = ['#310600', '#950a11', '#f06625', '#f5b91d', '#f7f002']
+        gradients['volcano'] = LinearSegmentedColormap.from_list('volcano', volcano_colors)
+        
+        # Lilac - Soft purples and pinks
+        lilac_colors = ['#896790', '#B69CCF', '#D7ABE6', '#E7D1FF', '#F9EDFD']
+        gradients['lilac'] = LinearSegmentedColormap.from_list('lilac', lilac_colors)
+        
+        # Cyberpunk - Neon pink, blue, purple
+        cyberpunk_colors = ['#091833', '#133e7c', '#711c91', '#ea00d9', '#0abdc6']
+        gradients['cyberpunk'] = LinearSegmentedColormap.from_list('cyberpunk', cyberpunk_colors)
+        
+        # Tron - Blue, cyan, orange
+        tron_colors = ['#030504', '#062474', '#0EF8F8', '#7DFDFE', '#F4AF2D']
+        gradients['tron'] = LinearSegmentedColormap.from_list('tron', tron_colors)
+        
+        # The Grid - Dark grey, neon green, blue
+        grid_colors = ['#1A1A1A', '#333333', '#39FF14', '#03D8F3', '#00FFFF']
+        gradients['grid'] = LinearSegmentedColormap.from_list('grid', grid_colors)
+        
+        # Fiber - Bright blue, magenta, cyan, purple
+        fiber_colors = ['#0000FF', '#0080FF', '#00FFFF', '#8080FF', '#FF00FF']
+        gradients['fiber'] = LinearSegmentedColormap.from_list('fiber', fiber_colors)
+        
         # Register all custom colormaps with matplotlib
         for name, cmap in gradients.items():
             matplotlib.colormaps.register(cmap, name=name)
@@ -540,6 +564,13 @@ class ModernWordCloudApp:
             "Air Force": "airforce",
             "Navy": "navy",
             "Cyber": "cyber",
+            # New colorful themes
+            "Volcano": "volcano",
+            "Lilac": "lilac", 
+            "Cyberpunk": "cyberpunk",
+            "Tron": "tron",
+            "The Grid": "grid",
+            "Fiber": "fiber",
             # Standard colormaps
             "Viridis": "viridis",
             "Plasma": "plasma",
@@ -1166,7 +1197,8 @@ class ModernWordCloudApp:
         
         # Mask and Shape Options
         mask_frame = self.create_section(style_frame, "Shape & Appearance")
-        
+        # add a scroll bind
+        mask_frame.bind("<MouseWheel>", _on_style_mousewheel)
         
         self.mask_type = tk.StringVar(value="no_mask")
         
@@ -1641,7 +1673,7 @@ class ModernWordCloudApp:
         """Create the no mask tab"""
         no_mask_frame = ttk.Frame(self.mask_notebook)
         self.mask_notebook.add(no_mask_frame, text="No Mask")
-        
+
         # Info frame with border
         info_frame = ttk.LabelFrame(no_mask_frame, text="Information", padding=15)
         info_frame.pack(fill=X, padx=20, pady=20)
@@ -1739,6 +1771,7 @@ class ModernWordCloudApp:
     def create_text_mask_frame(self, parent):
         """Create the text mask options frame"""
         text_input_frame = ttk.LabelFrame(parent, text="Text Input", padding=10)
+        
         text_input_frame.pack(fill=X)
         
         # Text input
@@ -1982,9 +2015,6 @@ class ModernWordCloudApp:
                 # Directly set to 0
                 self.outline_width_meter.configure(amountused=0)
                 self.outline_width.set(0)
-            
-            # Add double-click to reset to 0
-            self.outline_width_meter.bind("<Double-Button-1>", lambda e: set_outline_zero())
             
 
             zero_btn = ttk.Button(width_container, text="Reset",
@@ -4019,8 +4049,8 @@ class ModernWordCloudApp:
                 # Disable outlines in RGBA mode due to wordcloud library bug
                 # (shape mismatch between RGBA image and RGB outline)
                 if self.outline_width.get() > 0 and not self.rgba_mode.get():
-                    wc_params['outline_width'] = self.outline_width.get()
-                    wc_params['outline_color'] = self.outline_color.get()
+                    wc_params['contour_width'] = self.outline_width.get()
+                    wc_params['contour_color'] = self.outline_color.get()
                 elif self.outline_width.get() > 0 and self.rgba_mode.get():
                     self.print_warning("Outlines disabled in RGBA mode due to library compatibility")
             
