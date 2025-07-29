@@ -5164,14 +5164,6 @@ class ModernWordCloudApp:
             self.show_toast(error_msg, "danger")
 
 def main():
-    # Force Windows to use our app ID (must be done BEFORE creating window)
-    if platform.system() == 'Windows':
-        try:
-            myappid = 'com.wordcloudmagic.app.1.1.0'
-            windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        except Exception as e:
-            print(f"Could not set Windows app ID: {e}")
-    
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
     
@@ -5185,35 +5177,40 @@ def main():
             icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icons', 'icon_256.ico')
         
         if os.path.exists(icon_path):
+            # Set window icon
             root.iconbitmap(icon_path)
             
-            # Additional Windows-specific icon handling for taskbar
-            if platform.system() == 'Windows':
+            # For Windows, ensure taskbar uses the correct icon
+            if platform.system() == 'Windows' and hasattr(sys, '_MEIPASS'):
                 try:
-                    # Update the window to ensure it's fully created
+                    # Ensure window is mapped
                     root.update_idletasks()
                     
-                    # For PyInstaller executables, we need to handle the taskbar icon differently
-                    if hasattr(sys, '_MEIPASS'):
-                        # Get the actual window handle
-                        hwnd = windll.user32.GetParent(root.winfo_id())
+                    # Set app ID if not already set by runtime hook
+                    myappid = 'com.wordcloudmagic.app.1.1.0'
+                    windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                    
+                    # Get window handle and force icon update
+                    hwnd = windll.user32.GetParent(root.winfo_id())
+                    
+                    # Use shell notify icon to update taskbar
+                    # This is more reliable than WM_SETICON for taskbar
+                    import struct
+                    
+                    # NOTIFYICONDATA structure
+                    NIF_ICON = 0x00000002
+                    NIM_MODIFY = 0x00000001
+                    
+                    # Load icon from executable
+                    hicon = windll.shell32.ExtractIconW(0, sys.executable, 0)
+                    
+                    if hicon:
+                        # Try to update via SendMessage first
+                        windll.user32.SendMessageW(hwnd, 0x0080, 0, hicon)  # WM_SETICON ICON_SMALL
+                        windll.user32.SendMessageW(hwnd, 0x0080, 1, hicon)  # WM_SETICON ICON_BIG
                         
-                        # Load the icon from the exe itself (not from file)
-                        # This ensures Windows uses the embedded icon
-                        exe_path = sys.executable
-                        large_icon = windll.shell32.ExtractIconW(0, exe_path, 0)
-                        small_icon = windll.shell32.ExtractIconW(0, exe_path, 0)
-                        
-                        if large_icon and small_icon:
-                            # Set both large and small icons
-                            windll.user32.SendMessageW(hwnd, 0x0080, 1, large_icon)  # WM_SETICON, ICON_BIG
-                            windll.user32.SendMessageW(hwnd, 0x0080, 0, small_icon)  # WM_SETICON, ICON_SMALL
-                            
-                            # Force taskbar to update by hiding and showing window
-                            windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
-                            windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
                 except Exception as e:
-                    print(f"Could not set Windows taskbar icon: {e}")
+                    print(f"Could not update taskbar icon: {e}")
                     
     except Exception as e:
         # If icon fails to load, continue without it

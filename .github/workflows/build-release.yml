@@ -96,7 +96,7 @@ jobs:
             ],
             hookspath=[],
             hooksconfig={},
-            runtime_hooks=[],
+            runtime_hooks=['runtime_hook.py'],
             excludes=[],
             noarchive=False,
         )
