@@ -99,7 +99,7 @@ def build_executable(debug=False, onefile=True):
         # Build command from scratch
         cmd.extend([
             '--name=WordCloudMagic',
-            '--icon=icon.png',
+            '--icon=icons/icon_256.ico',
             '--noconsole',  # No console window for GUI app
         ])
         
@@ -111,9 +111,10 @@ def build_executable(debug=False, onefile=True):
         
         # Add data files
         cmd.extend([
+            '--add-data=assets;assets',
             '--add-data=configs;configs',
             '--add-data=templates;templates',
-            '--add-data=icon.png;.',
+            '--add-data=icons/icon_256.ico;.',
         ])
         
         # Add hidden imports
@@ -123,6 +124,9 @@ def build_executable(debug=False, onefile=True):
             'matplotlib.backends.backend_tkagg',
             'PIL._tkinter_finder',
             'markdown2',
+            'numpy',
+            'scipy',
+            'scipy.spatial',
         ]
         for imp in hidden_imports:
             cmd.extend(['--hidden-import', imp])

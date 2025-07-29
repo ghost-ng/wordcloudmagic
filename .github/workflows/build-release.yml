@@ -1,0 +1,189 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual triggering
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        architecture: 'x64'
+    
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Get version
+      id: get_version
+      run: |
+        if ("${{ github.event_name }}" -eq "push") {
+          $version = "${{ github.ref_name }}".Substring(1)
+        } else {
+          $version = "${{ github.event.inputs.version }}"
+        }
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        echo "Building version: $version"
+    
+    - name: Update version in build script
+      run: |
+        $content = Get-Content build_exe.py
+        $content = $content -replace 'filevers=\(1, 0, 0, 0\)', 'filevers=(${{ steps.get_version.outputs.VERSION }}.0)' -replace '\d+,', ','
+        $content = $content -replace 'prodvers=\(1, 0, 0, 0\)', 'prodvers=(${{ steps.get_version.outputs.VERSION }}.0)' -replace '\d+,', ','
+        $content = $content -replace 'FileVersion", u"1.0.0.0"', 'FileVersion", u"${{ steps.get_version.outputs.VERSION }}.0"'
+        $content = $content -replace 'ProductVersion", u"1.0.0.0"', 'ProductVersion", u"${{ steps.get_version.outputs.VERSION }}.0"'
+        Set-Content build_exe.py $content
+    
+    - name: Create PyInstaller spec file
+      run: |
+        @'
+        # -*- mode: python ; coding: utf-8 -*-
+
+        a = Analysis(
+            ['wordcloud_app.py'],
+            pathex=[],
+            binaries=[],
+            datas=[
+                ('assets', 'assets'),
+                ('configs', 'configs'),
+                ('templates', 'templates'),
+                ('icons/icon_256.ico', '.'),
+            ],
+            hiddenimports=[
+                'ttkbootstrap',
+                'wordcloud',
+                'matplotlib',
+                'matplotlib.backends.backend_tkagg',
+                'PIL._tkinter_finder',
+                'markdown2',
+                'numpy',
+                'scipy',
+                'scipy.spatial',
+            ],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            noarchive=False,
+        )
+        
+        pyz = PYZ(a.pure)
+
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.datas,
+            [],
+            name='WordCloudMagic',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=False,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+            icon='icons\\icon_256.ico',
+        )
+        '@ | Out-File -FilePath wordcloud_app.spec -Encoding UTF8
+    
+    - name: Build executable
+      run: |
+        pyinstaller wordcloud_app.spec --clean
+    
+    - name: Create portable archive
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        
+        # Create release directory
+        New-Item -ItemType Directory -Force -Path "release/WordCloudMagic-$version-win64"
+        
+        # Copy executable
+        Copy-Item "dist/WordCloudMagic.exe" "release/WordCloudMagic-$version-win64/"
+        
+        # Copy documentation
+        Copy-Item "README.md" "release/WordCloudMagic-$version-win64/"
+        
+        # Create version info file
+        @"
+        WordCloud Magic v$version
+        Built on: $(Get-Date -Format "yyyy-MM-dd")
+        Platform: Windows x64
+        "@ | Out-File -FilePath "release/WordCloudMagic-$version-win64/version.txt" -Encoding UTF8
+        
+        # Create zip archive
+        Compress-Archive -Path "release/WordCloudMagic-$version-win64" -DestinationPath "WordCloudMagic-$version-win64.zip"
+    
+    - name: Calculate hashes
+      id: hash
+      run: |
+        $hash = Get-FileHash "WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip" -Algorithm SHA256
+        echo "SHA256=$($hash.Hash)" >> $env:GITHUB_OUTPUT
+        
+        # Create hash file
+        "$($hash.Hash)  WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip" | Out-File -FilePath "WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip.sha256" -Encoding UTF8
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64
+        path: |
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip.sha256
+    
+    - name: Create Release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        name: WordCloud Magic ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## WordCloud Magic ${{ steps.get_version.outputs.VERSION }}
+          
+          ### Downloads
+          - 📦 **Windows (64-bit)**: `WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip`
+          
+          ### Installation
+          1. Download the ZIP file for your platform
+          2. Extract to your desired location
+          3. Run `WordCloudMagic.exe`
+          
+          ### Verification
+          SHA256: `${{ steps.hash.outputs.SHA256 }}`
+          
+          ### What's New
+          - See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details
+        files: |
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip.sha256
+        draft: true
+        prerelease: false
