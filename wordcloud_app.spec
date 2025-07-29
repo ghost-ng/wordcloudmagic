@@ -22,6 +22,7 @@ a = Analysis(
         ('icon.png', '.'),
         # Include default config if it exists
         ('configs/default.json', 'configs'),
+        ('icons', 'icons')
     ],
     hiddenimports=[
         'ttkbootstrap',
@@ -57,6 +58,7 @@ a = Analysis(
         're',
         'random',
         'colorsys',
+        'ctypes'
     ],
     hookspath=[],
     hooksconfig={},

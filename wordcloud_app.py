@@ -3,7 +3,7 @@ from ttkbootstrap.constants import *
 from ttkbootstrap.toast import ToastNotification
 from ttkbootstrap.dialogs.colorchooser import ColorChooserDialog
 from ttkbootstrap.widgets import Meter, Floodgauge
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 from tkinter.scrolledtext import ScrolledText
 import tkinter as tk
 import tkinter.font as tkFont
@@ -15,7 +15,8 @@ import numpy as np
 import platform
 import subprocess
 import json
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+from wordcloud import WordCloud, STOPWORDS
+from ctypes import windll
 
 # Set matplotlib backend BEFORE importing pyplot
 import matplotlib
@@ -5163,6 +5164,14 @@ class ModernWordCloudApp:
             self.show_toast(error_msg, "danger")
 
 def main():
+    # Force Windows to use our app ID (must be done BEFORE creating window)
+    if platform.system() == 'Windows':
+        try:
+            myappid = 'com.wordcloudmagic.app.1.1.0'
+            windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception as e:
+            print(f"Could not set Windows app ID: {e}")
+    
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
     
@@ -5178,23 +5187,23 @@ def main():
         if os.path.exists(icon_path):
             root.iconbitmap(icon_path)
             
-            # Force Windows taskbar icon update using ctypes
+            # Additional Windows-specific icon handling
             if platform.system() == 'Windows':
                 try:
-                    import ctypes
-                    # Set the app user model ID to force Windows to use our icon
-                    myappid = 'com.wordcloudmagic.app.1.1.0'
-                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                    # Update the window to ensure it's fully created
+                    root.update_idletasks()
                     
-                    # Also try to set the icon through Windows API
+                    # Get window handle and set icon
+                    hwnd = windll.user32.GetParent(root.winfo_id())
+                    
+                    # Load icon and set it
                     if hasattr(sys, '_MEIPASS'):
-                        # When bundled, use the absolute path
-                        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-                        # Force icon refresh
-                        hwnd = root.winfo_id()
-                        ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, 0)  # WM_SETICON
+                        icon_handle = windll.shell32.ExtractIconW(0, icon_path, 0)
+                        if icon_handle:
+                            windll.user32.SendMessageW(hwnd, 0x0080, 0, icon_handle)  # WM_SETICON ICON_SMALL
+                            windll.user32.SendMessageW(hwnd, 0x0080, 1, icon_handle)  # WM_SETICON ICON_BIG
                 except Exception as e:
-                    print(f"Could not set Windows taskbar icon: {e}")
+                    print(f"Could not set Windows icon: {e}")
                     
     except Exception as e:
         # If icon fails to load, continue without it
