@@ -1219,6 +1219,209 @@ class ModernWordCloudApp:
         # Bind tab change event
         self.mask_notebook.bind("<<NotebookTabChanged>>", self.on_mask_tab_changed)
         
+        # Canvas options
+        canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
+        canvas_frame.pack(fill=X, pady=(0, 10))
+        
+        
+        # Center container
+        canvas_center = ttk.Frame(canvas_frame)
+        canvas_center.pack(expand=True)
+        
+        # Lock aspect ratio checkbox
+        ratio_frame = ttk.Frame(canvas_center)
+        ratio_frame.pack(pady=(0, 10))
+        
+        self.lock_ratio_check = ttk.Checkbutton(ratio_frame,
+                                               text="Lock aspect ratio",
+                                               variable=self.lock_aspect_ratio,
+                                               command=self.on_lock_ratio_change,
+                                               bootstyle="primary")
+        self.lock_ratio_check.pack(side=LEFT)
+        
+        self.ratio_label = ttk.Label(ratio_frame, text="",
+                                    font=('Segoe UI', 9, 'italic'),
+                                    bootstyle="secondary")
+        self.ratio_label.pack(side=LEFT, padx=(10, 0))
+        
+        # Create horizontal container for width and height meters
+        dimensions_container = ttk.Frame(canvas_center)
+        dimensions_container.pack(pady=(0, 15))
+        
+        # Width meter
+        width_container = ttk.Frame(dimensions_container)
+        width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
+        
+        
+        try:
+            ttk.Label(width_container, text="Width", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.width_meter = Meter(
+                width_container,
+                metersize=120,
+                amountused=800,
+                amounttotal=4000,
+                metertype='semi',
+                textleft='',
+                textright='px',
+                interactive=True,
+                bootstyle='primary',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.width_meter.pack()
+            
+            # Add description
+            ttk.Label(width_container, text="Canvas width in pixels", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(width_container, text="100 - 4000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.width_meter.amountusedvar.trace('w', lambda *args: self.update_width_from_meter())
+            
+            
+            self.width_scale = None
+            self.width_label = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Width meter failed: {e}")
+            width_label_frame = ttk.Frame(width_container)
+            width_label_frame.pack(fill=X)
+            ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.width_label = ttk.Label(width_label_frame, text="800 px",
+                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.width_label.pack(side=RIGHT)
+            
+            self.width_scale = ttk.Scale(width_container,
+                                        from_=400,
+                                        to=4000,
+                                        value=800,
+                                        command=self.update_width,
+                                        bootstyle="primary")
+            self.width_scale.pack(fill=X, pady=(5, 0))
+            self.width_meter = None
+        
+        # Height meter
+        height_container = ttk.Frame(dimensions_container)
+        height_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
+        
+        
+        try:
+            ttk.Label(height_container, text="Height", 
+                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
+            
+            self.height_meter = Meter(
+                height_container,
+                metersize=120,
+                amountused=600,
+                amounttotal=4000,
+                metertype='semi',
+                textleft='',
+                textright='px',
+                interactive=True,
+                bootstyle='primary',
+                stripethickness=0  # Smooth continuous line
+            )
+            self.height_meter.pack()
+            
+            # Add description
+            ttk.Label(height_container, text="Canvas height in pixels", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            
+            # Add min/max values below meter
+            ttk.Label(height_container, text="100 - 4000", 
+                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
+            self.height_meter.amountusedvar.trace('w', lambda *args: self.update_height_from_meter())
+            
+            
+            self.height_scale = None
+            self.height_label = None
+        except Exception as e:
+            # Fallback to scale
+            debug_print(f"Height meter failed: {e}")
+            height_label_frame = ttk.Frame(height_container)
+            height_label_frame.pack(fill=X)
+            ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
+            self.height_label = ttk.Label(height_label_frame, text="600 px",
+                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
+            self.height_label.pack(side=RIGHT)
+            
+            self.height_scale = ttk.Scale(height_container,
+                                         from_=300,
+                                         to=4000,
+                                         value=600,
+                                         command=self.update_height,
+                                         bootstyle="primary")
+            self.height_scale.pack(fill=X, pady=(5, 0))
+            self.height_meter = None
+        
+        # Size presets
+        preset_frame = ttk.Frame(canvas_center)
+        preset_frame.pack(pady=(10, 20))
+        
+        ttk.Label(preset_frame, text="", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
+        
+        presets = [
+            ("Square", 800, 800),
+            ("HD", 1920, 1080),
+            ("4:3", 800, 600),
+            ("16:9", 1280, 720),
+            ("A4", 800, 1131)
+        ]
+        
+        for name, width, height in presets:
+            ttk.Button(preset_frame,
+                      text=name,
+                      command=lambda w=width, h=height: self.set_canvas_size(w, h),
+                      bootstyle="secondary-outline",
+                      width=8).pack(side=LEFT, padx=2)
+        
+        # Mode and Background Color center container
+        mode_bg_center = ttk.Frame(canvas_frame)
+        mode_bg_center.pack(expand=True, pady=(10, 0))
+        
+        # Mode selection (RGB/RGBA)
+        mode_container = ttk.Frame(mode_bg_center)
+        mode_container.pack(fill=X, pady=(0, 10))
+        
+        ttk.Label(mode_container, text="Mode:", font=('Segoe UI', 10)).pack(side=LEFT)
+        
+        mode_frame = ttk.Frame(mode_container)
+        mode_frame.pack(side=LEFT, padx=(20, 0))
+        
+        ttk.Radiobutton(mode_frame,
+                       text="RGB (Solid)",
+                       variable=self.rgba_mode,
+                       value=False,
+                       command=self.update_mode,
+                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
+        
+        ttk.Radiobutton(mode_frame,
+                       text="RGBA (Transparent)",
+                       variable=self.rgba_mode,
+                       value=True,
+                       command=self.update_mode,
+                       bootstyle="primary").pack(side=LEFT)
+        
+        # Background color
+        self.bg_container = ttk.Frame(mode_bg_center)
+        self.bg_container.pack(fill=X)
+        
+        self.bg_label = ttk.Label(self.bg_container, text="Background Color:", font=('Segoe UI', 10))
+        self.bg_label.pack(side=LEFT)
+        
+        self.bg_color_preview = ttk.Frame(self.bg_container, width=30, height=30)
+        self.bg_color_preview.pack(side=RIGHT, padx=(10, 0))
+        self.bg_color_preview.configure(bootstyle="light")
+        
+        self.bg_color_btn = ttk.Button(self.bg_container,
+                                      text="Choose Color",
+                                      command=self.choose_bg_color,
+                                      bootstyle="primary-outline",
+                                      width=15)
+        self.bg_color_btn.pack(side=RIGHT)
+        
         # Word Orientation
         orientation_frame = ttk.LabelFrame(mask_frame, text="Word Orientation", padding=10)
         orientation_frame.pack(fill=X, pady=(0, 10))
@@ -1465,209 +1668,6 @@ class ModernWordCloudApp:
                  text="Words per line for text masks",
                  font=('Segoe UI', 9),
                  bootstyle="secondary").pack(pady=(5, 0))
-        
-        # Canvas options
-        canvas_frame = ttk.LabelFrame(mask_frame, text="Canvas Settings", padding=10)
-        canvas_frame.pack(fill=X, pady=(0, 10))
-        
-        
-        # Center container
-        canvas_center = ttk.Frame(canvas_frame)
-        canvas_center.pack(expand=True)
-        
-        # Lock aspect ratio checkbox
-        ratio_frame = ttk.Frame(canvas_center)
-        ratio_frame.pack(pady=(0, 10))
-        
-        self.lock_ratio_check = ttk.Checkbutton(ratio_frame,
-                                               text="Lock aspect ratio",
-                                               variable=self.lock_aspect_ratio,
-                                               command=self.on_lock_ratio_change,
-                                               bootstyle="primary")
-        self.lock_ratio_check.pack(side=LEFT)
-        
-        self.ratio_label = ttk.Label(ratio_frame, text="",
-                                    font=('Segoe UI', 9, 'italic'),
-                                    bootstyle="secondary")
-        self.ratio_label.pack(side=LEFT, padx=(10, 0))
-        
-        # Create horizontal container for width and height meters
-        dimensions_container = ttk.Frame(canvas_center)
-        dimensions_container.pack(pady=(0, 15))
-        
-        # Width meter
-        width_container = ttk.Frame(dimensions_container)
-        width_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
-        
-        
-        try:
-            ttk.Label(width_container, text="Width", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            self.width_meter = Meter(
-                width_container,
-                metersize=120,
-                amountused=800,
-                amounttotal=4000,
-                metertype='semi',
-                textleft='',
-                textright='px',
-                interactive=True,
-                bootstyle='primary',
-                stripethickness=0  # Smooth continuous line
-            )
-            self.width_meter.pack()
-            
-            # Add description
-            ttk.Label(width_container, text="Canvas width in pixels", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
-            
-            # Add min/max values below meter
-            ttk.Label(width_container, text="100 - 4000", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
-            self.width_meter.amountusedvar.trace('w', lambda *args: self.update_width_from_meter())
-            
-            
-            self.width_scale = None
-            self.width_label = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Width meter failed: {e}")
-            width_label_frame = ttk.Frame(width_container)
-            width_label_frame.pack(fill=X)
-            ttk.Label(width_label_frame, text="Width:", font=('Segoe UI', 10)).pack(side=LEFT)
-            self.width_label = ttk.Label(width_label_frame, text="800 px",
-                                        bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.width_label.pack(side=RIGHT)
-            
-            self.width_scale = ttk.Scale(width_container,
-                                        from_=400,
-                                        to=4000,
-                                        value=800,
-                                        command=self.update_width,
-                                        bootstyle="primary")
-            self.width_scale.pack(fill=X, pady=(5, 0))
-            self.width_meter = None
-        
-        # Height meter
-        height_container = ttk.Frame(dimensions_container)
-        height_container.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0))
-        
-        
-        try:
-            ttk.Label(height_container, text="Height", 
-                     font=('Segoe UI', 10, 'bold')).pack(pady=(0, 5))
-            
-            self.height_meter = Meter(
-                height_container,
-                metersize=120,
-                amountused=600,
-                amounttotal=4000,
-                metertype='semi',
-                textleft='',
-                textright='px',
-                interactive=True,
-                bootstyle='primary',
-                stripethickness=0  # Smooth continuous line
-            )
-            self.height_meter.pack()
-            
-            # Add description
-            ttk.Label(height_container, text="Canvas height in pixels", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
-            
-            # Add min/max values below meter
-            ttk.Label(height_container, text="100 - 4000", 
-                     font=('Segoe UI', 8), foreground='gray').pack(pady=(5, 0))
-            self.height_meter.amountusedvar.trace('w', lambda *args: self.update_height_from_meter())
-            
-            
-            self.height_scale = None
-            self.height_label = None
-        except Exception as e:
-            # Fallback to scale
-            debug_print(f"Height meter failed: {e}")
-            height_label_frame = ttk.Frame(height_container)
-            height_label_frame.pack(fill=X)
-            ttk.Label(height_label_frame, text="Height:", font=('Segoe UI', 10)).pack(side=LEFT)
-            self.height_label = ttk.Label(height_label_frame, text="600 px",
-                                         bootstyle="primary", font=('Segoe UI', 10, 'bold'))
-            self.height_label.pack(side=RIGHT)
-            
-            self.height_scale = ttk.Scale(height_container,
-                                         from_=300,
-                                         to=4000,
-                                         value=600,
-                                         command=self.update_height,
-                                         bootstyle="primary")
-            self.height_scale.pack(fill=X, pady=(5, 0))
-            self.height_meter = None
-        
-        # Size presets
-        preset_frame = ttk.Frame(canvas_center)
-        preset_frame.pack(pady=(10, 20))
-        
-        ttk.Label(preset_frame, text="", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 10))
-        
-        presets = [
-            ("Square", 800, 800),
-            ("HD", 1920, 1080),
-            ("4:3", 800, 600),
-            ("16:9", 1280, 720),
-            ("A4", 800, 1131)
-        ]
-        
-        for name, width, height in presets:
-            ttk.Button(preset_frame,
-                      text=name,
-                      command=lambda w=width, h=height: self.set_canvas_size(w, h),
-                      bootstyle="secondary-outline",
-                      width=8).pack(side=LEFT, padx=2)
-        
-        # Mode and Background Color center container
-        mode_bg_center = ttk.Frame(canvas_frame)
-        mode_bg_center.pack(expand=True, pady=(10, 0))
-        
-        # Mode selection (RGB/RGBA)
-        mode_container = ttk.Frame(mode_bg_center)
-        mode_container.pack(fill=X, pady=(0, 10))
-        
-        ttk.Label(mode_container, text="Mode:", font=('Segoe UI', 10)).pack(side=LEFT)
-        
-        mode_frame = ttk.Frame(mode_container)
-        mode_frame.pack(side=LEFT, padx=(20, 0))
-        
-        ttk.Radiobutton(mode_frame,
-                       text="RGB (Solid)",
-                       variable=self.rgba_mode,
-                       value=False,
-                       command=self.update_mode,
-                       bootstyle="primary").pack(side=LEFT, padx=(0, 15))
-        
-        ttk.Radiobutton(mode_frame,
-                       text="RGBA (Transparent)",
-                       variable=self.rgba_mode,
-                       value=True,
-                       command=self.update_mode,
-                       bootstyle="primary").pack(side=LEFT)
-        
-        # Background color
-        self.bg_container = ttk.Frame(mode_bg_center)
-        self.bg_container.pack(fill=X)
-        
-        self.bg_label = ttk.Label(self.bg_container, text="Background Color:", font=('Segoe UI', 10))
-        self.bg_label.pack(side=LEFT)
-        
-        self.bg_color_preview = ttk.Frame(self.bg_container, width=30, height=30)
-        self.bg_color_preview.pack(side=RIGHT, padx=(10, 0))
-        self.bg_color_preview.configure(bootstyle="light")
-        
-        self.bg_color_btn = ttk.Button(self.bg_container,
-                                      text="Choose Color",
-                                      command=self.choose_bg_color,
-                                      bootstyle="primary-outline",
-                                      width=15)
-        self.bg_color_btn.pack(side=RIGHT)
         
     def create_no_mask_tab(self):
         """Create the no mask tab"""
