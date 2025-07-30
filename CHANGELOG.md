@@ -5,6 +5,25 @@ All notable changes to WordCloud Magic will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-01-30
+
+### Added
+- **Recursive File Search**: Added subfolder depth control (0-10 levels) with spinbox selector
+- **Refresh Button**: Manual file list refresh with ↻ button in working folder section
+- **File Loading Progress**: Progress bar appears when loading file contents
+- **Folder Search Progress**: Progress bar shows during recursive file searches
+- **Improved File Display**: Files in subdirectories shown with 📁 icon, root files with 📄 icon
+
+### Fixed
+- **Toast Notifications**: Fixed inconsistent sizing - all toasts now have uniform 400px width
+- **Toast Height Issue**: Capped maximum toast height to prevent oversized notifications
+- **Thread Safety**: File operations now run in background threads to prevent UI freezing
+
+### Changed
+- File paths now display relative to working directory for better readability
+- Toast notifications repositioning improved for better stack management
+- Progress indicators use indeterminate mode with striped styling
+
 ## [0.1.0] - 2025-01-29
 
 ### Initial Release
