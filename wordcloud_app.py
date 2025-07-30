@@ -135,12 +135,23 @@ class ToastManager:
         # Override the position and size after showing
         def position_toast():
             if toast.toplevel and toast.toplevel.winfo_exists():
-                # Set fixed width and position
-                toast.toplevel.geometry(f"{fixed_toast_width}x{toast.toplevel.winfo_height()}+{x_position}+{y_position}")
+                # Get current height but cap it to prevent huge toasts
+                current_height = toast.toplevel.winfo_height()
+                max_toast_height = 120  # Maximum reasonable height for a toast
+                
+                # If height seems unreasonable, use a standard height
+                if current_height > max_toast_height:
+                    height_to_use = 80  # Standard toast height
+                else:
+                    height_to_use = current_height
+                
+                # Set fixed width and controlled height
+                toast.toplevel.geometry(f"{fixed_toast_width}x{height_to_use}+{x_position}+{y_position}")
                 # Force minimum width
                 toast.toplevel.minsize(fixed_toast_width, 1)
+                toast.toplevel.maxsize(fixed_toast_width, max_toast_height)
                 # Update with actual height once rendered
-                toast_data['actual_height'] = toast.toplevel.winfo_height()
+                toast_data['actual_height'] = height_to_use
         
         # Position after a short delay to ensure toast is created
         self.root.after(10, position_toast)
@@ -166,9 +177,19 @@ class ToastManager:
             if hasattr(toast, 'toplevel') and toast.toplevel and toast.toplevel.winfo_exists():
                 try:
                     current_height = toast.toplevel.winfo_height()
-                    toast.toplevel.geometry(f"{fixed_toast_width}x{current_height}+{x_position}+{y_position}")
+                    max_toast_height = 120
+                    
+                    # Cap height to prevent huge toasts
+                    if current_height > max_toast_height:
+                        height_to_use = 80
+                    else:
+                        height_to_use = current_height
+                    
+                    toast.toplevel.geometry(f"{fixed_toast_width}x{height_to_use}+{x_position}+{y_position}")
                     toast.toplevel.minsize(fixed_toast_width, 1)
-                    toast_height = current_height
+                    toast.toplevel.maxsize(fixed_toast_width, max_toast_height)
+                    
+                    toast_height = height_to_use
                     if toast_height == 1:  # Not rendered yet
                         toast_height = toast_data.get('estimated_height', 80)
                     y_position += toast_height + self.toast_gap
