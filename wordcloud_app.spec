@@ -23,7 +23,8 @@ a = Analysis(
         # Include default config if it exists
         ('configs/default.json', 'configs'),
         ('icons', 'icons'),
-        ('icon.png','.')
+        ('icon.png','.'),
+        ('icon_256.ico','.'),
     ],
     hiddenimports=[
         'ttkbootstrap',
