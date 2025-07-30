@@ -30,6 +30,7 @@ import PyPDF2
 from docx import Document
 from pptx import Presentation
 import re
+from datetime import datetime
 
 def get_resource_path(relative_path):
     # For config and log files, use current working directory when running as PyInstaller app
@@ -325,19 +326,95 @@ class ModernWordCloudApp:
     def print_debug(self, message):
         """Print debug message if in debug mode"""
         if hasattr(self, 'debug_mode') and self.debug_mode:
-            print(f"[DEBUG] {message}")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            debug_msg = f"[DEBUG] {timestamp} - {message}"
+            print(debug_msg)
+            
+            # Also write to log file if logging is enabled
+            if hasattr(self, 'log_file') and self.log_file:
+                try:
+                    with open(self.log_file, 'a', encoding='utf-8') as f:
+                        f.write(debug_msg + '\n')
+                except Exception as e:
+                    print(f"[ERROR] Failed to write to log: {e}")
     
     def print_info(self, message):
         """Print info message"""
-        print(f"[INFO] {message}")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        info_msg = f"[INFO] {timestamp} - {message}"
+        print(info_msg)
+        
+        # Also log if in debug mode
+        if hasattr(self, 'debug_mode') and self.debug_mode and hasattr(self, 'log_file') and self.log_file:
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write(info_msg + '\n')
+            except:
+                pass
     
     def print_warning(self, message):
         """Print warning message"""
-        print(f"[WARNING] {message}")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        warn_msg = f"[WARNING] {timestamp} - {message}"
+        print(warn_msg)
+        
+        # Also log if in debug mode
+        if hasattr(self, 'debug_mode') and self.debug_mode and hasattr(self, 'log_file') and self.log_file:
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write(warn_msg + '\n')
+            except:
+                pass
     
     def print_fail(self, message):
         """Print failure/error message"""
-        print(f"[ERROR] {message}")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        error_msg = f"[ERROR] {timestamp} - {message}"
+        print(error_msg)
+        
+        # Also log if in debug mode
+        if hasattr(self, 'debug_mode') and self.debug_mode and hasattr(self, 'log_file') and self.log_file:
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write(error_msg + '\n')
+            except:
+                pass
+    
+    def init_logging(self):
+        """Initialize logging to file"""
+        try:
+            # Create logs directory
+            log_dir = get_resource_path('logs')
+            os.makedirs(log_dir, exist_ok=True)
+            
+            # Create log file with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.log_file = os.path.join(log_dir, f'wordcloud_debug_{timestamp}.log')
+            
+            # Write header
+            with open(self.log_file, 'w', encoding='utf-8') as f:
+                f.write(f"WordCloud Magic Debug Log\n")
+                f.write(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"{'='*60}\n\n")
+            
+            self.print_info(f"Logging to: {self.log_file}")
+        except Exception as e:
+            print(f"[ERROR] Failed to initialize logging: {e}")
+            self.log_file = None
+    
+    def toggle_debug_mode(self):
+        """Toggle debug mode on/off"""
+        self.debug_mode = self.debug_var.get()
+        
+        if self.debug_mode:
+            if not self.log_file:
+                self.init_logging()
+            self.show_toast("Debug mode enabled - logging to file", "info")
+            self.print_debug("Debug mode toggled ON")
+        else:
+            self.show_toast("Debug mode disabled", "info")
+            self.print_debug("Debug mode toggled OFF")
+            # Note: we keep the log file open for the session
     
     def create_custom_gradients(self):
         """Create and register custom color gradients"""
@@ -477,7 +554,11 @@ class ModernWordCloudApp:
         
         # Initialize debug mode from command line arguments
         self.debug_mode = '--debug' in sys.argv
+        self.log_file = None
+        
+        # Initialize logging if debug mode
         if self.debug_mode:
+            self.init_logging()
             self.print_info("Debug mode enabled")
         
         # Initialize toast manager
@@ -2505,7 +2586,7 @@ class ModernWordCloudApp:
         
         # Button frame (centered below preview)
         button_frame = ttk.Frame(preview_wrapper)
-        button_frame.pack()
+        button_frame.pack(fill=X)
         
         # Progress bar (initially hidden)
         self.progress = ttk.Progressbar(button_frame, 
@@ -2513,9 +2594,13 @@ class ModernWordCloudApp:
                                        bootstyle="success-striped",
                                        length=300)
         
-        # Generate and save buttons
-        btn_container = ttk.Frame(button_frame)
-        btn_container.pack()
+        # Main buttons container with debug toggle on the right
+        buttons_row = ttk.Frame(button_frame)
+        buttons_row.pack(fill=X)
+        
+        # Generate and save buttons (left/center)
+        btn_container = ttk.Frame(buttons_row)
+        btn_container.pack(side=LEFT, expand=True)
         
         self.generate_btn = ttk.Button(btn_container,
                                       text="🚀 Generate Word Cloud",
@@ -2539,6 +2624,18 @@ class ModernWordCloudApp:
                                   bootstyle="secondary",
                                   width=15)
         self.clear_btn.pack(side=LEFT, padx=(10, 0))
+        
+        # Debug toggle (bottom right)
+        debug_container = ttk.Frame(buttons_row)
+        debug_container.pack(side=RIGHT, padx=(0, 20))
+        
+        self.debug_var = tk.BooleanVar(value=self.debug_mode)
+        self.debug_toggle = ttk.Checkbutton(debug_container,
+                                           text="Debug Mode",
+                                           variable=self.debug_var,
+                                           command=self.toggle_debug_mode,
+                                           bootstyle="primary-round-toggle")
+        self.debug_toggle.pack()
     
     def create_message_bar(self, parent):
         """Create the message bar in the specified parent"""
