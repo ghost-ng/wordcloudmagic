@@ -561,6 +561,15 @@ class ModernWordCloudApp:
             self.init_logging()
             self.print_info("Debug mode enabled")
         
+        # Log startup mode
+        if hasattr(sys, '_MEIPASS'):
+            self.print_info("Running in EXE mode (PyInstaller bundle)")
+            self.print_info(f"Bundle location: {sys._MEIPASS}")
+            self.print_info(f"Working directory: {os.getcwd()}")
+        else:
+            self.print_info("Running in SCRIPT mode (Python interpreter)")
+            self.print_info(f"Script location: {os.path.dirname(os.path.abspath(__file__))}")
+        
         # Initialize toast manager
         self.toast_manager = ToastManager(self.root)
         
