@@ -10,7 +10,7 @@ python wordcloud_app.py
 
 # Run with debug mode to see errors and debug info in console and save to log file
 python wordcloud_app.py --debug
-# Creates a debug log file in the logs directory: logs/wordcloud_debug_YYYYMMDD_HHMMSS.log
+# Creates a debug log file in %APPDATA%/WordCloudMagic/logs/wordcloud_debug_YYYYMMDD_HHMMSS.log
 ```
 
 ### Installing Dependencies
@@ -50,7 +50,10 @@ The project is a single-file Tkinter application (`wordcloud_app.py`) that creat
 - `python-pptx`: PowerPoint parsing
 
 ### Configuration Schema
-The application uses two configuration files:
+The application stores configuration files in platform-specific locations:
+- **Windows:** `%APPDATA%/WordCloudMagic/`
+- **Linux/Mac:** `~/.wordcloudmagic/`
+
 1. `configs/wordcloud_config.json` - Main settings:
    - forbidden_words: List of words to exclude
    - color settings: mode, scheme, custom colors
@@ -61,6 +64,8 @@ The application uses two configuration files:
 2. `configs/theme.json` - Theme preferences:
    - theme: Current UI theme name
    - dark_mode: Dark mode toggle state
+
+**Note:** Both exe and script versions use the same app data location for consistency.
 
 ### Threading Model
 Long-running operations (word cloud generation) run in separate threads to keep the UI responsive. Look for `threading.Thread` usage in the generate methods.

@@ -5,6 +5,17 @@ All notable changes to WordCloud Magic will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-01-30
+
+### Changed
+- **App Data Location**: Configs and logs now stored in platform-specific directories:
+  - Windows: `%APPDATA%/WordCloudMagic/`
+  - Linux/Mac: `~/.wordcloudmagic/`
+- Automatic migration of existing configs to new location on first run
+
+### Fixed
+- Fixed AttributeError when outline_width_scale is None in RGBA mode switching
+
 ## [0.2.0] - 2025-01-30
 
 ### Added
@@ -23,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File paths now display relative to working directory for better readability
 - Toast notifications repositioning improved for better stack management
 - Progress indicators use indeterminate mode with striped styling
+- **App Data Location**: Configs and logs now stored in platform-specific directories:
+  - Windows: `%APPDATA%/WordCloudMagic/`
+  - Linux/Mac: `~/.wordcloudmagic/`
+- Automatic migration of existing configs to new location on first run
 
 ## [0.1.0] - 2025-01-29
 
