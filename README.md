@@ -1,4 +1,8 @@
-# WordCloud Magic - Modern Word Cloud Generator
+# WordCloud Magic v0.1.0 - Modern Word Cloud Generator
+
+![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![Python](https://img.shields.io/badge/python-3.8+-green.svg)
+![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
 A beautiful, modern word cloud generator built with Python and ttkbootstrap, featuring a clean interface with excellent readability and professional styling.
 
@@ -40,13 +44,30 @@ A beautiful, modern word cloud generator built with Python and ttkbootstrap, fea
   - All meters standardized with descriptions below
   - Improved font selection with visual preview
 
+## Download
+
+### Pre-built Executable (Windows)
+Download the latest release from the [Releases page](https://github.com/ghost-ng/wordcloudmagic/releases). No Python installation required!
+
+### Source Code
+```bash
+git clone https://github.com/ghost-ng/wordcloudmagic.git
+cd wordcloudmagic
+```
+
 ## Installation
 
-1. Clone or download this repository
+### From Source
+1. Ensure Python 3.8+ is installed
 2. Install required dependencies:
    ```bash
    pip install -r requirements.txt
    ```
+
+### Using Pre-built Executable
+1. Download the latest release ZIP file
+2. Extract to your desired location
+3. Run `WordCloudMagic.exe`
 
 ## Usage
 
@@ -224,3 +245,53 @@ The app uses ttkbootstrap themes with a theme selector in the UI. Available them
 - Gruvbox - Retro warm dark
 - Dracula - Classic dark purple
 - Monokai - Developer favorite
+
+## Recent Updates (v0.1.0)
+
+### New Features
+- **Version Display**: Version now shown in window title and About dialog
+- **Debug Mode Toggle**: Runtime toggle switch for debug logging
+- **Improved Transparency Preview**: Fixed checkerboard pattern with show/hide option
+- **Portable Configuration**: Config and logs saved in working directory for exe builds
+- **Better Error Handling**: Enhanced logging with timestamps
+- **Zoom Synchronization**: Preview zoom controls now properly synchronized
+
+### Technical Improvements
+- Centralized version management in `__version__.py`
+- GitHub Actions workflow for automated releases
+- Separate theme preferences file (`configs/theme.json`)
+- Automatic directory creation for configs and logs
+
+## Building from Source
+
+Use the included build script:
+```bash
+python build_exe.py --clean
+```
+
+Or build manually with PyInstaller:
+```bash
+pyinstaller wordcloud_app.spec --clean --noconfirm
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes: `git commit -m "Add your feature"`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Create a Pull Request
+
+## Version History
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Built with [ttkbootstrap](https://github.com/israel-dryer/ttkbootstrap) for modern UI
+- Word cloud generation powered by [word_cloud](https://github.com/amueller/word_cloud)
+- Icons and visual elements designed for clarity and usability

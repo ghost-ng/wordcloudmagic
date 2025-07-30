@@ -1,4 +1,4 @@
-# WordCloud Magic - Comprehensive Help Guide
+# WordCloud Magic v0.1.0 - Comprehensive Help Guide
 
 ## Getting Started
 
@@ -240,13 +240,34 @@ The app automatically detects system fonts. For best results with text masks:
 
 ---
 
+## Debug Mode
+
+- Toggle debug mode using the checkbox in the bottom-right corner
+- When enabled, detailed logs are saved to the `logs` directory
+- Log files include timestamps and are named: `wordcloud_debug_YYYYMMDD_HHMMSS.log`
+- Useful for troubleshooting issues
+
+---
+
+## Configuration Files
+
+The application saves settings in two files:
+- **configs/default.json**: Main application settings
+- **configs/theme.json**: Theme and dark mode preferences
+
+When running as an executable, these files are created in your current working directory.
+
+---
+
 ## About
 
 **WordCloud Magic** - A modern, feature-rich word cloud generator
 
 Created by [@ghost-ng](https://github.com/ghost-ng)
 
-Version 1.1.0
+Version 0.1.0
+
+For the latest updates and release notes, check the [Releases page](https://github.com/ghost-ng/wordcloudmagic/releases).
 
 ---
 
