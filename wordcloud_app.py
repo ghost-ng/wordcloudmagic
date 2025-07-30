@@ -3684,6 +3684,7 @@ class ModernWordCloudApp:
         current = self.preview_scale.get()
         new_value = max(25, min(200, current + delta))
         self.preview_scale.set(new_value)
+        self.preview_slider.set(new_value)  # Sync the slider
         self.update_preview_size_from_slider(new_value)
     
     def update_preview_size_from_slider(self, value):
@@ -3698,6 +3699,7 @@ class ModernWordCloudApp:
     def set_preview_size(self, percent):
         """Set preview size to specific percentage"""
         self.preview_scale.set(percent)
+        self.preview_slider.set(percent)  # Sync the slider
         self.update_preview_size_from_slider(percent)
     
     def update_preview_display(self):
