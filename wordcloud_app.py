@@ -1,3 +1,4 @@
+from time import time
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.toast import ToastNotification
@@ -114,8 +115,12 @@ class ToastManager:
             icon="✅" if style == "success" else "⚠" if style == "warning" else "✗" if style in ["danger", "error"] else "ℹ"
         )
         
+        # Fixed toast width for consistency
+        fixed_toast_width = 400
+        toast_margin = 20
+        
         # Calculate X position (right side of screen with margin)
-        x_position = self.screen_width - 350  # 350 is approximate toast width
+        x_position = self.screen_width - fixed_toast_width - toast_margin
         
         # Store toast data with estimated height
         toast_data = {
@@ -128,12 +133,26 @@ class ToastManager:
         # Show the toast at calculated position
         toast.show_toast()
         
-        # Override the position after showing
+        # Override the position and size after showing
         def position_toast():
             if toast.toplevel and toast.toplevel.winfo_exists():
-                toast.toplevel.geometry(f"+{x_position}+{y_position}")
+                # Get current height but cap it to prevent huge toasts
+                current_height = toast.toplevel.winfo_height()
+                max_toast_height = 120  # Maximum reasonable height for a toast
+                
+                # If height seems unreasonable, use a standard height
+                if current_height > max_toast_height:
+                    height_to_use = 80  # Standard toast height
+                else:
+                    height_to_use = current_height
+                
+                # Set fixed width and controlled height
+                toast.toplevel.geometry(f"{fixed_toast_width}x{height_to_use}+{x_position}+{y_position}")
+                # Force minimum width
+                toast.toplevel.minsize(fixed_toast_width, 1)
+                toast.toplevel.maxsize(fixed_toast_width, max_toast_height)
                 # Update with actual height once rendered
-                toast_data['actual_height'] = toast.toplevel.winfo_height()
+                toast_data['actual_height'] = height_to_use
         
         # Position after a short delay to ensure toast is created
         self.root.after(10, position_toast)
@@ -150,14 +169,28 @@ class ToastManager:
     def _reposition_toasts(self):
         """Reposition remaining toasts after one is removed"""
         y_position = self.base_y_offset
-        x_position = self.screen_width - 350
+        fixed_toast_width = 400
+        toast_margin = 20
+        x_position = self.screen_width - fixed_toast_width - toast_margin
         
         for toast_data in self.active_toasts:
             toast = toast_data['toast']
             if hasattr(toast, 'toplevel') and toast.toplevel and toast.toplevel.winfo_exists():
                 try:
-                    toast.toplevel.geometry(f"+{x_position}+{y_position}")
-                    toast_height = toast.toplevel.winfo_height()
+                    current_height = toast.toplevel.winfo_height()
+                    max_toast_height = 120
+                    
+                    # Cap height to prevent huge toasts
+                    if current_height > max_toast_height:
+                        height_to_use = 80
+                    else:
+                        height_to_use = current_height
+                    
+                    toast.toplevel.geometry(f"{fixed_toast_width}x{height_to_use}+{x_position}+{y_position}")
+                    toast.toplevel.minsize(fixed_toast_width, 1)
+                    toast.toplevel.maxsize(fixed_toast_width, max_toast_height)
+                    
+                    toast_height = height_to_use
                     if toast_height == 1:  # Not rendered yet
                         toast_height = toast_data.get('estimated_height', 80)
                     y_position += toast_height + self.toast_gap
@@ -844,6 +877,27 @@ class ModernWordCloudApp:
         # Working folder selection
         folder_frame = self.create_section(input_frame, "Working Folder")
         
+        # Header frame with recursion controls
+        header_frame = ttk.Frame(folder_frame)
+        header_frame.pack(fill=X, pady=(0, 5))
+        
+        ttk.Label(header_frame, text="Subfolder Depth:", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 5))
+        
+        self.recursion_depth = tk.IntVar(value=0)
+        self.depth_spinbox = ttk.Spinbox(header_frame, 
+                                       from_=0, 
+                                       to=10,
+                                       textvariable=self.recursion_depth,
+                                       width=5,
+                                       bootstyle="primary")
+        self.depth_spinbox.pack(side=LEFT, padx=(0, 5))
+        
+        ttk.Button(header_frame,
+                  text="↻ Refresh",
+                  command=self.refresh_file_list,
+                  bootstyle="primary-outline",
+                  width=10).pack(side=LEFT)
+        
         folder_info = ttk.Frame(folder_frame)
         folder_info.pack(fill=X, pady=(0, 10))
         
@@ -857,6 +911,21 @@ class ModernWordCloudApp:
                   command=self.select_folder,
                   bootstyle="primary",
                   width=20).pack()
+        
+        # Progress bar for file search (initially hidden)
+        self.folder_progress_frame = ttk.Frame(folder_frame)
+        self.folder_progress_frame.pack(fill=X, pady=(10, 0))
+        self.folder_progress_frame.pack_forget()  # Hide initially
+        
+        self.folder_progress = ttk.Progressbar(self.folder_progress_frame,
+                                              mode='indeterminate',
+                                              bootstyle="primary-striped")
+        self.folder_progress.pack(fill=X, pady=(0, 5))
+        
+        self.folder_progress_label = ttk.Label(self.folder_progress_frame,
+                                              text="Searching for files...",
+                                              font=('Segoe UI', 9))
+        self.folder_progress_label.pack()
         
         # File selection
         file_frame = self.create_section(input_frame, "Select Files")
@@ -896,6 +965,21 @@ class ModernWordCloudApp:
                   command=self.load_files,
                   bootstyle="success",
                   width=18).pack(side=LEFT)
+        
+        # Progress bar for file loading (initially hidden)
+        self.file_load_progress_frame = ttk.Frame(file_frame)
+        self.file_load_progress_frame.pack(fill=X, pady=(10, 0))
+        self.file_load_progress_frame.pack_forget()  # Hide initially
+        
+        self.file_load_progress = ttk.Progressbar(self.file_load_progress_frame,
+                                                 mode='indeterminate',
+                                                 bootstyle="success-striped")
+        self.file_load_progress.pack(fill=X, pady=(0, 5))
+        
+        self.file_load_progress_label = ttk.Label(self.file_load_progress_frame,
+                                                 text="Loading file contents...",
+                                                 font=('Segoe UI', 9))
+        self.file_load_progress_label.pack()
         
         # Text input
         text_frame = self.create_section(input_frame, "Or Paste Text")
@@ -2736,25 +2820,109 @@ class ModernWordCloudApp:
             self.working_folder.set(folder)
             self.populate_file_list()
     
+    def refresh_file_list(self):
+        """Refresh file list with current recursion depth"""
+        self.populate_file_list(show_toast=True)
+    
     def populate_file_list(self, show_toast=True):
         """Populate file listbox with supported files"""
-        self.file_listbox.delete(0, tk.END)
-        
-        folder = self.working_folder.get()
-        if folder and os.path.exists(folder):
-            files_found = 0
-            for file in os.listdir(folder):
-                if file.lower().endswith(('.txt', '.pdf', '.docx', '.pptx')):
-                    self.file_listbox.insert(tk.END, f"📄 {file}")
-                    files_found += 1
+        self.print_debug(f"populate_file_list called, show_toast={show_toast}")
+        # Run in a separate thread to avoid UI freezing
+        threading.Thread(target=self._populate_file_list_thread, args=(show_toast,), daemon=True).start()
+    
+    def _populate_file_list_thread(self, show_toast):
+        """Thread function to populate file list with recursive search"""
+        try:
+
+            self.print_debug(f"_populate_file_list_thread started")
+            # Show progress bar
+            self.root.after(0, self._show_folder_progress)
             
-            if files_found == 0:
-                self.file_listbox.insert(tk.END, "No supported files found")
-                if show_toast:
-                    self.show_message("No supported files found in the selected folder", "info")
+            self.root.after(0, self.file_listbox.delete, 0, tk.END)
+            
+            folder = self.working_folder.get()
+            self.print_debug(f"Working folder: {folder}")
+            if folder and os.path.exists(folder):
+                depth = self.recursion_depth.get()
+                self.print_debug(f"Recursion depth: {depth}")
+                files_found = []
+                
+                # Recursive file search
+                self._search_files_recursive(folder, files_found, depth, 0)
+                self.print_debug(f"Files found: {len(files_found)}")
+                
+                # Update UI in main thread
+                self.root.after(0, self._update_file_listbox, files_found, show_toast)
             else:
-                if show_toast:
-                    self.show_message(f"Found {files_found} supported file(s) in the selected folder", "info")
+                self.print_debug(f"Folder does not exist or is empty")
+                # Hide progress bar
+                self.root.after(0, self._hide_folder_progress)
+        except Exception as e:
+            self.print_debug(f"Error in _populate_file_list_thread: {str(e)}")
+            import traceback
+            self.print_debug(traceback.format_exc())
+    
+    def _search_files_recursive(self, folder, files_found, max_depth, current_depth):
+        """Recursively search for supported files"""
+        try:
+            for item in os.listdir(folder):
+                item_path = os.path.join(folder, item)
+                
+                if os.path.isfile(item_path):
+                    if item.lower().endswith(('.txt', '.pdf', '.docx', '.pptx')):
+                        # Store relative path from base folder
+                        rel_path = os.path.relpath(item_path, self.working_folder.get())
+                        files_found.append(rel_path)
+                elif os.path.isdir(item_path) and current_depth < max_depth:
+                    # Recursively search subdirectories
+                    self._search_files_recursive(item_path, files_found, max_depth, current_depth + 1)
+        except PermissionError:
+            # Skip directories we can't access
+            pass
+    
+    def _show_folder_progress(self):
+        """Show the folder search progress bar"""
+        self.folder_progress_frame.pack(fill=X, pady=(10, 0))
+        self.folder_progress.start(10)
+    
+    def _hide_folder_progress(self):
+        """Hide the folder search progress bar"""
+        self.folder_progress.stop()
+        self.folder_progress_frame.pack_forget()
+    
+    def _show_file_load_progress(self):
+        """Show the file loading progress bar"""
+        self.file_load_progress_frame.pack(fill=X, pady=(10, 0))
+        self.file_load_progress.start(10)
+    
+    def _hide_file_load_progress(self):
+        """Hide the file loading progress bar"""
+        self.file_load_progress.stop()
+        self.file_load_progress_frame.pack_forget()
+    
+    def _update_file_listbox(self, files_found, show_toast):
+        """Update file listbox with found files"""
+        if not files_found:
+            self.file_listbox.insert(tk.END, "No supported files found")
+            if show_toast:
+                self.show_message("No supported files found in the selected folder", "info")
+        else:
+            # Sort files by path
+            files_found.sort()
+            for file_path in files_found:
+                # Show subdirectory structure if present
+                if os.path.sep in file_path:
+                    display_path = f"📁 {file_path}"
+                else:
+                    display_path = f"📄 {file_path}"
+                self.file_listbox.insert(tk.END, display_path)
+            
+            if show_toast:
+                depth_text = f" (depth: {self.recursion_depth.get()})" if self.recursion_depth.get() > 0 else ""
+                self.show_message(f"Found {len(files_found)} supported file(s){depth_text}", "info")
+        
+        # Hide progress bar
+        self._hide_folder_progress()
     
     def select_all_files(self):
         """Select all files in the listbox"""
@@ -2791,22 +2959,39 @@ class ModernWordCloudApp:
             self.show_message("Please select at least one file to load", "warning")
             return
         
+        # Run loading in a separate thread
+        threading.Thread(target=self._load_files_thread, args=(selected_indices,), daemon=True).start()
+    
+    def _load_files_thread(self, selected_indices):
+        """Thread function to load files with progress indication"""
+        # Show progress bar
+        self.root.after(0, self._show_file_load_progress)
+        
         self.text_content = ""
         folder = self.working_folder.get()
         
         # Update source mode label
-        self.update_mode_label(source="Files")
+        self.root.after(0, self.update_mode_label, "Files")
         
         for idx in selected_indices:
-            filename = self.file_listbox.get(idx).replace("📄 ", "")
-            filepath = os.path.join(folder, filename)
+            
+            # Remove icon prefix (either 📄 or 📁) to get the relative path
+            file_entry = self.file_listbox.get(idx)
+            if file_entry.startswith("📄 "):
+                rel_path = file_entry.replace("📄 ", "")
+            elif file_entry.startswith("📁 "):
+                rel_path = file_entry.replace("📁 ", "")
+            else:
+                rel_path = file_entry
+            
+            filepath = os.path.join(folder, rel_path)
             
             try:
-                if filename.lower().endswith('.txt'):
+                if filepath.lower().endswith('.txt'):
                     with open(filepath, 'r', encoding='utf-8') as f:
                         self.text_content += f.read() + "\n"
                 
-                elif filename.lower().endswith('.pdf'):
+                elif filepath.lower().endswith('.pdf'):
                     with open(filepath, 'rb') as f:
                         pdf_reader = PyPDF2.PdfReader(f)
                         for page in pdf_reader.pages:
@@ -2818,12 +3003,12 @@ class ModernWordCloudApp:
                             page_text = page_text.replace('\n', ' ')  # Replace newlines with spaces
                             self.text_content += page_text + " "
                 
-                elif filename.lower().endswith('.docx'):
+                elif filepath.lower().endswith('.docx'):
                     doc = Document(filepath)
                     for paragraph in doc.paragraphs:
                         self.text_content += paragraph.text + "\n"
                 
-                elif filename.lower().endswith('.pptx'):
+                elif filepath.lower().endswith('.pptx'):
                     prs = Presentation(filepath)
                     for slide in prs.slides:
                         for shape in slide.shapes:
@@ -2831,13 +3016,16 @@ class ModernWordCloudApp:
                                 self.text_content += shape.text + "\n"
                 
             except Exception as e:
-                self.show_message(f"Error reading {filename}: {str(e)}", "fail")
-                self.show_toast(f"Error reading {filename}", "danger")
+                self.root.after(0, self.show_message, f"Error reading {rel_path}: {str(e)}", "fail")
+                self.root.after(0, self.show_toast, f"Error reading {rel_path}", "danger")
         
         # Show success message in the message bar
         total_words = len(self.text_content.split())
-        self.show_message(f"Successfully loaded {len(selected_indices)} file(s) with approximately {total_words:,} words", "good")
-        self.show_toast(f"Files loaded successfully!", "success")
+        self.root.after(0, self.show_message, f"Successfully loaded {len(selected_indices)} file(s) with approximately {total_words:,} words", "good")
+        self.root.after(0, self.show_toast, f"Files loaded successfully!", "success")
+        
+        # Hide progress bar
+        self.root.after(0, self._hide_file_load_progress)
     
     def use_pasted_text(self):
         """Use text from text input widget"""
@@ -4875,8 +5063,9 @@ class ModernWordCloudApp:
             # Apply input settings
             if 'working_directory' in config and hasattr(self, 'working_folder'):
                 self.working_folder.set(config['working_directory'])
-                if os.path.exists(config['working_directory']):
-                    self.populate_file_list(show_toast=False)
+                if config['working_directory'] and os.path.exists(config['working_directory']):
+                    # Ensure the UI is ready before populating
+                    self.root.after(100, lambda: self.populate_file_list(show_toast=False))
                     self.print_debug(f"Populated file list for directory: {config['working_directory']}")
             
             # Load pasted text if present
