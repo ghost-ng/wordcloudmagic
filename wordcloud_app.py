@@ -1,3 +1,4 @@
+from time import time
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.toast import ToastNotification
@@ -964,6 +965,21 @@ class ModernWordCloudApp:
                   command=self.load_files,
                   bootstyle="success",
                   width=18).pack(side=LEFT)
+        
+        # Progress bar for file loading (initially hidden)
+        self.file_load_progress_frame = ttk.Frame(file_frame)
+        self.file_load_progress_frame.pack(fill=X, pady=(10, 0))
+        self.file_load_progress_frame.pack_forget()  # Hide initially
+        
+        self.file_load_progress = ttk.Progressbar(self.file_load_progress_frame,
+                                                 mode='indeterminate',
+                                                 bootstyle="success-striped")
+        self.file_load_progress.pack(fill=X, pady=(0, 5))
+        
+        self.file_load_progress_label = ttk.Label(self.file_load_progress_frame,
+                                                 text="Loading file contents...",
+                                                 font=('Segoe UI', 9))
+        self.file_load_progress_label.pack()
         
         # Text input
         text_frame = self.create_section(input_frame, "Or Paste Text")
@@ -2817,6 +2833,7 @@ class ModernWordCloudApp:
     def _populate_file_list_thread(self, show_toast):
         """Thread function to populate file list with recursive search"""
         try:
+
             self.print_debug(f"_populate_file_list_thread started")
             # Show progress bar
             self.root.after(0, self._show_folder_progress)
@@ -2872,6 +2889,16 @@ class ModernWordCloudApp:
         """Hide the folder search progress bar"""
         self.folder_progress.stop()
         self.folder_progress_frame.pack_forget()
+    
+    def _show_file_load_progress(self):
+        """Show the file loading progress bar"""
+        self.file_load_progress_frame.pack(fill=X, pady=(10, 0))
+        self.file_load_progress.start(10)
+    
+    def _hide_file_load_progress(self):
+        """Hide the file loading progress bar"""
+        self.file_load_progress.stop()
+        self.file_load_progress_frame.pack_forget()
     
     def _update_file_listbox(self, files_found, show_toast):
         """Update file listbox with found files"""
@@ -2932,13 +2959,22 @@ class ModernWordCloudApp:
             self.show_message("Please select at least one file to load", "warning")
             return
         
+        # Run loading in a separate thread
+        threading.Thread(target=self._load_files_thread, args=(selected_indices,), daemon=True).start()
+    
+    def _load_files_thread(self, selected_indices):
+        """Thread function to load files with progress indication"""
+        # Show progress bar
+        self.root.after(0, self._show_file_load_progress)
+        
         self.text_content = ""
         folder = self.working_folder.get()
         
         # Update source mode label
-        self.update_mode_label(source="Files")
+        self.root.after(0, self.update_mode_label, "Files")
         
         for idx in selected_indices:
+            
             # Remove icon prefix (either 📄 or 📁) to get the relative path
             file_entry = self.file_listbox.get(idx)
             if file_entry.startswith("📄 "):
@@ -2980,13 +3016,16 @@ class ModernWordCloudApp:
                                 self.text_content += shape.text + "\n"
                 
             except Exception as e:
-                self.show_message(f"Error reading {rel_path}: {str(e)}", "fail")
-                self.show_toast(f"Error reading {rel_path}", "danger")
+                self.root.after(0, self.show_message, f"Error reading {rel_path}: {str(e)}", "fail")
+                self.root.after(0, self.show_toast, f"Error reading {rel_path}", "danger")
         
         # Show success message in the message bar
         total_words = len(self.text_content.split())
-        self.show_message(f"Successfully loaded {len(selected_indices)} file(s) with approximately {total_words:,} words", "good")
-        self.show_toast(f"Files loaded successfully!", "success")
+        self.root.after(0, self.show_message, f"Successfully loaded {len(selected_indices)} file(s) with approximately {total_words:,} words", "good")
+        self.root.after(0, self.show_toast, f"Files loaded successfully!", "success")
+        
+        # Hide progress bar
+        self.root.after(0, self._hide_file_load_progress)
     
     def use_pasted_text(self):
         """Use text from text input widget"""
