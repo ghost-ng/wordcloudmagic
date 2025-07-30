@@ -5333,7 +5333,7 @@ For help and documentation, use the Help menu option."""
 def main():
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
-    icon_path = get_resource_path("icon.png")
+    icon_path = get_resource_path("icon_256.ico")
     ico_path = get_resource_path("icon_256.ico")
     icon = Image.open(icon_path)
     icon = ImageTk.PhotoImage(icon)
