@@ -59,9 +59,10 @@ class ToastManager:
     def __init__(self, root):
         self.root = root
         self.active_toasts = []
-        self.toast_gap = 10
+        self.toast_gap = 5  # Reduced gap between toasts
         self.base_y_offset = 50
         self.screen_width = root.winfo_screenwidth()
+        self.standard_toast_height = 70  # Standard height for consistency
     
     def wrap_text(self, text, max_width=50):
         """Manually wrap text by inserting newlines"""
@@ -93,18 +94,10 @@ class ToastManager:
         y_position = self.base_y_offset
         
         if self.active_toasts:
-            # Calculate position based on actual heights of existing toasts
+            # Use consistent height for all toasts for uniform grid
             for toast_data in self.active_toasts:
                 if toast_data['toast'].toplevel and toast_data['toast'].toplevel.winfo_exists():
-                    # Get actual height after toast is displayed
-                    try:
-                        toast_height = toast_data['toast'].toplevel.winfo_height()
-                        # If height is 1, toast hasn't been rendered yet, use estimate
-                        if toast_height == 1:
-                            toast_height = toast_data.get('estimated_height', 80)
-                        y_position += toast_height + self.toast_gap
-                    except:
-                        y_position += 80 + self.toast_gap  # Fallback height
+                    y_position += self.standard_toast_height + self.toast_gap
         
         # Create toast with proper icon
         toast = ToastNotification(
@@ -115,6 +108,11 @@ class ToastManager:
             icon="✅" if style == "success" else "⚠" if style == "warning" else "✗" if style in ["danger", "error"] else "ℹ"
         )
         
+        # Function to remove toast from tracking
+        def cleanup_toast():
+            self.active_toasts = [t for t in self.active_toasts if t['toast'] != toast]
+            self._reposition_toasts()
+        
         # Fixed toast width for consistency
         fixed_toast_width = 400
         toast_margin = 20
@@ -122,11 +120,10 @@ class ToastManager:
         # Calculate X position (right side of screen with margin)
         x_position = self.screen_width - fixed_toast_width - toast_margin
         
-        # Store toast data with estimated height
+        # Store toast data
         toast_data = {
             'toast': toast,
-            'y_position': y_position,
-            'estimated_height': 80 + (message.count('\n') * 20)  # Estimate based on lines
+            'y_position': y_position
         }
         self.active_toasts.append(toast_data)
         
@@ -136,38 +133,30 @@ class ToastManager:
         # Override the position and size after showing
         def position_toast():
             if toast.toplevel and toast.toplevel.winfo_exists():
-                # Get current height but cap it to prevent huge toasts
-                current_height = toast.toplevel.winfo_height()
-                max_toast_height = 120  # Maximum reasonable height for a toast
+                # Use standard height for uniform grid
+                toast.toplevel.geometry(f"{fixed_toast_width}x{self.standard_toast_height}+{x_position}+{y_position}")
+                # Force consistent size
+                toast.toplevel.minsize(fixed_toast_width, self.standard_toast_height)
+                toast.toplevel.maxsize(fixed_toast_width, self.standard_toast_height)
                 
-                # If height seems unreasonable, use a standard height
-                if current_height > max_toast_height:
-                    height_to_use = 80  # Standard toast height
-                else:
-                    height_to_use = current_height
-                
-                # Set fixed width and controlled height
-                toast.toplevel.geometry(f"{fixed_toast_width}x{height_to_use}+{x_position}+{y_position}")
-                # Force minimum width
-                toast.toplevel.minsize(fixed_toast_width, 1)
-                toast.toplevel.maxsize(fixed_toast_width, max_toast_height)
-                # Update with actual height once rendered
-                toast_data['actual_height'] = height_to_use
+                # Add protocol handler for manual close
+                toast.toplevel.protocol("WM_DELETE_WINDOW", cleanup_toast)
         
         # Position after a short delay to ensure toast is created
         self.root.after(10, position_toast)
         
-        # Schedule removal from tracking after duration
-        def remove_toast():
-            # Remove this toast from active list
-            self.active_toasts = [t for t in self.active_toasts if t['toast'] != toast]
-            self._reposition_toasts()
-        
         # Schedule removal slightly after the toast duration
-        self.root.after(duration + 100, remove_toast)
+        self.root.after(duration + 100, cleanup_toast)
     
     def _reposition_toasts(self):
         """Reposition remaining toasts after one is removed"""
+        # First clean up any toasts that no longer exist
+        self.active_toasts = [t for t in self.active_toasts 
+                             if hasattr(t['toast'], 'toplevel') 
+                             and t['toast'].toplevel 
+                             and t['toast'].toplevel.winfo_exists()]
+        
+        # Now reposition remaining toasts
         y_position = self.base_y_offset
         fixed_toast_width = 400
         toast_margin = 20
@@ -175,27 +164,15 @@ class ToastManager:
         
         for toast_data in self.active_toasts:
             toast = toast_data['toast']
-            if hasattr(toast, 'toplevel') and toast.toplevel and toast.toplevel.winfo_exists():
-                try:
-                    current_height = toast.toplevel.winfo_height()
-                    max_toast_height = 120
-                    
-                    # Cap height to prevent huge toasts
-                    if current_height > max_toast_height:
-                        height_to_use = 80
-                    else:
-                        height_to_use = current_height
-                    
-                    toast.toplevel.geometry(f"{fixed_toast_width}x{height_to_use}+{x_position}+{y_position}")
-                    toast.toplevel.minsize(fixed_toast_width, 1)
-                    toast.toplevel.maxsize(fixed_toast_width, max_toast_height)
-                    
-                    toast_height = height_to_use
-                    if toast_height == 1:  # Not rendered yet
-                        toast_height = toast_data.get('estimated_height', 80)
-                    y_position += toast_height + self.toast_gap
-                except:
-                    pass
+            try:
+                # Use standard height for uniform grid
+                toast.toplevel.geometry(f"{fixed_toast_width}x{self.standard_toast_height}+{x_position}+{y_position}")
+                toast.toplevel.minsize(fixed_toast_width, self.standard_toast_height)
+                toast.toplevel.maxsize(fixed_toast_width, self.standard_toast_height)
+                
+                y_position += self.standard_toast_height + self.toast_gap
+            except:
+                pass
 
 class FontListbox(ttk.Frame):
     """Custom font selector that displays fonts in their actual style"""
@@ -813,8 +790,6 @@ class ModernWordCloudApp:
         top_bar = ttk.Frame(self.root)
         top_bar.pack(fill=X, padx=10, pady=(10, 5))
         
-        # Create message bar on the left side of top bar
-        self.create_message_bar(top_bar)
         
         # Theme selector on the right
         theme_frame = ttk.Frame(top_bar)
@@ -1914,7 +1889,7 @@ class ModernWordCloudApp:
         self.create_outline_options(image_mask_frame)
         
         # Add mask preview to this tab
-        self.create_mask_preview(image_mask_frame)
+        self.create_mask_preview(image_mask_frame, mask_type="image")
     
     def create_text_mask_tab(self):
         """Create the text mask tab"""
@@ -1925,30 +1900,37 @@ class ModernWordCloudApp:
         self.create_text_mask_frame(text_mask_frame)
         
         # Add mask preview to this tab
-        self.create_mask_preview(text_mask_frame)
+        self.create_mask_preview(text_mask_frame, mask_type="text")
     
     def create_outline_options(self, parent):
         """Create outline options frame"""
         # This function is now empty as outline options are moved to text_mask_frame
         pass
     
-    def create_mask_preview(self, parent):
+    def create_mask_preview(self, parent, mask_type=None):
         """Create mask preview frame"""
-        preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
-        preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
+        preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=2)
+        preview_container.pack(fill=BOTH, expand=TRUE, pady=(2, 0))
+        
+        # Create preview frame directly in preview_container
+        preview_frame = ttk.Frame(preview_container)
+        preview_frame.pack(expand=TRUE)  # Center but don't fill
         
         # Create a label for this specific tab
-        preview_label = ttk.Label(preview_container,
+        preview_label = ttk.Label(preview_frame,
                                  text="No mask selected",
                                  anchor=CENTER,
-                                 font=('Segoe UI', 10))
-        preview_label.pack(fill=BOTH, expand=TRUE)
+                                 font=('Segoe UI', 10),
+                                 padding=0)  # Remove padding
+        preview_label.pack()  # Just pack, don't expand or fill
         
-        # Store reference based on parent tab
-        if "image" in str(parent):
+        # Store reference based on mask type
+        if mask_type == "image":
             self.image_mask_preview_label = preview_label
-        else:
+            self.print_debug("Created image_mask_preview_label")
+        elif mask_type == "text":
             self.text_mask_preview_label = preview_label
+            self.print_debug("Created text_mask_preview_label")
     
     def create_image_mask_frame(self, parent):
         """Create the image mask options frame"""
@@ -2483,8 +2465,16 @@ class ModernWordCloudApp:
         preview_container = ttk.LabelFrame(parent, text="Word Cloud Preview", padding=15)
         preview_container.pack(fill=BOTH, expand=TRUE)
         
-        # Create a centered frame for the preview with margins
-        preview_wrapper = ttk.Frame(preview_container)
+        # Create main container that will hold scrollable area and fixed controls
+        main_container = ttk.Frame(preview_container)
+        main_container.pack(fill=BOTH, expand=TRUE)
+        
+        # Create fixed bottom control area FIRST (before preview_wrapper)
+        bottom_controls = ttk.Frame(main_container)
+        bottom_controls.pack(fill=X, side=BOTTOM, pady=(5, 0))
+        
+        # Create a scrollable frame for the preview
+        preview_wrapper = ttk.Frame(main_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
         # Modern status bar header
@@ -2620,9 +2610,9 @@ class ModernWordCloudApp:
         self.preview_canvas_frame = canvas_frame
         self.preview_border_frame = border_frame
         
-        # Preview size control
-        size_control_frame = ttk.Frame(preview_wrapper)
-        size_control_frame.pack(fill=X, pady=(10, 20))
+        # Preview size control in fixed bottom area (bottom_controls already created above)
+        size_control_frame = ttk.Frame(bottom_controls)
+        size_control_frame.pack(fill=X, pady=(10, 10))
         
         # Center the controls
         size_center = ttk.Frame(size_control_frame)
@@ -2682,8 +2672,8 @@ class ModernWordCloudApp:
                 # Update scale indicator
                 self.scale_indicator.config(text=f"Preview at {actual_scale}% (limited by screen size)")
         
-        # Button frame (centered below preview)
-        button_frame = ttk.Frame(preview_wrapper)
+        # Button frame in fixed bottom area
+        button_frame = ttk.Frame(bottom_controls)
         button_frame.pack(fill=X)
         
         # Progress bar (initially hidden)
@@ -2735,77 +2725,6 @@ class ModernWordCloudApp:
                                            bootstyle="primary-round-toggle")
         self.debug_toggle.pack()
     
-    def create_message_bar(self, parent):
-        """Create the message bar in the specified parent"""
-        # Message bar frame
-        self.message_frame = ttk.Frame(parent)
-        self.message_frame.pack(side=LEFT, fill=X, expand=TRUE)
-        
-        # Message styles
-        self.message_styles = {
-            "good": {"icon": "✓", "bootstyle": "success", "bg": "#d4edda", "fg": "#155724", "border": "#c3e6cb"},
-            "info": {"icon": "ℹ", "bootstyle": "info", "bg": "#d1ecf1", "fg": "#0c5460", "border": "#bee5eb"},
-            "warning": {"icon": "⚠", "bootstyle": "warning", "bg": "#fff3cd", "fg": "#856404", "border": "#ffeaa7"},
-            "fail": {"icon": "✗", "bootstyle": "danger", "bg": "#f8d7da", "fg": "#721c24", "border": "#f5c6cb"}
-        }
-        
-        # Create message label (initially hidden)
-        self.message_container = ttk.Frame(self.message_frame)
-        
-        self.message_icon_label = ttk.Label(self.message_container, font=('Segoe UI', 12, 'bold'))
-        self.message_icon_label.pack(side=LEFT, padx=(10, 5))
-        
-        self.message_label = ttk.Label(self.message_container, font=('Segoe UI', 10))
-        self.message_label.pack(side=LEFT, padx=(0, 10))
-        
-        # Close button
-        self.message_close_btn = ttk.Button(self.message_container, 
-                                           text="×",
-                                           width=3,
-                                           command=self.hide_message)
-        self.message_close_btn.pack(side=RIGHT, padx=(0, 5))
-        
-        # Initially hide the message
-        self.hide_message()
-    
-    def show_message(self, message, status="info"):
-        """Show a message in the message bar"""
-        if status not in self.message_styles:
-            status = "info"
-        
-        # Print to console based on status
-        if status in ["bad", "error"]:
-            self.print_fail(message)
-        elif status == "warning":
-            self.print_warning(message)
-        else:
-            self.print_info(message)
-        
-        style = self.message_styles[status]
-        
-        # Update message content
-        self.message_icon_label.config(text=style["icon"])
-        self.message_label.config(text=message)
-        
-        # Apply styling based on theme
-        if self.current_theme.get() in ["darkly", "superhero", "solar", "cyborg", "vapor"]:
-            # Dark theme adjustments
-            self.message_container.configure(style=f"{style['bootstyle']}.TFrame")
-        else:
-            # Light theme - use custom colors
-            self.message_container.configure(style="TFrame")
-            # We'll use the bootstyle colors which work well
-        
-        # Show the message
-        self.message_container.pack(fill=X, pady=5)
-        
-        # Auto-hide after 5 seconds for non-error messages
-        if status != "fail":
-            self.root.after(5000, self.hide_message)
-    
-    def hide_message(self):
-        """Hide the message bar"""
-        self.message_container.pack_forget()
         
     def create_section(self, parent, title):
         """Create a styled section with title"""
@@ -2905,7 +2824,7 @@ class ModernWordCloudApp:
         if not files_found:
             self.file_listbox.insert(tk.END, "No supported files found")
             if show_toast:
-                self.show_message("No supported files found in the selected folder", "info")
+                self.show_toast("No supported files found in the selected folder", "info")
         else:
             # Sort files by path
             files_found.sort()
@@ -2919,7 +2838,7 @@ class ModernWordCloudApp:
             
             if show_toast:
                 depth_text = f" (depth: {self.recursion_depth.get()})" if self.recursion_depth.get() > 0 else ""
-                self.show_message(f"Found {len(files_found)} supported file(s){depth_text}", "info")
+                self.show_toast(f"Found {len(files_found)} supported file(s){depth_text}", "info")
         
         # Hide progress bar
         self._hide_folder_progress()
@@ -2928,13 +2847,13 @@ class ModernWordCloudApp:
         """Select all files in the listbox"""
         # First check if there are any files
         if self.file_listbox.size() == 0:
-            self.show_message("No files to select", "warning")
+            self.show_toast("No files to select", "warning")
             return
         
         # Check if the first item is "No supported files found"
         first_item = self.file_listbox.get(0)
         if first_item == "No supported files found":
-            self.show_message("No files to select", "warning")
+            self.show_toast("No files to select", "warning")
             return
         
         # Select all items
@@ -2942,7 +2861,7 @@ class ModernWordCloudApp:
         
         # Show message
         file_count = self.file_listbox.size()
-        self.show_message(f"Selected all {file_count} file(s)", "info")
+        self.show_toast(f"Selected all {file_count} file(s)", "info")
     
     def clear_file_selection(self):
         """Clear all file selections"""
@@ -2950,13 +2869,13 @@ class ModernWordCloudApp:
         self.text_content = ""
         # Update source mode label
         self.update_mode_label()
-        self.show_message("File selection cleared", "info")
+        self.show_toast("File selection cleared", "info")
     
     def load_files(self):
         """Load selected files"""
         selected_indices = self.file_listbox.curselection()
         if not selected_indices:
-            self.show_message("Please select at least one file to load", "warning")
+            self.show_toast("Please select at least one file to load", "warning")
             return
         
         # Run loading in a separate thread
@@ -3016,12 +2935,12 @@ class ModernWordCloudApp:
                                 self.text_content += shape.text + "\n"
                 
             except Exception as e:
-                self.root.after(0, self.show_message, f"Error reading {rel_path}: {str(e)}", "fail")
+                self.root.after(0, self.show_toast, f"Error reading {rel_path}: {str(e)}", "danger")
                 self.root.after(0, self.show_toast, f"Error reading {rel_path}", "danger")
         
         # Show success message in the message bar
         total_words = len(self.text_content.split())
-        self.root.after(0, self.show_message, f"Successfully loaded {len(selected_indices)} file(s) with approximately {total_words:,} words", "good")
+        self.root.after(0, self.show_toast, f"Successfully loaded {len(selected_indices)} file(s) with approximately {total_words:,} words", "success")
         self.root.after(0, self.show_toast, f"Files loaded successfully!", "success")
         
         # Hide progress bar
@@ -3034,10 +2953,10 @@ class ModernWordCloudApp:
             # Update source mode label
             self.update_mode_label(source="Custom Text")
             word_count = len(self.text_content.split())
-            self.show_message(f"Text loaded successfully with approximately {word_count:,} words", "good")
+            self.show_toast(f"Text loaded successfully with approximately {word_count:,} words", "success")
             self.show_toast("Text loaded successfully", "success")
         else:
-            self.show_message("Please paste some text into the text area first", "warning")
+            self.show_toast("Please paste some text into the text area first", "warning")
             self.show_toast("Please paste some text first", "warning")
     
     def update_min_label(self, value):
@@ -3444,28 +3363,101 @@ class ModernWordCloudApp:
         )
         if file_path:
             try:
-                self.image_mask_image = np.array(Image.open(file_path))
+                # Load image and convert to grayscale if needed
+                img = Image.open(file_path)
+                if img.mode != 'L':
+                    img = img.convert('L')
+                self.image_mask_image = np.array(img)
                 self.mask_image = self.image_mask_image  # For backward compatibility
-                self.mask_path.set(os.path.basename(file_path))
+                self.mask_path.set(file_path)  # Store full path for preview updates
                 
                 # Update the image mask label
                 self.image_mask_label.config(text=os.path.basename(file_path))
                 
                 # Update mask preview
-                img = Image.open(file_path)
-                img.thumbnail((200, 200), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                if hasattr(self, 'image_mask_preview_label'):
-                    self.image_mask_preview_label.config(image=photo, text="")
-                    self.image_mask_preview_label.image = photo  # Keep a reference
+                self.update_image_mask_preview()
                 
                 # Enable outline options when mask is selected
                 self.update_outline_state(True)
                 
                 # Update mode label
                 self.update_mode_label()
+                
+                # Don't call update_mask_preview here as it might clear the preview
+                # self.update_mask_preview()
             except Exception as e:
                 self.show_toast(f"Error loading mask: {str(e)}", "danger")
+    
+    
+    def update_image_mask_preview(self):
+        """Update the image mask preview with current size"""
+        if not hasattr(self, 'image_mask_preview_label'):
+            return
+            
+        if self.image_mask_image is not None and hasattr(self, 'mask_path'):
+            try:
+                # Get the original image path
+                mask_path = self.mask_path.get()
+                if mask_path and mask_path != "No mask selected" and os.path.exists(mask_path):
+                    # Load image
+                    img = Image.open(mask_path)
+                    
+                    # Create a preview that shows how mask will fill canvas
+                    # Use canvas aspect ratio for preview
+                    canvas_width = self.canvas_width.get()
+                    canvas_height = self.canvas_height.get()
+                    canvas_aspect = canvas_width / canvas_height
+                    
+                    # Set preview size maintaining canvas aspect ratio
+                    preview_max = 350  # Much larger preview
+                    if canvas_aspect > 1:  # Wider than tall
+                        preview_width = preview_max
+                        preview_height = int(preview_max / canvas_aspect)
+                    else:  # Taller than wide
+                        preview_height = preview_max
+                        preview_width = int(preview_max * canvas_aspect)
+                    
+                    # Create preview canvas
+                    preview_canvas = Image.new('RGB', (preview_width, preview_height), 'white')
+                    
+                    # Scale mask to fill entire preview (matching main generation)
+                    mask_width, mask_height = img.size
+                    scale_x = preview_width / mask_width
+                    scale_y = preview_height / mask_height
+                    scale = max(scale_x, scale_y)  # Use max to fill entire preview
+                    
+                    # Resize mask
+                    scaled_width = int(mask_width * scale)
+                    scaled_height = int(mask_height * scale)
+                    scaled_img = img.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+                    
+                    # If scaled mask is larger than preview, crop to center
+                    if scaled_width > preview_width or scaled_height > preview_height:
+                        # Calculate crop box to center the mask
+                        left = (scaled_width - preview_width) // 2
+                        top = (scaled_height - preview_height) // 2
+                        right = left + preview_width
+                        bottom = top + preview_height
+                        scaled_img = scaled_img.crop((left, top, right, bottom))
+                        preview_canvas.paste(scaled_img, (0, 0))
+                    else:
+                        # Center the mask (shouldn't happen with max scale)
+                        x_offset = (preview_width - scaled_width) // 2
+                        y_offset = (preview_height - scaled_height) // 2
+                        preview_canvas.paste(scaled_img, (x_offset, y_offset))
+                    
+                    # Add border to show canvas bounds
+                    from PIL import ImageDraw
+                    draw = ImageDraw.Draw(preview_canvas)
+                    draw.rectangle([0, 0, preview_width-1, preview_height-1], outline='#cccccc', width=1)
+                    
+                    # Convert to PhotoImage and update label
+                    photo = ImageTk.PhotoImage(preview_canvas)
+                    self.image_mask_preview_label.config(image=photo, text="")
+                    self.image_mask_preview_label.image = photo  # Keep a reference
+                    self.print_debug(f"Image mask preview updated (canvas ratio {canvas_width}x{canvas_height})")
+            except Exception as e:
+                self.print_debug(f"Error updating image mask preview: {str(e)}")
     
     def clear_mask(self):
         """Clear selected mask"""
@@ -3653,12 +3645,14 @@ class ModernWordCloudApp:
     
     def update_mask_preview(self):
         """Update the mask preview display"""
+        self.print_debug("update_mask_preview called")
         # Determine which mask to preview based on context
         mask_to_preview = None
         preview_label = None
         
         # Check which tab is active
         current_tab = self.mask_notebook.index(self.mask_notebook.select())
+        self.print_debug(f"Current mask tab: {current_tab}")
         
         if current_tab == 1 and self.image_mask_image is not None:  # Image mask tab
             mask_to_preview = self.image_mask_image
@@ -3854,6 +3848,10 @@ class ModernWordCloudApp:
             # Update scale indicator and slider
             actual_width = self.canvas_width.get()
             actual_height = self.canvas_height.get()
+            
+            # Update image mask preview if one is loaded
+            if hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
+                self.update_image_mask_preview()
             
             # Calculate actual scale percentage
             if actual_width > 0:
@@ -4296,7 +4294,7 @@ class ModernWordCloudApp:
     def generate_wordcloud(self):
         """Generate word cloud in a separate thread"""
         if not self.text_content:
-            self.show_message("No text content available. Please load files or paste text first.", "warning")
+            self.show_toast("No text content available. Please load files or paste text first.", "warning")
             self.show_toast("Please load text from files or paste text first", "warning")
             return
         
@@ -4309,7 +4307,7 @@ class ModernWordCloudApp:
             
             if errors:
                 error_msg = "Cannot generate word cloud:\n\n" + "\n".join(f"• {msg}" for msg in errors)
-                self.show_message(error_msg, "error")
+                self.show_toast(error_msg, "danger")
                 return
             
             if warnings:
@@ -4381,7 +4379,56 @@ class ModernWordCloudApp:
             mask_type = self.mask_type.get()
             
             if mask_type == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
-                mask_to_use = self.image_mask_image
+                # Resize image mask to fill canvas with padding
+                canvas_width = self.canvas_width.get()
+                canvas_height = self.canvas_height.get()
+                
+                # Convert numpy array to PIL Image for resizing
+                mask_img = Image.fromarray(self.image_mask_image.astype('uint8'))
+                if mask_img.mode != 'L':
+                    mask_img = mask_img.convert('L')
+                
+                # Calculate scale to fill entire canvas
+                mask_width, mask_height = mask_img.size
+                scale_x = canvas_width / mask_width
+                scale_y = canvas_height / mask_height
+                
+                # Use the larger scale to ensure mask fills entire canvas
+                scale = max(scale_x, scale_y)
+                
+                # Calculate new size
+                new_width = int(mask_width * scale)
+                new_height = int(mask_height * scale)
+                
+                # Resize the mask
+                mask_img = mask_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                # Create final mask with canvas size and white background
+                final_mask = Image.new(mask_img.mode, (canvas_width, canvas_height), 255)
+                
+                # If mask is larger than canvas, crop to center
+                if new_width > canvas_width or new_height > canvas_height:
+                    # Calculate crop box to center the mask
+                    left = (new_width - canvas_width) // 2
+                    top = (new_height - canvas_height) // 2
+                    right = left + canvas_width
+                    bottom = top + canvas_height
+                    mask_img = mask_img.crop((left, top, right, bottom))
+                    final_mask.paste(mask_img, (0, 0))
+                else:
+                    # Center the resized mask (shouldn't happen with max scale)
+                    x_offset = (canvas_width - new_width) // 2
+                    y_offset = (canvas_height - new_height) // 2
+                    final_mask.paste(mask_img, (x_offset, y_offset))
+                
+                mask_to_use = np.array(final_mask)
+                
+                # Ensure mask shape matches canvas size exactly
+                if mask_to_use.shape[:2] != (canvas_height, canvas_width):
+                    self.print_warning(f"Mask shape {mask_to_use.shape[:2]} doesn't match canvas {canvas_height}x{canvas_width}")
+                
+                self.print_debug(f"Resized mask from {mask_width}x{mask_height} to {new_width}x{new_height} "
+                               f"(canvas: {canvas_width}x{canvas_height}, scale: {scale:.2f})")
             elif mask_type == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
                 mask_to_use = self.text_mask_image
             
@@ -4552,11 +4599,11 @@ class ModernWordCloudApp:
                     # For PNG/JPEG
                     if file_path.lower().endswith('.jpg') or file_path.lower().endswith('.jpeg'):
                         if self.rgba_mode.get():
-                            self.show_message("JPEG format doesn't support transparency. Image will have white background.", "warning")
+                            self.show_toast("JPEG format doesn't support transparency. Image will have white background.", "warning")
                     
                     self.wordcloud.to_file(file_path)
                     
-                self.show_message(f"Word cloud saved successfully to: {os.path.basename(file_path)}", "good")
+                self.show_toast(f"Word cloud saved successfully to: {os.path.basename(file_path)}", "success")
                 self.show_toast(f"Word cloud saved successfully!", "success")
             except Exception as e:
                 self.show_toast(f"Error saving word cloud: {str(e)}", "danger")
@@ -4659,7 +4706,7 @@ class ModernWordCloudApp:
     def validate_fonts(self):
         """Check which fonts are actually available on the system"""
         # Show loading message
-        self.root.after(0, lambda: self.show_message("Discovering available fonts...", "info"))
+        self.root.after(0, lambda: self.show_toast("Discovering available fonts...", "info"))
         
         # Get system fonts
         system_fonts = self.get_system_fonts()
@@ -4742,12 +4789,37 @@ class ModernWordCloudApp:
             def update_ui():
                 if hasattr(self, 'font_listbox'):
                     self.font_listbox.set_fonts(available)
-                self.show_message(f"Found {len(available)} fonts available on your system", "good")
+                self.show_toast(f"Found {len(available)} fonts available on your system", "success")
             
             self.root.after(0, update_ui)
     
     def show_toast(self, message, style="info"):
-        """Show toast notification"""
+        """Show toast notification
+        
+        Toast Message Standards:
+        - All user-facing messages should use toast notifications for consistency
+        - Toasts automatically stack vertically on the right side of the screen
+        - Each toast has a 15-second duration before auto-dismissing
+        - Users can manually dismiss toasts with the X button
+        
+        Style Guidelines:
+        - "success" (green) - For successful operations (file loaded, saved, etc.)
+        - "info" (blue) - For general information (found X files, etc.)
+        - "warning" (yellow) - For warnings that don't prevent operation
+        - "danger"/"error" (red) - For errors that prevent operation
+        
+        Message Guidelines:
+        - Keep messages concise and actionable
+        - Use sentence case (capitalize first word only)
+        - Avoid technical jargon when possible
+        - Include relevant counts/names when applicable
+        
+        Examples:
+        - Success: "Word cloud saved successfully!"
+        - Info: "Found 12 supported files"
+        - Warning: "JPEG format doesn't support transparency"
+        - Error: "Failed to load file: file not found"
+        """
         # Print to console based on style
         if style in ["danger", "error"]:
             self.print_fail(message)
@@ -5075,7 +5147,7 @@ class ModernWordCloudApp:
                 self.print_debug(f"Loaded pasted text: {len(config['pasted_text'])} characters")
             
             if show_message:
-                self.show_message("Configuration loaded successfully", "good")
+                self.show_toast("Configuration loaded successfully", "success")
             
             self.print_info("Configuration applied successfully")
             return True
@@ -5085,7 +5157,7 @@ class ModernWordCloudApp:
             import traceback
             self.print_debug(traceback.format_exc())
             if show_message:
-                self.show_message(f"Failed to apply config: {str(e)}", "fail")
+                self.show_toast(f"Failed to apply config: {str(e)}", "danger")
             return False
     
     def import_config(self):
@@ -5101,7 +5173,7 @@ class ModernWordCloudApp:
                     config = json.load(f)
                 self.apply_config(config)
             except Exception as e:
-                self.show_message(f"Failed to import config: {str(e)}", "fail")
+                self.show_toast(f"Failed to import config: {str(e)}", "danger")
     
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
@@ -5281,18 +5353,18 @@ class ModernWordCloudApp:
         
         if file_path:
             if self.save_config_to_file(file_path):
-                self.show_message("Configuration exported successfully", "good")
+                self.show_toast("Configuration exported successfully", "success")
             else:
-                self.show_message("Failed to export configuration", "fail")
+                self.show_toast("Failed to export configuration", "danger")
     
     
     def save_config_locally(self):
         """Save configuration to local file with user feedback"""
         config_file = get_resource_path(os.path.join('configs', 'default.json'))
         if self.save_config_to_file(config_file):
-            self.show_message(f"Configuration saved to {os.path.basename(config_file)}", "good")
+            self.show_toast(f"Configuration saved to {os.path.basename(config_file)}", "success")
         else:
-            self.show_message("Failed to save configuration locally", "fail")
+            self.show_toast("Failed to save configuration locally", "danger")
     
     def on_closing(self):
         """Handle application closing"""
@@ -5397,7 +5469,7 @@ class ModernWordCloudApp:
             self.current_theme.set("cosmo")
             self.root.style.theme_use("cosmo")
             
-            self.show_message("Application reset to defaults", "good")
+            self.show_toast("Application reset to defaults", "success")
     
     def load_assets(self):
         """Load SVG assets as placeholder text for now"""
