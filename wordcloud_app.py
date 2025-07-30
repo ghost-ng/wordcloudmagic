@@ -32,6 +32,13 @@ from pptx import Presentation
 import re
 
 def get_resource_path(relative_path):
+    # For config and log files, use current working directory when running as PyInstaller app
+    if hasattr(sys, '_MEIPASS') and (relative_path.startswith('configs') or relative_path.startswith('logs')):
+        # Running as PyInstaller bundle - use current working directory
+        base_path = os.getcwd()
+        return os.path.join(base_path, relative_path)
+    
+    # For other resources (templates, assets, etc)
     try:
         base_path = sys._MEIPASS
     except Exception:
