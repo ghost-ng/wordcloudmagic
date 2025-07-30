@@ -1934,11 +1934,39 @@ class ModernWordCloudApp:
     
     def create_mask_preview(self, parent, mask_type=None):
         """Create mask preview frame"""
-        preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
-        preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
+        preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=5)
+        preview_container.pack(fill=BOTH, expand=TRUE, pady=(5, 0))
+        
+        # Create main frame to hold scale and preview
+        main_frame = ttk.Frame(preview_container)
+        main_frame.pack(fill=BOTH, expand=TRUE)
+        
+        # Create scale frame on the left
+        scale_frame = ttk.Frame(main_frame)
+        scale_frame.pack(side=LEFT, fill=Y, padx=(0, 5))
+        
+        # Add vertical scale for preview size
+        if mask_type == "image":
+            self.image_mask_preview_scale = tk.IntVar(value=200)
+            scale = ttk.Scale(scale_frame,
+                            from_=50,
+                            to=400,
+                            orient=VERTICAL,
+                            variable=self.image_mask_preview_scale,
+                            command=self.update_image_mask_preview_size,
+                            bootstyle="primary",
+                            length=200)
+            scale.pack(pady=(20, 0))
+            
+            # Add size label
+            ttk.Label(scale_frame, text="Size", font=('Segoe UI', 8)).pack()
+        
+        # Create preview frame
+        preview_frame = ttk.Frame(main_frame)
+        preview_frame.pack(side=LEFT, fill=BOTH, expand=TRUE)
         
         # Create a label for this specific tab
-        preview_label = ttk.Label(preview_container,
+        preview_label = ttk.Label(preview_frame,
                                  text="No mask selected",
                                  anchor=CENTER,
                                  font=('Segoe UI', 10))
@@ -3448,22 +3476,13 @@ class ModernWordCloudApp:
             try:
                 self.image_mask_image = np.array(Image.open(file_path))
                 self.mask_image = self.image_mask_image  # For backward compatibility
-                self.mask_path.set(os.path.basename(file_path))
+                self.mask_path.set(file_path)  # Store full path for preview updates
                 
                 # Update the image mask label
                 self.image_mask_label.config(text=os.path.basename(file_path))
                 
                 # Update mask preview
-                img = Image.open(file_path)
-                img.thumbnail((200, 200), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                self.print_debug(f"Loading image mask preview, hasattr image_mask_preview_label: {hasattr(self, 'image_mask_preview_label')}")
-                if hasattr(self, 'image_mask_preview_label'):
-                    self.image_mask_preview_label.config(image=photo, text="")
-                    self.image_mask_preview_label.image = photo  # Keep a reference
-                    self.print_debug("Image mask preview updated")
-                else:
-                    self.print_debug("image_mask_preview_label not found!")
+                self.update_image_mask_preview()
                 
                 # Enable outline options when mask is selected
                 self.update_outline_state(True)
@@ -3475,6 +3494,34 @@ class ModernWordCloudApp:
                 # self.update_mask_preview()
             except Exception as e:
                 self.show_toast(f"Error loading mask: {str(e)}", "danger")
+    
+    def update_image_mask_preview_size(self, value=None):
+        """Update image mask preview when scale changes"""
+        if hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
+            self.update_image_mask_preview()
+    
+    def update_image_mask_preview(self):
+        """Update the image mask preview with current size"""
+        if not hasattr(self, 'image_mask_preview_label'):
+            return
+            
+        if self.image_mask_image is not None and hasattr(self, 'mask_path'):
+            try:
+                # Get the original image path
+                mask_path = self.mask_path.get()
+                if mask_path and mask_path != "No mask selected" and os.path.exists(mask_path):
+                    # Load and resize image
+                    img = Image.open(mask_path)
+                    preview_size = self.image_mask_preview_scale.get() if hasattr(self, 'image_mask_preview_scale') else 200
+                    img.thumbnail((preview_size, preview_size), Image.Resampling.LANCZOS)
+                    
+                    # Convert to PhotoImage and update label
+                    photo = ImageTk.PhotoImage(img)
+                    self.image_mask_preview_label.config(image=photo, text="")
+                    self.image_mask_preview_label.image = photo  # Keep a reference
+                    self.print_debug(f"Image mask preview updated with size {preview_size}")
+            except Exception as e:
+                self.print_debug(f"Error updating image mask preview: {str(e)}")
     
     def clear_mask(self):
         """Clear selected mask"""
