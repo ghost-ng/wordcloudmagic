@@ -16,8 +16,6 @@ import platform
 import subprocess
 import json
 from wordcloud import WordCloud, STOPWORDS
-from ctypes import windll, get_last_error, WinError
-
 # Set matplotlib backend BEFORE importing pyplot
 import matplotlib
 matplotlib.use('TkAgg')
@@ -27,17 +25,24 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.colors import LinearSegmentedColormap
 plt.ioff()  # Turn off interactive mode to prevent popup windows
 
-# Debug print function
-def debug_print(msg):
-    """Print debug messages"""
-    print(f"[DEBUG] {msg}")
-
 # File handling imports
 import PyPDF2
 from docx import Document
 from pptx import Presentation
 import re
-from io import BytesIO
+
+def get_resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_path, relative_path)
+
+# Debug print function
+def debug_print(msg):
+    """Print debug messages"""
+    print(f"[DEBUG] {msg}")
 
 class ToastManager:
     """Manages stacked toast notifications"""
@@ -309,15 +314,6 @@ class FontListbox(ttk.Frame):
         self._populate_fonts()
 
 class ModernWordCloudApp:
-    def get_resource_path(self, relative_path):
-        """Get absolute path to resource, works for dev and PyInstaller"""
-        try:
-            # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-        
-        return os.path.join(base_path, relative_path)
     
     def print_debug(self, message):
         """Print debug message if in debug mode"""
@@ -463,7 +459,7 @@ class ModernWordCloudApp:
         self.root.title("WordCloud Magic - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
         self.root.state('zoomed')  # Start maximized
-        
+
         # Asset paths - handle PyInstaller bundle
         if hasattr(sys, '_MEIPASS'):
             self.assets_dir = os.path.join(sys._MEIPASS, 'assets')
@@ -5163,80 +5159,16 @@ class ModernWordCloudApp:
             print(traceback.format_exc())
             self.show_toast(error_msg, "danger")
 
-def set_taskbar_icon(hwnd, icon_path):
-    """
-    Set both window and taskbar icon using ctypes and WM_SETICON.
-    """
-    if platform.system() != 'Windows':
-        return
-        
-    try:
-        WM_SETICON = 0x0080
-        ICON_SMALL = 0  # 16x16
-        ICON_BIG = 1    # 32x32
-        IMAGE_ICON = 1
-        LR_LOADFROMFILE = 0x00000010
-        
-        # Load the icon from file
-        hicon = windll.user32.LoadImageW(
-            0,  # No HINSTANCE, load from file
-            icon_path,
-            IMAGE_ICON,
-            0, 0,  # Default size from the ICO file
-            LR_LOADFROMFILE
-        )
-        
-        if hicon:
-            # Send the icon to the window (both small and big)
-            windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hicon)
-            windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hicon)
-            
-            # Also set the class icon
-            GCL_HICON = -14
-            GCL_HICONSM = -34
-            windll.user32.SetClassLongPtrW(hwnd, GCL_HICON, hicon)
-            windll.user32.SetClassLongPtrW(hwnd, GCL_HICONSM, hicon)
-    except Exception as e:
-        print(f"set_taskbar_icon error: {e}")
 
 def main():
-    # For Windows, set app ID before creating window
-    if platform.system() == 'Windows':
-        try:
-            myappid = 'com.wordcloudmagic.app.1.1.0'
-            windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        except:
-            pass
-    
     # Create the app with a modern theme
     root = ttk.Window(themename="cosmo")
-    
-    # Handle icon path for both development and PyInstaller bundle
-    try:
-        # When running as a PyInstaller bundle
-        if hasattr(sys, '_MEIPASS'):
-            icon_path = os.path.join(sys._MEIPASS, 'icon_256.ico')
-        else:
-            # When running in development
-            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icons', 'icon_256.ico')
-        
-        if os.path.exists(icon_path):
-            # Set window icon
-            root.iconbitmap(icon_path)
-            
-            # Update window to ensure it's fully created
-            root.update_idletasks()
-            
-            # Get the actual window handle and set taskbar icon
-            hwnd = windll.user32.GetParent(root.winfo_id())
-            set_taskbar_icon(hwnd, icon_path)
-        else:
-            print(f"Icon file not found: {icon_path}")
-                    
-    except Exception as e:
-        # If icon fails to load, continue without it
-        print(f"Could not load icon: {e}")
-    
+    icon_path = get_resource_path("icon.png")
+    ico_path = get_resource_path("icon_256.ico")
+    icon = Image.open(icon_path)
+    icon = ImageTk.PhotoImage(icon)
+    root.iconphoto(True, icon)
+    root.iconbitmap(ico_path)
     app = ModernWordCloudApp(root)
     root.mainloop()
 
