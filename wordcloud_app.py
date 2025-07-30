@@ -2594,7 +2594,7 @@ class ModernWordCloudApp:
         
         # Create border frame
         border_frame = ttk.Frame(canvas_container, bootstyle="secondary", padding=2)
-        border_frame.pack(pady=(0, 15))
+        border_frame.pack(pady=(0, 5))
         
         # Canvas frame inside border
         canvas_frame = ttk.Frame(border_frame, bootstyle="light")
