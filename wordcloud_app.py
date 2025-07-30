@@ -35,11 +35,20 @@ from datetime import datetime
 from __version__ import __version__
 
 def get_resource_path(relative_path):
-    # For config and log files, use current working directory when running as PyInstaller app
-    if hasattr(sys, '_MEIPASS') and (relative_path.startswith('configs') or relative_path.startswith('logs')):
-        # Running as PyInstaller bundle - use current working directory
-        base_path = os.getcwd()
-        return os.path.join(base_path, relative_path)
+    # For config and log files, use platform-specific app data directory
+    if relative_path.startswith('configs') or relative_path.startswith('logs'):
+        if sys.platform == 'win32':
+            # Windows: Use %APPDATA%/WordCloudMagic
+            appdata_dir = os.environ.get('APPDATA', os.path.expanduser('~'))
+            app_data_dir = os.path.join(appdata_dir, 'WordCloudMagic')
+        else:
+            # Linux/Mac: Use ~/.wordcloudmagic
+            app_data_dir = os.path.expanduser('~/.wordcloudmagic')
+        
+        # Ensure the app data directory exists
+        os.makedirs(app_data_dir, exist_ok=True)
+        
+        return os.path.join(app_data_dir, relative_path)
     
     # For other resources (templates, assets, etc)
     try:
@@ -393,6 +402,48 @@ class ModernWordCloudApp:
             except:
                 pass
     
+    def migrate_configs(self):
+        """Migrate existing configs from local directory to app data directory"""
+        try:
+            # Get the script directory for old configs
+            if hasattr(sys, '_MEIPASS'):
+                # For exe, configs might be in working directory
+                old_base = os.getcwd()
+            else:
+                # For script, configs are in script directory
+                old_base = os.path.dirname(os.path.abspath(__file__))
+            
+            # Check for old config locations
+            old_configs_dir = os.path.join(old_base, 'configs')
+            
+            if os.path.exists(old_configs_dir):
+                # Get new config directory
+                new_configs_dir = get_resource_path('configs')
+                os.makedirs(new_configs_dir, exist_ok=True)
+                
+                # Migrate each config file
+                migrated_files = []
+                for filename in os.listdir(old_configs_dir):
+                    if filename.endswith('.json'):
+                        old_path = os.path.join(old_configs_dir, filename)
+                        new_path = os.path.join(new_configs_dir, filename)
+                        
+                        # Only migrate if target doesn't exist
+                        if not os.path.exists(new_path):
+                            try:
+                                with open(old_path, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                with open(new_path, 'w', encoding='utf-8') as f:
+                                    f.write(content)
+                                migrated_files.append(filename)
+                            except Exception as e:
+                                self.print_debug(f"Failed to migrate {filename}: {e}")
+                
+                if migrated_files:
+                    self.print_info(f"Migrated config files to app data: {', '.join(migrated_files)}")
+        except Exception as e:
+            self.print_debug(f"Config migration error: {e}")
+    
     def init_logging(self):
         """Initialize logging to file"""
         try:
@@ -583,6 +634,9 @@ class ModernWordCloudApp:
         else:
             self.print_info("Running in SCRIPT mode (Python interpreter)")
             self.print_info(f"Script location: {os.path.dirname(os.path.abspath(__file__))}")
+        
+        # Migrate existing configs to new location
+        self.migrate_configs()
         
         # Initialize toast manager
         self.toast_manager = ToastManager(self.root)
@@ -4143,9 +4197,9 @@ class ModernWordCloudApp:
                 self.transparency_check.configure(state=NORMAL)
             
             # Disable outline options in RGBA mode
-            if hasattr(self, 'outline_width_scale'):
+            if hasattr(self, 'outline_width_scale') and self.outline_width_scale:
                 self.outline_width_scale.configure(state=DISABLED)
-            if hasattr(self, 'outline_color_btn'):
+            if hasattr(self, 'outline_color_btn') and self.outline_color_btn:
                 self.outline_color_btn.configure(state=DISABLED)
             
             if show_toast:
@@ -4163,9 +4217,9 @@ class ModernWordCloudApp:
             
             # Re-enable outline options if mask is selected
             if hasattr(self, 'mask_image') and self.mask_image is not None:
-                if hasattr(self, 'outline_width_scale'):
+                if hasattr(self, 'outline_width_scale') and self.outline_width_scale:
                     self.outline_width_scale.configure(state=NORMAL)
-                if hasattr(self, 'outline_color_btn'):
+                if hasattr(self, 'outline_color_btn') and self.outline_color_btn:
                     self.outline_color_btn.configure(state=NORMAL)
             
             if show_toast:
