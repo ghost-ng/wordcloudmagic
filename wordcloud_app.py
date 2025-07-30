@@ -5030,6 +5030,13 @@ class ModernWordCloudApp:
         """Save configuration to specified file"""
         try:
             self.print_debug(f"Saving configuration to: {file_path}")
+            
+            # Ensure directory exists (especially important for PyInstaller exe)
+            config_dir = os.path.dirname(file_path)
+            if config_dir and not os.path.exists(config_dir):
+                self.print_info(f"Creating config directory: {config_dir}")
+                os.makedirs(config_dir, exist_ok=True)
+            
             config = self.get_current_config()
             
             # Debug print the configuration
