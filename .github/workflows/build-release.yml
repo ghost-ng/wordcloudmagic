@@ -41,6 +41,21 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
     
+    - name: Download and setup UPX
+      run: |
+        # Download UPX
+        $upxVersion = "4.2.2"
+        $upxUrl = "https://github.com/upx/upx/releases/download/v$upxVersion/upx-$upxVersion-win64.zip"
+        Invoke-WebRequest -Uri $upxUrl -OutFile "upx.zip"
+        
+        # Extract UPX
+        Expand-Archive -Path "upx.zip" -DestinationPath "." -Force
+        
+        # Add UPX to PATH
+        $upxPath = (Get-ChildItem -Path "." -Filter "upx-*-win64" -Directory).FullName
+        echo "$upxPath" >> $env:GITHUB_PATH
+        echo "UPX_DIR=$upxPath" >> $env:GITHUB_ENV
+    
     - name: Get version from file
       id: get_version
       run: |
@@ -73,8 +88,11 @@ jobs:
     
     - name: Build executable using existing spec
       run: |
-        # Use the existing spec file from repository
-        pyinstaller wordcloud_app.spec --clean --noconfirm
+        # Verify UPX is available
+        upx --version
+        
+        # Use the existing spec file from repository with UPX
+        pyinstaller wordcloud_app.spec --clean --noconfirm --upx-dir=$env:UPX_DIR
     
     - name: Create portable archive
       run: |
