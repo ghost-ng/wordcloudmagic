@@ -108,6 +108,11 @@ class ToastManager:
             icon="✅" if style == "success" else "⚠" if style == "warning" else "✗" if style in ["danger", "error"] else "ℹ"
         )
         
+        # Function to remove toast from tracking
+        def cleanup_toast():
+            self.active_toasts = [t for t in self.active_toasts if t['toast'] != toast]
+            self._reposition_toasts()
+        
         # Fixed toast width for consistency
         fixed_toast_width = 400
         toast_margin = 20
@@ -133,21 +138,25 @@ class ToastManager:
                 # Force consistent size
                 toast.toplevel.minsize(fixed_toast_width, self.standard_toast_height)
                 toast.toplevel.maxsize(fixed_toast_width, self.standard_toast_height)
+                
+                # Add protocol handler for manual close
+                toast.toplevel.protocol("WM_DELETE_WINDOW", cleanup_toast)
         
         # Position after a short delay to ensure toast is created
         self.root.after(10, position_toast)
         
-        # Schedule removal from tracking after duration
-        def remove_toast():
-            # Remove this toast from active list
-            self.active_toasts = [t for t in self.active_toasts if t['toast'] != toast]
-            self._reposition_toasts()
-        
         # Schedule removal slightly after the toast duration
-        self.root.after(duration + 100, remove_toast)
+        self.root.after(duration + 100, cleanup_toast)
     
     def _reposition_toasts(self):
         """Reposition remaining toasts after one is removed"""
+        # First clean up any toasts that no longer exist
+        self.active_toasts = [t for t in self.active_toasts 
+                             if hasattr(t['toast'], 'toplevel') 
+                             and t['toast'].toplevel 
+                             and t['toast'].toplevel.winfo_exists()]
+        
+        # Now reposition remaining toasts
         y_position = self.base_y_offset
         fixed_toast_width = 400
         toast_margin = 20
@@ -155,16 +164,15 @@ class ToastManager:
         
         for toast_data in self.active_toasts:
             toast = toast_data['toast']
-            if hasattr(toast, 'toplevel') and toast.toplevel and toast.toplevel.winfo_exists():
-                try:
-                    # Use standard height for uniform grid
-                    toast.toplevel.geometry(f"{fixed_toast_width}x{self.standard_toast_height}+{x_position}+{y_position}")
-                    toast.toplevel.minsize(fixed_toast_width, self.standard_toast_height)
-                    toast.toplevel.maxsize(fixed_toast_width, self.standard_toast_height)
-                    
-                    y_position += self.standard_toast_height + self.toast_gap
-                except:
-                    pass
+            try:
+                # Use standard height for uniform grid
+                toast.toplevel.geometry(f"{fixed_toast_width}x{self.standard_toast_height}+{x_position}+{y_position}")
+                toast.toplevel.minsize(fixed_toast_width, self.standard_toast_height)
+                toast.toplevel.maxsize(fixed_toast_width, self.standard_toast_height)
+                
+                y_position += self.standard_toast_height + self.toast_gap
+            except:
+                pass
 
 class FontListbox(ttk.Frame):
     """Custom font selector that displays fonts in their actual style"""
@@ -1906,7 +1914,7 @@ class ModernWordCloudApp:
         
         # Create preview frame directly in preview_container
         preview_frame = ttk.Frame(preview_container)
-        preview_frame.pack(fill=BOTH, expand=TRUE)
+        preview_frame.pack(expand=TRUE)  # Center but don't fill
         
         # Create a label for this specific tab
         preview_label = ttk.Label(preview_frame,
@@ -1914,7 +1922,7 @@ class ModernWordCloudApp:
                                  anchor=CENTER,
                                  font=('Segoe UI', 10),
                                  padding=0)  # Remove padding
-        preview_label.pack(fill=BOTH, expand=TRUE)
+        preview_label.pack()  # Just pack, don't expand or fill
         
         # Store reference based on mask type
         if mask_type == "image":
@@ -3355,7 +3363,11 @@ class ModernWordCloudApp:
         )
         if file_path:
             try:
-                self.image_mask_image = np.array(Image.open(file_path))
+                # Load image and convert to grayscale if needed
+                img = Image.open(file_path)
+                if img.mode != 'L':
+                    img = img.convert('L')
+                self.image_mask_image = np.array(img)
                 self.mask_image = self.image_mask_image  # For backward compatibility
                 self.mask_path.set(file_path)  # Store full path for preview updates
                 
@@ -3387,15 +3399,63 @@ class ModernWordCloudApp:
                 # Get the original image path
                 mask_path = self.mask_path.get()
                 if mask_path and mask_path != "No mask selected" and os.path.exists(mask_path):
-                    # Load and resize image
+                    # Load image
                     img = Image.open(mask_path)
-                    img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+                    
+                    # Create a preview that shows how mask will fill canvas
+                    # Use canvas aspect ratio for preview
+                    canvas_width = self.canvas_width.get()
+                    canvas_height = self.canvas_height.get()
+                    canvas_aspect = canvas_width / canvas_height
+                    
+                    # Set preview size maintaining canvas aspect ratio
+                    preview_max = 350  # Much larger preview
+                    if canvas_aspect > 1:  # Wider than tall
+                        preview_width = preview_max
+                        preview_height = int(preview_max / canvas_aspect)
+                    else:  # Taller than wide
+                        preview_height = preview_max
+                        preview_width = int(preview_max * canvas_aspect)
+                    
+                    # Create preview canvas
+                    preview_canvas = Image.new('RGB', (preview_width, preview_height), 'white')
+                    
+                    # Scale mask to fill entire preview (matching main generation)
+                    mask_width, mask_height = img.size
+                    scale_x = preview_width / mask_width
+                    scale_y = preview_height / mask_height
+                    scale = max(scale_x, scale_y)  # Use max to fill entire preview
+                    
+                    # Resize mask
+                    scaled_width = int(mask_width * scale)
+                    scaled_height = int(mask_height * scale)
+                    scaled_img = img.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+                    
+                    # If scaled mask is larger than preview, crop to center
+                    if scaled_width > preview_width or scaled_height > preview_height:
+                        # Calculate crop box to center the mask
+                        left = (scaled_width - preview_width) // 2
+                        top = (scaled_height - preview_height) // 2
+                        right = left + preview_width
+                        bottom = top + preview_height
+                        scaled_img = scaled_img.crop((left, top, right, bottom))
+                        preview_canvas.paste(scaled_img, (0, 0))
+                    else:
+                        # Center the mask (shouldn't happen with max scale)
+                        x_offset = (preview_width - scaled_width) // 2
+                        y_offset = (preview_height - scaled_height) // 2
+                        preview_canvas.paste(scaled_img, (x_offset, y_offset))
+                    
+                    # Add border to show canvas bounds
+                    from PIL import ImageDraw
+                    draw = ImageDraw.Draw(preview_canvas)
+                    draw.rectangle([0, 0, preview_width-1, preview_height-1], outline='#cccccc', width=1)
                     
                     # Convert to PhotoImage and update label
-                    photo = ImageTk.PhotoImage(img)
+                    photo = ImageTk.PhotoImage(preview_canvas)
                     self.image_mask_preview_label.config(image=photo, text="")
                     self.image_mask_preview_label.image = photo  # Keep a reference
-                    self.print_debug("Image mask preview updated")
+                    self.print_debug(f"Image mask preview updated (canvas ratio {canvas_width}x{canvas_height})")
             except Exception as e:
                 self.print_debug(f"Error updating image mask preview: {str(e)}")
     
@@ -3788,6 +3848,10 @@ class ModernWordCloudApp:
             # Update scale indicator and slider
             actual_width = self.canvas_width.get()
             actual_height = self.canvas_height.get()
+            
+            # Update image mask preview if one is loaded
+            if hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
+                self.update_image_mask_preview()
             
             # Calculate actual scale percentage
             if actual_width > 0:
@@ -4315,7 +4379,56 @@ class ModernWordCloudApp:
             mask_type = self.mask_type.get()
             
             if mask_type == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
-                mask_to_use = self.image_mask_image
+                # Resize image mask to fill canvas with padding
+                canvas_width = self.canvas_width.get()
+                canvas_height = self.canvas_height.get()
+                
+                # Convert numpy array to PIL Image for resizing
+                mask_img = Image.fromarray(self.image_mask_image.astype('uint8'))
+                if mask_img.mode != 'L':
+                    mask_img = mask_img.convert('L')
+                
+                # Calculate scale to fill entire canvas
+                mask_width, mask_height = mask_img.size
+                scale_x = canvas_width / mask_width
+                scale_y = canvas_height / mask_height
+                
+                # Use the larger scale to ensure mask fills entire canvas
+                scale = max(scale_x, scale_y)
+                
+                # Calculate new size
+                new_width = int(mask_width * scale)
+                new_height = int(mask_height * scale)
+                
+                # Resize the mask
+                mask_img = mask_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                # Create final mask with canvas size and white background
+                final_mask = Image.new(mask_img.mode, (canvas_width, canvas_height), 255)
+                
+                # If mask is larger than canvas, crop to center
+                if new_width > canvas_width or new_height > canvas_height:
+                    # Calculate crop box to center the mask
+                    left = (new_width - canvas_width) // 2
+                    top = (new_height - canvas_height) // 2
+                    right = left + canvas_width
+                    bottom = top + canvas_height
+                    mask_img = mask_img.crop((left, top, right, bottom))
+                    final_mask.paste(mask_img, (0, 0))
+                else:
+                    # Center the resized mask (shouldn't happen with max scale)
+                    x_offset = (canvas_width - new_width) // 2
+                    y_offset = (canvas_height - new_height) // 2
+                    final_mask.paste(mask_img, (x_offset, y_offset))
+                
+                mask_to_use = np.array(final_mask)
+                
+                # Ensure mask shape matches canvas size exactly
+                if mask_to_use.shape[:2] != (canvas_height, canvas_width):
+                    self.print_warning(f"Mask shape {mask_to_use.shape[:2]} doesn't match canvas {canvas_height}x{canvas_width}")
+                
+                self.print_debug(f"Resized mask from {mask_width}x{mask_height} to {new_width}x{new_height} "
+                               f"(canvas: {canvas_width}x{canvas_height}, scale: {scale:.2f})")
             elif mask_type == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
                 mask_to_use = self.text_mask_image
             
