@@ -561,6 +561,7 @@ class ModernWordCloudApp:
         # Word orientation and mode
         self.prefer_horizontal = tk.DoubleVar(value=0.9)
         self.rgba_mode = tk.BooleanVar(value=False)
+        self.show_transparency = tk.BooleanVar(value=True)
         self.max_words = tk.IntVar(value=200)
         self.scale = tk.IntVar(value=1)
         
@@ -1409,12 +1410,24 @@ class ModernWordCloudApp:
                        command=self.update_mode,
                        bootstyle="primary").pack(side=LEFT, padx=(0, 15))
         
-        ttk.Radiobutton(mode_frame,
+        rgba_radio = ttk.Radiobutton(mode_frame,
                        text="RGBA (Transparent)",
                        variable=self.rgba_mode,
                        value=True,
                        command=self.update_mode,
-                       bootstyle="primary").pack(side=LEFT)
+                       bootstyle="primary")
+        rgba_radio.pack(side=LEFT)
+        
+        # Show transparency checkbox (only visible in RGBA mode)
+        self.transparency_check = ttk.Checkbutton(mode_frame,
+                                                 text="Show transparency",
+                                                 variable=self.show_transparency,
+                                                 bootstyle="primary")
+        self.transparency_check.pack(side=LEFT, padx=(10, 0))
+        
+        # Initialize checkbox state based on current mode
+        if not self.rgba_mode.get():
+            self.transparency_check.configure(state=DISABLED)
         
         # Background color
         self.bg_container = ttk.Frame(mode_bg_center)
@@ -3819,6 +3832,10 @@ class ModernWordCloudApp:
             self.bg_label.configure(state=DISABLED)
             self.bg_color_btn.configure(state=DISABLED)
             
+            # Show transparency checkbox
+            if hasattr(self, 'transparency_check'):
+                self.transparency_check.configure(state=NORMAL)
+            
             # Disable outline options in RGBA mode
             if hasattr(self, 'outline_width_scale'):
                 self.outline_width_scale.configure(state=DISABLED)
@@ -3833,6 +3850,10 @@ class ModernWordCloudApp:
             # RGB mode - enable background color
             self.bg_label.configure(state=NORMAL)
             self.bg_color_btn.configure(state=NORMAL)
+            
+            # Hide transparency checkbox
+            if hasattr(self, 'transparency_check'):
+                self.transparency_check.configure(state=DISABLED)
             
             # Re-enable outline options if mask is selected
             if hasattr(self, 'mask_image') and self.mask_image is not None:
@@ -4126,29 +4147,33 @@ class ModernWordCloudApp:
         # Get the current axes (created by clear_canvas)
         ax = self.figure.gca()
         
-        if self.rgba_mode.get():
-            # For RGBA mode, create a checkered background to show transparency
+        if self.rgba_mode.get() and self.show_transparency.get():
+            # For RGBA mode with transparency display enabled
             import numpy as np
             
-            # Create checkered pattern at display resolution
+            # Get the actual word cloud dimensions
+            wc_height, wc_width = wc_image.size[1], wc_image.size[0]
+            
+            # Create checkered pattern matching the word cloud size
             checker_size = 20
-            checkerboard = np.zeros((display_height, display_width, 3))
-            for i in range(0, display_height, checker_size * 2):
-                for j in range(0, display_width, checker_size * 2):
+            checkerboard = np.ones((wc_height, wc_width, 3)) * 0.95  # Light gray base
+            
+            # Create checker pattern
+            for i in range(0, wc_height, checker_size * 2):
+                for j in range(0, wc_width, checker_size * 2):
                     checkerboard[i:i+checker_size, j:j+checker_size] = 0.9
-                    checkerboard[i+checker_size:i+2*checker_size, j+checker_size:j+2*checker_size] = 0.9
-            for i in range(checker_size, display_height, checker_size * 2):
-                for j in range(0, display_width, checker_size * 2):
-                    checkerboard[i:i+checker_size, j:j+checker_size] = 0.95
-            for i in range(0, display_height, checker_size * 2):
-                for j in range(checker_size, display_width, checker_size * 2):
-                    checkerboard[i:i+checker_size, j:j+checker_size] = 0.95
+                    if i + checker_size < wc_height and j + checker_size < wc_width:
+                        checkerboard[i+checker_size:i+2*checker_size, j+checker_size:j+2*checker_size] = 0.9
             
-            # Show checkerboard first
-            ax.imshow(checkerboard)
+            # Show checkerboard as background
+            ax.imshow(checkerboard, extent=[0, wc_width, wc_height, 0], aspect='auto')
             
-            # Overlay the word cloud (will be automatically scaled to fit)
-            ax.imshow(wc_image, interpolation='bilinear', alpha=1.0)
+            # Overlay the word cloud with transparency
+            ax.imshow(wc_image, extent=[0, wc_width, wc_height, 0], aspect='auto', interpolation='bilinear')
+        elif self.rgba_mode.get():
+            # RGBA mode but transparency display disabled - show white background
+            ax.set_facecolor('white')
+            ax.imshow(wc_image, interpolation='bilinear')
         else:
             # For RGB mode, just show the image
             ax.imshow(wc_image, interpolation='bilinear')
@@ -4495,7 +4520,7 @@ class ModernWordCloudApp:
             }
             
             # Save to a separate theme config file
-            theme_file = self.get_resource_path(os.path.join('configs', 'theme.json'))
+            theme_file = get_resource_path(os.path.join('configs', 'theme.json'))
             os.makedirs(os.path.dirname(theme_file), exist_ok=True)
             
             with open(theme_file, 'w') as f:
@@ -4508,7 +4533,7 @@ class ModernWordCloudApp:
     def load_theme_preference(self):
         """Load theme preference from file"""
         try:
-            theme_file = self.get_resource_path(os.path.join('configs', 'theme.json'))
+            theme_file = get_resource_path(os.path.join('configs', 'theme.json'))
             if os.path.exists(theme_file):
                 with open(theme_file, 'r') as f:
                     theme_config = json.load(f)
@@ -4767,10 +4792,10 @@ class ModernWordCloudApp:
     def auto_load_config(self):
         """Auto-load configuration from local file if it exists"""
         config_loaded = False
-        config_file = self.get_resource_path(os.path.join('configs', 'default.json'))
+        config_file = get_resource_path(os.path.join('configs', 'default.json'))
         if not os.path.exists(config_file):
             # Try configs directory
-            config_file = self.get_resource_path(os.path.join('configs', 'default.json'))
+            config_file = get_resource_path(os.path.join('configs', 'default.json'))
             
         if os.path.exists(config_file):
             try:
@@ -4942,7 +4967,7 @@ class ModernWordCloudApp:
     
     def save_config_locally(self):
         """Save configuration to local file with user feedback"""
-        config_file = self.get_resource_path(os.path.join('configs', 'default.json'))
+        config_file = get_resource_path(os.path.join('configs', 'default.json'))
         if self.save_config_to_file(config_file):
             self.show_message(f"Configuration saved to {os.path.basename(config_file)}", "good")
         else:
