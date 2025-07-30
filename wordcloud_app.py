@@ -4636,12 +4636,17 @@ class ModernWordCloudApp:
             
             # Save to a separate theme config file
             theme_file = get_resource_path(os.path.join('configs', 'theme.json'))
-            os.makedirs(os.path.dirname(theme_file), exist_ok=True)
+            
+            # Ensure directory exists (especially important for PyInstaller exe)
+            theme_dir = os.path.dirname(theme_file)
+            if not os.path.exists(theme_dir):
+                self.print_info(f"Creating theme config directory: {theme_dir}")
+                os.makedirs(theme_dir, exist_ok=True)
             
             with open(theme_file, 'w') as f:
                 json.dump(theme_config, f, indent=2)
             
-            self.print_debug(f"Theme autosaved: {theme_config}")
+            self.print_debug(f"Theme autosaved to {theme_file}: {theme_config}")
         except Exception as e:
             self.print_warning(f"Could not autosave theme: {e}")
     
