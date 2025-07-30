@@ -1914,7 +1914,7 @@ class ModernWordCloudApp:
         self.create_outline_options(image_mask_frame)
         
         # Add mask preview to this tab
-        self.create_mask_preview(image_mask_frame)
+        self.create_mask_preview(image_mask_frame, mask_type="image")
     
     def create_text_mask_tab(self):
         """Create the text mask tab"""
@@ -1925,14 +1925,14 @@ class ModernWordCloudApp:
         self.create_text_mask_frame(text_mask_frame)
         
         # Add mask preview to this tab
-        self.create_mask_preview(text_mask_frame)
+        self.create_mask_preview(text_mask_frame, mask_type="text")
     
     def create_outline_options(self, parent):
         """Create outline options frame"""
         # This function is now empty as outline options are moved to text_mask_frame
         pass
     
-    def create_mask_preview(self, parent):
+    def create_mask_preview(self, parent, mask_type=None):
         """Create mask preview frame"""
         preview_container = ttk.LabelFrame(parent, text="Mask Preview", padding=10)
         preview_container.pack(fill=BOTH, expand=TRUE, pady=(10, 0))
@@ -1944,11 +1944,13 @@ class ModernWordCloudApp:
                                  font=('Segoe UI', 10))
         preview_label.pack(fill=BOTH, expand=TRUE)
         
-        # Store reference based on parent tab
-        if "image" in str(parent):
+        # Store reference based on mask type
+        if mask_type == "image":
             self.image_mask_preview_label = preview_label
-        else:
+            self.print_debug("Created image_mask_preview_label")
+        elif mask_type == "text":
             self.text_mask_preview_label = preview_label
+            self.print_debug("Created text_mask_preview_label")
     
     def create_image_mask_frame(self, parent):
         """Create the image mask options frame"""
@@ -3455,15 +3457,22 @@ class ModernWordCloudApp:
                 img = Image.open(file_path)
                 img.thumbnail((200, 200), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
+                self.print_debug(f"Loading image mask preview, hasattr image_mask_preview_label: {hasattr(self, 'image_mask_preview_label')}")
                 if hasattr(self, 'image_mask_preview_label'):
                     self.image_mask_preview_label.config(image=photo, text="")
                     self.image_mask_preview_label.image = photo  # Keep a reference
+                    self.print_debug("Image mask preview updated")
+                else:
+                    self.print_debug("image_mask_preview_label not found!")
                 
                 # Enable outline options when mask is selected
                 self.update_outline_state(True)
                 
                 # Update mode label
                 self.update_mode_label()
+                
+                # Don't call update_mask_preview here as it might clear the preview
+                # self.update_mask_preview()
             except Exception as e:
                 self.show_toast(f"Error loading mask: {str(e)}", "danger")
     
@@ -3653,12 +3662,14 @@ class ModernWordCloudApp:
     
     def update_mask_preview(self):
         """Update the mask preview display"""
+        self.print_debug("update_mask_preview called")
         # Determine which mask to preview based on context
         mask_to_preview = None
         preview_label = None
         
         # Check which tab is active
         current_tab = self.mask_notebook.index(self.mask_notebook.select())
+        self.print_debug(f"Current mask tab: {current_tab}")
         
         if current_tab == 1 and self.image_mask_image is not None:  # Image mask tab
             mask_to_preview = self.image_mask_image
