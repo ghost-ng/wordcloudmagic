@@ -114,8 +114,12 @@ class ToastManager:
             icon="✅" if style == "success" else "⚠" if style == "warning" else "✗" if style in ["danger", "error"] else "ℹ"
         )
         
+        # Fixed toast width for consistency
+        fixed_toast_width = 400
+        toast_margin = 20
+        
         # Calculate X position (right side of screen with margin)
-        x_position = self.screen_width - 350  # 350 is approximate toast width
+        x_position = self.screen_width - fixed_toast_width - toast_margin
         
         # Store toast data with estimated height
         toast_data = {
@@ -128,10 +132,13 @@ class ToastManager:
         # Show the toast at calculated position
         toast.show_toast()
         
-        # Override the position after showing
+        # Override the position and size after showing
         def position_toast():
             if toast.toplevel and toast.toplevel.winfo_exists():
-                toast.toplevel.geometry(f"+{x_position}+{y_position}")
+                # Set fixed width and position
+                toast.toplevel.geometry(f"{fixed_toast_width}x{toast.toplevel.winfo_height()}+{x_position}+{y_position}")
+                # Force minimum width
+                toast.toplevel.minsize(fixed_toast_width, 1)
                 # Update with actual height once rendered
                 toast_data['actual_height'] = toast.toplevel.winfo_height()
         
@@ -150,14 +157,18 @@ class ToastManager:
     def _reposition_toasts(self):
         """Reposition remaining toasts after one is removed"""
         y_position = self.base_y_offset
-        x_position = self.screen_width - 350
+        fixed_toast_width = 400
+        toast_margin = 20
+        x_position = self.screen_width - fixed_toast_width - toast_margin
         
         for toast_data in self.active_toasts:
             toast = toast_data['toast']
             if hasattr(toast, 'toplevel') and toast.toplevel and toast.toplevel.winfo_exists():
                 try:
-                    toast.toplevel.geometry(f"+{x_position}+{y_position}")
-                    toast_height = toast.toplevel.winfo_height()
+                    current_height = toast.toplevel.winfo_height()
+                    toast.toplevel.geometry(f"{fixed_toast_width}x{current_height}+{x_position}+{y_position}")
+                    toast.toplevel.minsize(fixed_toast_width, 1)
+                    toast_height = current_height
                     if toast_height == 1:  # Not rendered yet
                         toast_height = toast_data.get('estimated_height', 80)
                     y_position += toast_height + self.toast_gap
