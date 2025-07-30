@@ -41,16 +41,19 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
     
-    - name: Get version
+    - name: Get version from file
       id: get_version
       run: |
-        if ("${{ github.event_name }}" -eq "push") {
-          $version = "${{ github.ref_name }}".Substring(1)
+        # Read version from __version__.py
+        $versionContent = Get-Content "__version__.py" -Raw
+        if ($versionContent -match '__version__\s*=\s*"([^"]+)"') {
+            $version = $matches[1]
+            echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+            echo "Building version: $version"
         } else {
-          $version = "${{ github.event.inputs.version }}"
+            echo "ERROR: Could not parse version from __version__.py"
+            exit 1
         }
-        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-        echo "Building version: $version"
     
     - name: Update version in build script
       run: |
@@ -62,79 +65,15 @@ jobs:
         $fileVersion = $versionParts -join ', '
         
         $content = Get-Content build_exe.py -Raw
-        $content = $content -replace 'filevers=\(1, 0, 0, 0\)', "filevers=($fileVersion)"
-        $content = $content -replace 'prodvers=\(1, 0, 0, 0\)', "prodvers=($fileVersion)"
-        $content = $content -replace 'FileVersion", u"1\.0\.0\.0"', "FileVersion`", u`"$version.0`""
-        $content = $content -replace 'ProductVersion", u"1\.0\.0\.0"', "ProductVersion`", u`"$version.0`""
+        $content = $content -replace 'filevers=\(\d+, \d+, \d+, \d+\)', "filevers=($fileVersion)"
+        $content = $content -replace 'prodvers=\(\d+, \d+, \d+, \d+\)', "prodvers=($fileVersion)"
+        $content = $content -replace 'FileVersion", u"[\d\.]+"', "FileVersion`", u`"$version.0`""
+        $content = $content -replace 'ProductVersion", u"[\d\.]+"', "ProductVersion`", u`"$version.0`""
         Set-Content build_exe.py $content -NoNewline
     
-    - name: Create PyInstaller spec file
+    - name: Build executable using existing spec
       run: |
-        @'
-        # -*- mode: python ; coding: utf-8 -*-
-
-        a = Analysis(
-            ['wordcloud_app.py'],
-            pathex=[],
-            binaries=[],
-            datas=[
-                ('assets', 'assets'),
-                ('configs', 'configs'),
-                ('templates', 'templates'),
-                ('icons/icon_256.ico', '.'),
-            ],
-            hiddenimports=[
-                'ttkbootstrap',
-                'wordcloud',
-                'matplotlib',
-                'matplotlib.backends.backend_tkagg',
-                'PIL._tkinter_finder',
-                'markdown2',
-                'numpy',
-                'ctypes',
-                'ctypes.wintypes',
-            ],
-            hookspath=[],
-            hooksconfig={},
-            runtime_hooks=['runtime_hook.py'],
-            excludes=[],
-            noarchive=False,
-        )
-        
-        pyz = PYZ(a.pure)
-
-        exe = EXE(
-            pyz,
-            a.scripts,
-            a.binaries,
-            a.datas,
-            [],
-            name='WordCloudMagic',
-            debug=False,
-            bootloader_ignore_signals=False,
-            strip=False,
-            upx=True,
-            upx_exclude=[],
-            runtime_tmpdir=None,
-            console=False,
-            disable_windowed_traceback=False,
-            argv_emulation=False,
-            target_arch=None,
-            codesign_identity=None,
-            entitlements_file=None,
-            icon='icons\\icon_256.ico',
-        )
-        '@ | Out-File -FilePath wordcloud_app.spec -Encoding UTF8
-    
-    - name: Build executable
-      run: |
-        # Ensure the spec file exists
-        if (Test-Path wordcloud_app.spec) {
-          Write-Host "Using generated spec file"
-        } else {
-          Write-Host "ERROR: wordcloud_app.spec not found!"
-          exit 1
-        }
+        # Use the existing spec file from repository
         pyinstaller wordcloud_app.spec --clean --noconfirm
     
     - name: Create portable archive
@@ -159,23 +98,85 @@ jobs:
         
         # Create zip archive
         Compress-Archive -Path "release/WordCloudMagic-$version-win64" -DestinationPath "WordCloudMagic-$version-win64.zip"
+        
+    - name: Create source code archive
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        
+        # Create source directory
+        New-Item -ItemType Directory -Force -Path "release/source"
+        
+        # Copy source files (excluding build artifacts and venv)
+        $excludeDirs = @('.git', 'build', 'dist', '__pycache__', 'venv', 'release', '.github')
+        $excludeFiles = @('*.pyc', '*.pyo', '*.log', '*.spec.bak')
+        
+        Get-ChildItem -Path . -Recurse | Where-Object {
+            $item = $_
+            $exclude = $false
+            
+            # Check if in excluded directory
+            foreach ($dir in $excludeDirs) {
+                if ($item.FullName -like "*\$dir\*" -or $item.Name -eq $dir) {
+                    $exclude = $true
+                    break
+                }
+            }
+            
+            # Check if excluded file pattern
+            if (-not $exclude -and -not $item.PSIsContainer) {
+                foreach ($pattern in $excludeFiles) {
+                    if ($item.Name -like $pattern) {
+                        $exclude = $true
+                        break
+                    }
+                }
+            }
+            
+            -not $exclude
+        } | ForEach-Object {
+            $relativePath = $_.FullName.Substring((Get-Location).Path.Length + 1)
+            $destPath = Join-Path "release/source" $relativePath
+            
+            if ($_.PSIsContainer) {
+                New-Item -ItemType Directory -Force -Path $destPath | Out-Null
+            } else {
+                $destDir = Split-Path $destPath -Parent
+                if (-not (Test-Path $destDir)) {
+                    New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+                }
+                Copy-Item $_.FullName -Destination $destPath -Force
+            }
+        }
+        
+        # Create source zip
+        Compress-Archive -Path "release/source/*" -DestinationPath "WordCloudMagic-$version-source.zip"
     
     - name: Calculate hashes
       id: hash
       run: |
-        $hash = Get-FileHash "WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip" -Algorithm SHA256
-        echo "SHA256=$($hash.Hash)" >> $env:GITHUB_OUTPUT
+        $version = "${{ steps.get_version.outputs.VERSION }}"
         
-        # Create hash file
-        "$($hash.Hash)  WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip" | Out-File -FilePath "WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip.sha256" -Encoding UTF8
+        # Calculate exe hash
+        $exeHash = Get-FileHash "WordCloudMagic-$version-win64.zip" -Algorithm SHA256
+        echo "EXE_SHA256=$($exeHash.Hash)" >> $env:GITHUB_OUTPUT
+        
+        # Calculate source hash  
+        $srcHash = Get-FileHash "WordCloudMagic-$version-source.zip" -Algorithm SHA256
+        echo "SRC_SHA256=$($srcHash.Hash)" >> $env:GITHUB_OUTPUT
+        
+        # Create hash files
+        "$($exeHash.Hash)  WordCloudMagic-$version-win64.zip" | Out-File -FilePath "WordCloudMagic-$version-win64.zip.sha256" -Encoding UTF8
+        "$($srcHash.Hash)  WordCloudMagic-$version-source.zip" | Out-File -FilePath "WordCloudMagic-$version-source.zip.sha256" -Encoding UTF8
     
-    - name: Upload artifact
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64
+        name: WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-release
         path: |
           WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip
           WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip.sha256
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-source.zip
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-source.zip.sha256
     
     - name: Create Release
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -186,20 +187,29 @@ jobs:
           ## WordCloud Magic ${{ steps.get_version.outputs.VERSION }}
           
           ### Downloads
-          - 📦 **Windows (64-bit)**: `WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip`
+          - 📦 **Windows Executable**: `WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip`
+          - 📄 **Source Code**: `WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-source.zip`
           
           ### Installation
-          1. Download the ZIP file for your platform
+          1. Download the Windows ZIP file
           2. Extract to your desired location
           3. Run `WordCloudMagic.exe`
           
+          ### Build from Source
+          1. Download and extract the source code
+          2. Install Python 3.8+ and dependencies: `pip install -r requirements.txt`
+          3. Run: `python wordcloud_app.py`
+          
           ### Verification
-          SHA256: `${{ steps.hash.outputs.SHA256 }}`
+          - Windows EXE SHA256: `${{ steps.hash.outputs.EXE_SHA256 }}`
+          - Source Code SHA256: `${{ steps.hash.outputs.SRC_SHA256 }}`
           
           ### What's New
           - See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details
         files: |
           WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip
           WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-win64.zip.sha256
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-source.zip
+          WordCloudMagic-${{ steps.get_version.outputs.VERSION }}-source.zip.sha256
         draft: true
         prerelease: false

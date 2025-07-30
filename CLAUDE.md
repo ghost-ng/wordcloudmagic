@@ -84,3 +84,54 @@ python build_exe.py --clean  # Clean and build
 python build_exe.py --onedir # Create directory distribution
 python build_exe.py --debug  # Build with debug info
 ```
+
+## Versioning and Release Process
+
+### Version Management
+The application version is stored in `__version__.py` and follows semantic versioning (MAJOR.MINOR.PATCH):
+- **MAJOR**: Breaking changes or significant feature overhauls
+- **MINOR**: New features, backwards compatible  
+- **PATCH**: Bug fixes and minor improvements
+
+Current version is imported throughout the codebase as:
+```python
+from __version__ import __version__
+```
+
+### Updating Version
+1. Edit `__version__.py` and update the version string
+2. Commit the change: `git commit -m "Bump version to X.Y.Z"`
+3. Create a tag: `git tag -a vX.Y.Z -m "Release version X.Y.Z"`
+4. Push changes and tag: `git push origin main --tags`
+
+### Creating a Release
+1. **Update version** in `__version__.py`
+2. **Update CHANGELOG.md** with release notes
+3. **Commit changes**: 
+   ```bash
+   git add -A
+   git commit -m "Release version X.Y.Z"
+   ```
+4. **Create and push tag**:
+   ```bash
+   git tag -a vX.Y.Z -m "Release version X.Y.Z"
+   git push origin main --tags
+   ```
+5. GitHub Actions will automatically:
+   - Build the PyInstaller executable using wordcloud_app.spec
+   - Create a draft release with the executable and source code
+   - Generate SHA256 checksums
+
+### Pull Request Process
+1. Create a feature branch: `git checkout -b feature/your-feature-name`
+2. Make your changes and commit them
+3. Push branch: `git push origin feature/your-feature-name`
+4. Create PR on GitHub with description of changes
+5. After review and merge, delete the feature branch
+
+### Version Display
+The version appears in:
+- Window title: "WordCloud Magic vX.Y.Z - Modern Word Cloud Generator"
+- File menu: "About (vX.Y.Z)"
+- Startup logs: "WordCloud Magic vX.Y.Z starting..."
+- About dialog: Shows full version information

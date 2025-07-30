@@ -51,8 +51,8 @@ def create_version_file():
     version_content = """
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(0, 1, 0, 0),
+    prodvers=(0, 1, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -67,12 +67,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'WordCloud Magic'),
         StringStruct(u'FileDescription', u'WordCloud Magic - Create beautiful word clouds'),
-        StringStruct(u'FileVersion', u'1.0.0.0'),
+        StringStruct(u'FileVersion', u'0.1.0.0'),
         StringStruct(u'InternalName', u'WordCloudMagic'),
         StringStruct(u'LegalCopyright', u'Copyright (c) 2025'),
         StringStruct(u'OriginalFilename', u'WordCloudMagic.exe'),
         StringStruct(u'ProductName', u'WordCloud Magic'),
-        StringStruct(u'ProductVersion', u'1.0.0.0')])
+        StringStruct(u'ProductVersion', u'0.1.0.0')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]

@@ -31,6 +31,7 @@ from docx import Document
 from pptx import Presentation
 import re
 from datetime import datetime
+from __version__ import __version__
 
 def get_resource_path(relative_path):
     # For config and log files, use current working directory when running as PyInstaller app
@@ -322,6 +323,8 @@ class FontListbox(ttk.Frame):
         self._populate_fonts()
 
 class ModernWordCloudApp:
+    # Application version
+    VERSION = __version__
     
     def print_debug(self, message):
         """Print debug message if in debug mode"""
@@ -540,7 +543,7 @@ class ModernWordCloudApp:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("WordCloud Magic - Modern Word Cloud Generator")
+        self.root.title(f"WordCloud Magic v{self.VERSION} - Modern Word Cloud Generator")
         self.root.geometry("1300x850")
         self.root.state('zoomed')  # Start maximized
 
@@ -561,7 +564,8 @@ class ModernWordCloudApp:
             self.init_logging()
             self.print_info("Debug mode enabled")
         
-        # Log startup mode
+        # Log startup mode and version
+        self.print_info(f"WordCloud Magic v{self.VERSION} starting...")
         if hasattr(sys, '_MEIPASS'):
             self.print_info("Running in EXE mode (PyInstaller bundle)")
             self.print_info(f"Bundle location: {sys._MEIPASS}")
@@ -763,6 +767,7 @@ class ModernWordCloudApp:
         file_menu.add_command(label="Reset", command=self.reset_app)
         file_menu.add_separator()
         file_menu.add_command(label="Help", command=self.show_help)
+        file_menu.add_command(label=f"About (v{self.VERSION})", command=self.show_about)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.on_closing)
         
@@ -5221,6 +5226,19 @@ class ModernWordCloudApp:
             'icon_text_mask': '🔤',
             'icon_no_mask': '⬜'
         }
+    
+    def show_about(self):
+        """Show about dialog with version information"""
+        about_text = f"""WordCloud Magic v{self.VERSION}
+
+A modern word cloud generator with beautiful UI and powerful features.
+
+© 2025 WordCloud Magic
+Built with Python, Tkinter, and ttkbootstrap
+
+For help and documentation, use the Help menu option."""
+        
+        messagebox.showinfo("About WordCloud Magic", about_text)
     
     def show_help(self):
         """Show help in browser"""
