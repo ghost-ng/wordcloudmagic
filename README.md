@@ -31,7 +31,7 @@ python wordcloud_app.py
 2. **Filter** - Adjust word lengths and forbidden words in the Filters tab  
 3. **Style** - Choose colors, masks, and fonts in the Style tab
 4. **Generate** - Click "Generate Word Cloud" to create your visualization
-5. **Save** - Export as PNG, JPEG, or SVG
+5. **Save** - Export as PNG
 
 💡 **Pro tip:** Run with `--debug` flag for detailed logging
 
@@ -39,7 +39,7 @@ python wordcloud_app.py
 
 **Input:** PDF, DOCX, PPTX, TXT  
 **Masks:** PNG, JPG, JPEG, BMP, GIF  
-**Export:** PNG, JPEG, SVG
+**Export:** PNG
 
 ## ⚙️ Configuration
 
@@ -71,7 +71,7 @@ Access built-in help via **File → Help** for:
 
 ## 📋 Requirements
 
-- Python 3.7+
+- Python 3.8+
 - Tkinter (included with Python)
 - Dependencies in `requirements.txt`
 
@@ -89,9 +89,7 @@ Access built-in help via **File → Help** for:
 ## 🔨 Building
 
 ```bash
-python build_exe.py --clean
-# or
-pyinstaller wordcloud_app.spec --clean --noconfirm
+pyinstaller wordcloud_app.spec
 ```
 
 ## 🤝 Contributing
