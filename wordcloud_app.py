@@ -1950,7 +1950,7 @@ class ModernWordCloudApp:
             self.image_mask_preview_scale = tk.IntVar(value=200)
             scale = ttk.Scale(scale_frame,
                             from_=50,
-                            to=400,
+                            to=800,
                             orient=VERTICAL,
                             variable=self.image_mask_preview_scale,
                             command=self.update_image_mask_preview_size,
@@ -1969,7 +1969,8 @@ class ModernWordCloudApp:
         preview_label = ttk.Label(preview_frame,
                                  text="No mask selected",
                                  anchor=CENTER,
-                                 font=('Segoe UI', 10))
+                                 font=('Segoe UI', 10),
+                                 padding=0)  # Remove padding
         preview_label.pack(fill=BOTH, expand=TRUE)
         
         # Store reference based on mask type
@@ -2513,8 +2514,12 @@ class ModernWordCloudApp:
         preview_container = ttk.LabelFrame(parent, text="Word Cloud Preview", padding=15)
         preview_container.pack(fill=BOTH, expand=TRUE)
         
-        # Create a centered frame for the preview with margins
-        preview_wrapper = ttk.Frame(preview_container)
+        # Create main container that will hold scrollable area and fixed controls
+        main_container = ttk.Frame(preview_container)
+        main_container.pack(fill=BOTH, expand=TRUE)
+        
+        # Create a scrollable frame for the preview
+        preview_wrapper = ttk.Frame(main_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
         
         # Modern status bar header
@@ -2650,9 +2655,13 @@ class ModernWordCloudApp:
         self.preview_canvas_frame = canvas_frame
         self.preview_border_frame = border_frame
         
-        # Preview size control
-        size_control_frame = ttk.Frame(preview_wrapper)
-        size_control_frame.pack(fill=X, pady=(10, 20))
+        # Create fixed bottom control area in main_container
+        bottom_controls = ttk.Frame(main_container)
+        bottom_controls.pack(fill=X, side=BOTTOM)
+        
+        # Preview size control in fixed bottom area
+        size_control_frame = ttk.Frame(bottom_controls)
+        size_control_frame.pack(fill=X, pady=(10, 10))
         
         # Center the controls
         size_center = ttk.Frame(size_control_frame)
@@ -2712,8 +2721,8 @@ class ModernWordCloudApp:
                 # Update scale indicator
                 self.scale_indicator.config(text=f"Preview at {actual_scale}% (limited by screen size)")
         
-        # Button frame (centered below preview)
-        button_frame = ttk.Frame(preview_wrapper)
+        # Button frame in fixed bottom area
+        button_frame = ttk.Frame(bottom_controls)
         button_frame.pack(fill=X)
         
         # Progress bar (initially hidden)
@@ -4439,7 +4448,25 @@ class ModernWordCloudApp:
             mask_type = self.mask_type.get()
             
             if mask_type == "image_mask" and hasattr(self, 'image_mask_image') and self.image_mask_image is not None:
-                mask_to_use = self.image_mask_image
+                # Resize image mask based on preview scale
+                if hasattr(self, 'image_mask_preview_scale'):
+                    scale_size = self.image_mask_preview_scale.get()
+                    # Convert numpy array to PIL Image for resizing
+                    mask_img = Image.fromarray(self.image_mask_image.astype('uint8'))
+                    # Calculate new size maintaining aspect ratio
+                    width, height = mask_img.size
+                    aspect_ratio = width / height
+                    if width > height:
+                        new_width = scale_size
+                        new_height = int(scale_size / aspect_ratio)
+                    else:
+                        new_height = scale_size
+                        new_width = int(scale_size * aspect_ratio)
+                    # Resize the mask
+                    mask_img = mask_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    mask_to_use = np.array(mask_img)
+                else:
+                    mask_to_use = self.image_mask_image
             elif mask_type == "text_mask" and hasattr(self, 'text_mask_image') and self.text_mask_image is not None:
                 mask_to_use = self.text_mask_image
             
