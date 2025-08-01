@@ -70,29 +70,18 @@ jobs:
             exit 1
         }
     
-    - name: Update version in build script
+    - name: Clean build directories
       run: |
-        $version = "${{ steps.get_version.outputs.VERSION }}"
-        $versionParts = $version.Split('.')
-        while ($versionParts.Count -lt 4) {
-          $versionParts += "0"
-        }
-        $fileVersion = $versionParts -join ', '
-        
-        $content = Get-Content build_exe.py -Raw
-        $content = $content -replace 'filevers=\(\d+, \d+, \d+, \d+\)', "filevers=($fileVersion)"
-        $content = $content -replace 'prodvers=\(\d+, \d+, \d+, \d+\)', "prodvers=($fileVersion)"
-        $content = $content -replace 'FileVersion", u"[\d\.]+"', "FileVersion`", u`"$version.0`""
-        $content = $content -replace 'ProductVersion", u"[\d\.]+"', "ProductVersion`", u`"$version.0`""
-        Set-Content build_exe.py $content -NoNewline
+        # Clean any existing build artifacts
+        if (Test-Path "build") { Remove-Item -Path "build" -Recurse -Force }
+        if (Test-Path "dist") { Remove-Item -Path "dist" -Recurse -Force }
+        if (Test-Path "*.spec.bak") { Remove-Item -Path "*.spec.bak" -Force }
+        echo "Build directories cleaned"
     
-    - name: Build executable using existing spec
+    - name: Build executable using build script
       run: |
-        # Verify UPX is available
-        upx --version
-        
-        # Use the existing spec file from repository with UPX
-        pyinstaller wordcloud_app.spec --clean --noconfirm --upx-dir=$env:UPX_DIR
+        # Run the build script which handles version info and all build steps
+        python build_exe.py
     
     - name: Create portable archive
       run: |

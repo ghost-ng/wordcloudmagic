@@ -1,0 +1,21 @@
+# Exclude build artifacts from GitHub releases source archives
+build/ export-ignore
+dist/ export-ignore
+*.exe export-ignore
+*.spec.bak export-ignore
+__pycache__/ export-ignore
+*.pyc export-ignore
+*.pyo export-ignore
+venv/ export-ignore
+.github/ export-ignore
+logs/ export-ignore
+temp/ export-ignore
+upx/ export-ignore
+
+# Ensure consistent line endings
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

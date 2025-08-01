@@ -209,3 +209,7 @@ __marimo__/
 
 # Claude
 .claude/
+
+# Build artifacts
+version_info.txt
+file_version_info.txt

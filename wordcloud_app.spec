@@ -95,7 +95,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='icon_256.ico',  # Use the icon file
-    version_file=None,  # You can add version info later if needed
+    version_file='file_version_info.txt',  # Windows version information
     clean=True,
 )
 

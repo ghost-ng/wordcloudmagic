@@ -2527,6 +2527,16 @@ class ModernWordCloudApp:
         bottom_controls = ttk.Frame(main_container)
         bottom_controls.pack(fill=X, side=BOTTOM, pady=(5, 0))
         
+        # Add footer with author information
+        footer_frame = ttk.Frame(main_container)
+        footer_frame.pack(fill=X, side=BOTTOM, pady=(5, 10))
+        
+        self.footer_label = ttk.Label(footer_frame, 
+                                     text="Created by Ghost-ng | © 2025",
+                                     font=("Helvetica", 9),
+                                     foreground="#6B7280")
+        self.footer_label.pack()
+        
         # Create a scrollable frame for the preview
         preview_wrapper = ttk.Frame(main_container)
         preview_wrapper.pack(fill=BOTH, expand=TRUE, padx=10)  # Reduced horizontal margins
@@ -4929,6 +4939,9 @@ class ModernWordCloudApp:
                 text_color = '#F9FAFB'  # Light text
                 label_color = '#9CA3AF'  # Gray labels
                 self.update_status_bar_colors(bg_color, border_color, text_color, label_color)
+            # Update footer color for dark theme
+            if hasattr(self, 'footer_label'):
+                self.footer_label.config(foreground='#9CA3AF')
         else:
             # Light themes
             self.figure.patch.set_facecolor('white')
@@ -4939,6 +4952,9 @@ class ModernWordCloudApp:
                 text_color = '#1F2937'  # Dark text
                 label_color = '#9CA3AF'  # Gray labels
                 self.update_status_bar_colors(bg_color, border_color, text_color, label_color)
+            # Update footer color for light theme
+            if hasattr(self, 'footer_label'):
+                self.footer_label.config(foreground='#6B7280')
         self.canvas.draw()
         
         # Autosave theme preference
@@ -5548,7 +5564,10 @@ class ModernWordCloudApp:
 
 A modern word cloud generator with beautiful UI and powerful features.
 
-© 2025 WordCloud Magic
+Author: Ghost-ng
+GitHub: https://github.com/ghost-ng/wordcloudmagic
+
+© 2025 Ghost-ng. All rights reserved.
 Built with Python, Tkinter, and ttkbootstrap
 
 For help and documentation, use the Help menu option."""
