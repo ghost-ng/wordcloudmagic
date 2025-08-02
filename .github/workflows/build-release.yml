@@ -41,20 +41,20 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
     
-    - name: Download and setup UPX
+    - name: Setup UPX from repository
       run: |
-        # Download UPX
-        $upxVersion = "4.2.2"
-        $upxUrl = "https://github.com/upx/upx/releases/download/v$upxVersion/upx-$upxVersion-win64.zip"
-        Invoke-WebRequest -Uri $upxUrl -OutFile "upx.zip"
-        
-        # Extract UPX
-        Expand-Archive -Path "upx.zip" -DestinationPath "." -Force
-        
-        # Add UPX to PATH
-        $upxPath = (Get-ChildItem -Path "." -Filter "upx-*-win64" -Directory).FullName
-        echo "$upxPath" >> $env:GITHUB_PATH
+        # Use UPX from the repository
+        $upxPath = Join-Path (Get-Location) "upx"
         echo "UPX_DIR=$upxPath" >> $env:GITHUB_ENV
+        echo "Using UPX from repository: $upxPath"
+        
+        # Verify UPX executable exists
+        if (Test-Path "$upxPath\upx.exe") {
+            echo "UPX executable found at $upxPath\upx.exe"
+        } else {
+            echo "ERROR: UPX executable not found in $upxPath"
+            exit 1
+        }
     
     - name: Get version from file
       id: get_version
@@ -82,6 +82,13 @@ jobs:
       run: |
         # Run the build script which handles version info and all build steps
         python build_exe.py
+    
+    - name: Clean up build artifacts
+      run: |
+        # Remove version files created during build
+        if (Test-Path "file_version_info.txt") { Remove-Item "file_version_info.txt" -Force }
+        if (Test-Path "version_info.txt") { Remove-Item "version_info.txt" -Force }
+        echo "Cleaned up temporary build files"
     
     - name: Create portable archive
       run: |
@@ -115,7 +122,7 @@ jobs:
         
         # Copy source files (excluding build artifacts and venv)
         $excludeDirs = @('.git', 'build', 'dist', '__pycache__', 'venv', 'release', '.github')
-        $excludeFiles = @('*.pyc', '*.pyo', '*.log', '*.spec.bak')
+        $excludeFiles = @('*.pyc', '*.pyo', '*.log', '*.spec.bak', '*.zip', '*.exe', 'file_version_info.txt', 'version_info.txt')
         
         Get-ChildItem -Path . -Recurse | Where-Object {
             $item = $_

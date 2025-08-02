@@ -5,6 +5,38 @@ All notable changes to WordCloud Magic will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2025-08-01
+
+### Fixed
+- **GitHub Actions**: Fixed unnecessary UPX download - now uses bundled UPX from repository
+- **Source Releases**: Cleaned up source archive to exclude all build artifacts (*.exe, *.zip, version files)
+- **Build Process**: Simplified workflow by removing redundant UPX setup steps
+
+### Changed
+- **CI/CD Pipeline**: Optimized to use existing resources instead of downloading dependencies
+
+## [0.3.1] - 2025-08-01
+
+### Added
+- **Author Attribution**: Added "Created by Ghost-ng | © 2025" footer to main window
+- **Enhanced About Dialog**: Now displays author name and GitHub repository link
+- **Executable Metadata**: Windows exe files now include proper version information:
+  - Company Name: Ghost-ng
+  - File Description: WordCloud Magic - Modern Word Cloud Generator
+  - Copyright: © 2025 Ghost-ng. All rights reserved.
+- **Professional Build Script**: New `build_exe.py` with automatic version management
+- **Build Artifacts Exclusion**: Added `.gitattributes` to exclude build files from source releases
+
+### Changed
+- **GitHub Actions**: Updated workflow to use unified `build_exe.py` script
+- **PyInstaller Configuration**: Optimized spec file for better compression and metadata handling
+- **Version Resource**: Properly formatted version information following PyInstaller best practices
+
+### Fixed
+- **Source Releases**: Build artifacts (exe files) no longer included in GitHub source code archives
+- **Build Process**: Improved handling of file locks in OneDrive-synced directories
+- **Theme Compatibility**: Footer text color now adjusts properly with light/dark theme changes
+
 ## [0.3.0] - 2025-01-30
 
 ### Changed
