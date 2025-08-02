@@ -1,4 +1,4 @@
-# WordCloud Magic v0.1.0 - Comprehensive Help Guide
+# WordCloud Magic {VERSION} - Comprehensive Help Guide
 
 ## Getting Started
 

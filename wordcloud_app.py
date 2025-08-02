@@ -5603,6 +5603,9 @@ For help and documentation, use the Help menu option."""
             with open(help_md_path, 'r', encoding='utf-8') as f:
                 markdown_content = f.read()
             
+            # Replace version placeholder
+            markdown_content = markdown_content.replace('{VERSION}', f'v{self.VERSION}')
+            
             # Convert markdown to HTML with extras for better formatting
             html_content = markdown2.markdown(
                 markdown_content,
@@ -5618,8 +5621,9 @@ For help and documentation, use the Help menu option."""
             with open(template_path, 'r', encoding='utf-8') as f:
                 html_template = f.read()
             
-            # Replace the {content} placeholder with the generated HTML
+            # Replace placeholders with the generated HTML and version
             full_html = html_template.replace('{content}', html_content)
+            full_html = full_html.replace('{VERSION}', f'v{self.VERSION}')
             
             # Create temp directory if it doesn't exist
             temp_dir = os.path.join(base_dir, 'temp')
