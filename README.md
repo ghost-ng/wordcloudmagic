@@ -1,6 +1,6 @@
 # WordCloud Magic 🪄
 
-![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.2-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
@@ -80,11 +80,11 @@ Access built-in help via **File → Help** for:
 **Light:** Cosmo, Flatly, Litera, Minty, Lumen, Sandstone, Yeti, Pulse, United  
 **Dark:** Darkly, Cyborg, Vapor, Superhero, Solar, Rose Pine, Gruvbox, Dracula, Monokai
 
-## 🆕 What's New (v0.3.0)
+## 🆕 What's New (v0.3.2)
 
-- **App Data Migration** - Configs/logs now in %APPDATA% (Windows) or ~/.wordcloudmagic (Linux/Mac)
-- **Auto-migration** - Existing configs automatically moved to new location
-- **Bug Fixes** - Fixed outline widget errors in RGBA mode
+- **Author Attribution** - Added footer and enhanced About dialog with author info
+- **Build Improvements** - Fixed GitHub Actions to use bundled UPX
+- **Cleaner Releases** - Source archives now exclude all build artifacts
 
 ## 🔨 Building
 
