@@ -7,7 +7,7 @@
 Create stunning word clouds from your documents with a beautiful, modern interface. Load PDFs, apply custom masks, and export in multiple formats - all with just a few clicks!
 
 ## Preview
-<video src="assets/wordcloud_fast.mp4" autoplay loop muted controls width="600"></video>
+![WordcloudMagic Demo](assets/wordcloud_demo.gif)
 
 ## ✨ Features
 
