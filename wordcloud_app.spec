@@ -33,6 +33,7 @@ a = Analysis(
         'wordcloud',
         'matplotlib',
         'matplotlib.backends.backend_tkagg',
+        'pycryptodome',
         'PIL',
         'PIL._tkinter_finder',
         'numpy',
